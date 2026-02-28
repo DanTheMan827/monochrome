@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import neutralino from 'vite-plugin-neutralino';
+import react from '@vitejs/plugin-react';
 import authGatePlugin from './vite-plugin-auth-gate.js';
 
 export default defineConfig(({ mode }) => {
@@ -32,6 +33,7 @@ export default defineConfig(({ mode }) => {
             emptyOutDir: true,
         },
         plugins: [
+            react(),
             IS_NEUTRALINO && neutralino(),
             authGatePlugin(),
             VitePWA({

@@ -30,14 +30,23 @@
     "homepage": "https://github.com/SamidyFR/monochrome#readme",
     "devDependencies": {
         "@neutralinojs/neu": "^11.7.0",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@typescript-eslint/eslint-plugin": "^8.56.1",
+        "@typescript-eslint/parser": "^8.56.1",
+        "@vitejs/plugin-react": "^5.1.4",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-react": "^7.37.5",
+        "eslint-plugin-react-hooks": "^7.0.1",
         "globals": "^17.0.0",
         "htmlhint": "^1.8.0",
         "prettier": "^3.7.4",
         "stylelint": "^16.26.1",
         "stylelint-config-standard": "^39.0.1",
         "stylelint-config-standard-scss": "^16.0.0",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.56.1",
         "vite": "^7.3.0",
         "vite-plugin-neutralino": "^1.0.3",
         "vite-plugin-pwa": "^1.2.0"
@@ -55,6 +64,8 @@
         "cookie-session": "^2.1.0",
         "dashjs": "^5.1.1",
         "jose": "^6.0.11",
-        "pocketbase": "^0.26.5"
+        "pocketbase": "^0.26.5",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4"
     }
 }
