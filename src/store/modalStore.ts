@@ -15,6 +15,22 @@ export type ModalId =
     | 'tracker'
     | 'epilepsyWarning';
 
+export const ALL_MODAL_IDS: ModalId[] = [
+    'playlist',
+    'editProfile',
+    'folder',
+    'emailAuth',
+    'playlistSelect',
+    'shortcuts',
+    'missingTracks',
+    'sleepTimer',
+    'discographyDownload',
+    'customDb',
+    'themeStore',
+    'tracker',
+    'epilepsyWarning',
+];
+
 interface ModalState {
     openModals: Set<ModalId>;
 }

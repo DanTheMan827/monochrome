@@ -1,5 +1,6 @@
 //storage.js
 import { modalStore } from '../src/store/modalStore.ts';
+import { ALL_MODAL_IDS } from '../src/store/modalStore.ts';
 export const apiSettings = {
     STORAGE_KEY: 'monochrome-api-instances-v9',
     INSTANCES_URLS: [
@@ -2273,12 +2274,7 @@ export const modalSettings = {
             return true;
         }
         // Check modalStore for any open modals
-        const allModalIds = [
-            'playlist', 'editProfile', 'folder', 'emailAuth', 'playlistSelect',
-            'shortcuts', 'missingTracks', 'sleepTimer', 'discographyDownload',
-            'customDb', 'themeStore', 'tracker', 'epilepsyWarning',
-        ] as const;
-        if (allModalIds.some((id) => modalStore.isOpen(id))) {
+        if (ALL_MODAL_IDS.some((id) => modalStore.isOpen(id))) {
             return true;
         }
         return false;
@@ -2291,12 +2287,7 @@ export const modalSettings = {
         });
 
         // Close all modals via modalStore
-        const allModalIds = [
-            'playlist', 'editProfile', 'folder', 'emailAuth', 'playlistSelect',
-            'shortcuts', 'missingTracks', 'sleepTimer', 'discographyDownload',
-            'customDb', 'themeStore', 'tracker', 'epilepsyWarning',
-        ] as const;
-        allModalIds.forEach((id) => modalStore.close(id));
+        ALL_MODAL_IDS.forEach((id) => modalStore.close(id));
     },
 };
 

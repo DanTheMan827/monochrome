@@ -69,7 +69,7 @@ export function SettingsPage() {
               <div className="theme-option" data-theme="purple">Purple</div>
               <div className="theme-option" data-theme="forest">Forest</div>
               <div className="theme-option" data-theme="mocha">Mocha</div>
-              <div className="theme-option" data-theme="machiatto">Machiatto</div>
+              <div className="theme-option" data-theme="machiatto">Macchiato</div>
               <div className="theme-option" data-theme="frappe">Frappé</div>
               <div className="theme-option" data-theme="latte">Latte</div>
               <div className="theme-option" data-theme="custom">Custom</div>
