@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function EmailAuthModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="email-auth-modal" className="modal">
+        <div id="email-auth-modal" className={`modal ${isOpen('emailAuth') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <h3 style={{ textAlign: 'center', marginBottom: '10px' }}>Email Authentication</h3>

@@ -1,8 +1,14 @@
-import React from 'react';
-import { NavigateCapture } from './NavigateCapture';
+import React, { useEffect } from 'react';
+import { AppShell } from './components/AppShell';
 
 const App: React.FC = () => {
-    return <NavigateCapture />;
+    useEffect(() => {
+        import('../js/app').then(({ initApp }) => {
+            initApp();
+        });
+    }, []);
+
+    return <AppShell />;
 };
 
 export default App;

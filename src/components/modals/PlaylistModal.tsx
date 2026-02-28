@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function PlaylistModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="playlist-modal" className="modal">
+        <div id="playlist-modal" className={`modal ${isOpen('playlist') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <h3 id="playlist-modal-title">Create Playlist</h3>
@@ -200,7 +203,7 @@ export function PlaylistModal() {
                         <div id="csv-spotify-guide" style={{ display: 'none', marginBottom: '1rem' }}>
                             <p style={{ fontSize: '0.8rem', margin: '0' }}>
                                 Please use{' '}
-                                <a href="https://exportify.app/" target="_blank" style={{ textDecoration: 'underline' }}>
+                                <a href="https://exportify.app/" target="_blank" style={{ textDecoration: 'underline' }} rel="noreferrer">
                                     Exportify
                                 </a>{' '}
                                 to export your Spotify playlist into a .csv.
@@ -213,7 +216,7 @@ export function PlaylistModal() {
                                 <a
                                     href="https://www.tunemymusic.com/transfer/spotify-to-apple-music"
                                     target="_blank"
-                                    style={{ textDecoration: 'underline' }}
+                                    style={{ textDecoration: 'underline' }} rel="noreferrer"
                                 >
                                     TuneMyMusic
                                 </a>{' '}
@@ -314,7 +317,7 @@ export function PlaylistModal() {
                     </div>
 
                     <p style={{ fontSize: '0.8rem', margin: '0' }}>
-                        <b>Warning:</b> This feature isn't perfect and is prone to errors! Please check your playlist
+                        <b>Warning:</b> This feature isn&apos;t perfect and is prone to errors! Please check your playlist
                         after to remove any unwanted songs that were added by the system.
                     </p>
                 </div>

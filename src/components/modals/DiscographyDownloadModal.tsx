@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function DiscographyDownloadModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="discography-download-modal" className="modal">
+        <div id="discography-download-modal" className={`modal ${isOpen('discographyDownload') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content" style={{ maxWidth: '500px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

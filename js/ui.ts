@@ -1,4 +1,5 @@
 //js/ui.js
+import { modalStore } from '../src/store/modalStore.ts';
 import { showNotification } from './downloads.ts';
 import {
     SVG_PLAY,
@@ -1022,18 +1023,18 @@ export class UIRenderer {
         } else {
             const modal = document.getElementById('epilepsy-warning-modal');
             if (modal) {
-                modal.classList.add('active');
+                modalStore.open('epilepsyWarning');
 
                 const acceptBtn = document.getElementById('epilepsy-accept-btn');
                 const cancelBtn = document.getElementById('epilepsy-cancel-btn');
 
                 acceptBtn.onclick = () => {
-                    modal.classList.remove('active');
+                    modalStore.close('epilepsyWarning');
                     localStorage.setItem('epilepsy-warning-dismissed', 'true');
                     startVisualizer();
                 };
                 cancelBtn.onclick = () => {
-                    modal.classList.remove('active');
+                    modalStore.close('epilepsyWarning');
                     this.closeFullscreenCover();
                 };
             } else {

@@ -1,4 +1,5 @@
 //js/app.js
+import { modalStore } from '../src/store/modalStore.ts';
 import { MusicAPI } from './music-api.ts';
 import {
     apiSettings,
@@ -301,7 +302,7 @@ async function uploadCoverImage(file) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+export async function initApp(): Promise<void> {
     // Initialize analytics
     initAnalytics();
 
@@ -1038,16 +1039,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 coverToggleUrlBtn.title = 'Switch to URL input';
             }
 
-            modal.classList.add('active');
+            modalStore.open('playlist');
             document.getElementById('playlist-name-input').focus();
         }
 
         if (e.target.closest('#create-folder-btn')) {
             trackOpenModal('Create Folder');
-            const modal = document.getElementById('folder-modal');
             document.getElementById('folder-name-input').value = '';
             document.getElementById('folder-cover-input').value = '';
-            modal.classList.add('active');
+            modalStore.open('folder');
             document.getElementById('folder-name-input').focus();
         }
 
@@ -1060,13 +1060,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 trackCreateFolder(folder);
                 await syncManager.syncUserFolder(folder, 'create');
                 ui.renderLibraryPage();
-                document.getElementById('folder-modal').classList.remove('active');
+                modalStore.close('folder');
                 trackCloseModal('Create Folder');
             }
         }
 
         if (e.target.closest('#folder-modal-cancel')) {
-            document.getElementById('folder-modal').classList.remove('active');
+            modalStore.close('folder');
         }
 
         if (e.target.closest('#delete-folder-btn')) {
@@ -1123,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (window.location.pathname === `/userplaylist/${editingId}`) {
                                 ui.renderPlaylistPage(editingId, 'user');
                             }
-                            modal.classList.remove('active');
+                            modalStore.close('playlist');
                             delete modal.dataset.editingId;
                         }
                     });
@@ -1622,7 +1622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await syncManager.syncUserPlaylist(playlist, 'create');
                         trackCreatePlaylist(playlist, importSource);
                         ui.renderLibraryPage();
-                        modal.classList.remove('active');
+                        modalStore.close('playlist');
                         trackCloseModal('Create Playlist');
                     });
                 }
@@ -1630,7 +1630,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (e.target.closest('#playlist-modal-cancel')) {
-            document.getElementById('playlist-modal').classList.remove('active');
+            modalStore.close('playlist');
         }
 
         if (e.target.closest('.edit-playlist-btn')) {
@@ -1685,7 +1685,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     modal.dataset.editingId = playlistId;
                     document.getElementById('import-section').style.display = 'none';
-                    modal.classList.add('active');
+                    modalStore.open('playlist');
                     document.getElementById('playlist-name-input').focus();
                 }
             });
@@ -1749,7 +1749,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     modal.dataset.editingId = playlistId;
                     document.getElementById('import-section').style.display = 'none';
-                    modal.classList.add('active');
+                    modalStore.open('playlist');
                     document.getElementById('playlist-name-input').focus();
                 }
             });
@@ -1896,7 +1896,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         .join('');
 
                 const closeModal = () => {
-                    modal.classList.remove('active');
+                    modalStore.close('playlistSelect');
                     cleanup();
                 };
 
@@ -1916,7 +1916,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // Pass tracks
                         createModal._pendingTracks = tracks;
 
-                        createModal.classList.add('active');
+                        modalStore.open('playlist');
                         document.getElementById('playlist-name-input').focus();
                         return;
                     }
@@ -1947,7 +1947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 overlay.addEventListener('click', closeModal);
                 list.addEventListener('click', handleOptionClick);
 
-                modal.classList.add('active');
+                modalStore.open('playlistSelect');
             } catch (error) {
                 console.error('Failed to prepare album for playlist:', error);
                 const { showNotification } = await loadDownloadsModule();
@@ -2461,7 +2461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 `;
                 document.getElementById('header-google-auth').onclick = () => authManager.signInWithGoogle();
                 document.getElementById('header-email-auth').onclick = () => {
-                    document.getElementById('email-auth-modal').classList.add('active');
+                    modalStore.open('emailAuth');
                     headerAccountDropdown.classList.remove('active');
                 };
             } else {
@@ -2506,7 +2506,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             headerAccountIcon.style.display = 'block';
         });
     }
-});
+}
 
 function showUpdateNotification(updateCallback) {
     // Remove any existing update notification
@@ -2568,7 +2568,10 @@ function showMissingTracksNotification(missingTracks) {
         })
         .join('');
 
-    const closeModal = () => modal.classList.remove('active');
+    const closeModal = () => {
+        modalStore.close('missingTracks');
+        modal.removeEventListener('click', handleClose);
+    };
 
     // Remove old listeners if any (though usually these functions are called once per instance,
     // but since we reuse the same modal element we should be careful or use a one-time listener)
@@ -2580,12 +2583,11 @@ function showMissingTracksNotification(missingTracks) {
             e.target.classList.contains('modal-overlay')
         ) {
             closeModal();
-            modal.removeEventListener('click', handleClose);
         }
     };
 
     modal.addEventListener('click', handleClose);
-    modal.classList.add('active');
+    modalStore.open('missingTracks');
 }
 
 function showDiscographyDownloadModal(artist, api, quality, lyricsManager, triggerBtn) {
@@ -2602,7 +2604,7 @@ function showDiscographyDownloadModal(artist, api, quality, lyricsManager, trigg
     document.getElementById('download-singles').checked = true;
 
     const closeModal = () => {
-        modal.classList.remove('active');
+        modalStore.close('discographyDownload');
     };
 
     const handleClose = (e) => {
@@ -2659,14 +2661,14 @@ function showDiscographyDownloadModal(artist, api, quality, lyricsManager, trigg
         }
     };
 
-    modal.classList.add('active');
+    modalStore.open('discographyDownload');
 }
 
 function showKeyboardShortcuts() {
     const modal = document.getElementById('shortcuts-modal');
 
     const closeModal = () => {
-        modal.classList.remove('active');
+        modalStore.close('shortcuts');
 
         modal.removeEventListener('click', handleClose);
     };
@@ -2682,5 +2684,5 @@ function showKeyboardShortcuts() {
     };
 
     modal.addEventListener('click', handleClose);
-    modal.classList.add('active');
+    modalStore.open('shortcuts');
 }

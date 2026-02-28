@@ -1,4 +1,5 @@
 //js/player.js
+import { playerStore } from '../src/store/playerStore.ts';
 import { MediaPlayer } from 'dashjs';
 import {
     REPEAT_MODE,
@@ -390,6 +391,15 @@ export class Player {
 
         this.currentTrack = track;
 
+        playerStore.setState({
+            currentTrack: track,
+            trackTitle: getTrackTitle(track) || 'Select a song',
+            trackArtist: getTrackArtists(track) || '',
+            trackAlbum: track?.album?.title || '',
+            coverSrc: this.api.getCoverUrl(track?.album?.cover) || track?.cover || '/assets/appicon.png',
+            duration: track?.duration || 0,
+        });
+
         const trackTitle = getTrackTitle(track);
         const trackArtistsHTML = getTrackArtistsHTML(track);
         const yearDisplay = getTrackYearDisplay(track);
@@ -713,6 +723,7 @@ export class Player {
             });
         } else {
             this.audio.pause();
+            playerStore.setState({ isPlaying: false });
             this.saveQueueState();
         }
     }
@@ -763,11 +774,13 @@ export class Player {
         this.preloadCache.clear();
         this.preloadNextTracks();
         this.saveQueueState();
+        playerStore.setState({ shuffleActive: this.shuffleActive });
     }
 
     toggleRepeat() {
         this.repeatMode = (this.repeatMode + 1) % 3;
         this.saveQueueState();
+        playerStore.setState({ repeatMode: this.repeatMode });
         return this.repeatMode;
     }
 
@@ -991,6 +1004,7 @@ export class Player {
         try {
             await this.audio.play();
             this.autoplayBlocked = false;
+            playerStore.setState({ isPlaying: true });
             return true;
         } catch (error) {
             if (error && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {

@@ -1,4 +1,5 @@
 //js/settings
+import { modalStore } from '../src/store/modalStore.ts';
 import {
     themeManager,
     lastFMStorage,
@@ -68,17 +69,17 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (toggleEmailBtn && authModal) {
         toggleEmailBtn.addEventListener('click', () => {
-            authModal.classList.add('active');
+            modalStore.open('emailAuth');
         });
     }
 
     if (cancelEmailBtn && authModal) {
         cancelEmailBtn.addEventListener('click', () => {
-            authModal.classList.remove('active');
+            modalStore.close('emailAuth');
         });
 
         authModal.querySelector('.modal-overlay').addEventListener('click', () => {
-            authModal.classList.remove('active');
+            modalStore.close('emailAuth');
         });
     }
 
@@ -92,7 +93,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             }
             try {
                 await authManager.signInWithEmail(email, password);
-                authModal.classList.remove('active');
+                modalStore.close('emailAuth');
                 emailInput.value = '';
                 passwordInput.value = '';
             } catch {
@@ -111,7 +112,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             }
             try {
                 await authManager.signUpWithEmail(email, password);
-                authModal.classList.remove('active');
+                modalStore.close('emailAuth');
                 emailInput.value = '';
                 passwordInput.value = '';
             } catch {
@@ -2768,11 +2769,11 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 }
             }
 
-            customDbModal.classList.add('active');
+            modalStore.open('customDb');
         });
 
         const closeCustomDbModal = () => {
-            customDbModal.classList.remove('active');
+            modalStore.close('customDb');
         };
 
         customDbCancelBtn.addEventListener('click', closeCustomDbModal);

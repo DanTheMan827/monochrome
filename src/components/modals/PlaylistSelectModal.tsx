@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function PlaylistSelectModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="playlist-select-modal" className="modal">
+        <div id="playlist-select-modal" className={`modal ${isOpen('playlistSelect') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <h3>Add to Playlist</h3>

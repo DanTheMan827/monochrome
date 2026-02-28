@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function ShortcutsModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="shortcuts-modal" className="modal">
+        <div id="shortcuts-modal" className={`modal ${isOpen('shortcuts') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content medium">
                 <div className="shortcuts-header">

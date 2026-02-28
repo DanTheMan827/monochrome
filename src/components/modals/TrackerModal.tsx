@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function TrackerModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="tracker-modal" className="modal tracker-modal">
+        <div id="tracker-modal" className={`modal tracker-modal ${isOpen('tracker') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content wide" style={{ maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
                 <header className="detail-header" style={{ marginBottom: '1rem', paddingBottom: '0' }}>

@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function ThemeStoreModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="theme-store-modal" className="modal">
+        <div id="theme-store-modal" className={`modal ${isOpen('themeStore') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div
                 className="modal-content wide"
@@ -215,7 +218,7 @@ export function ThemeStoreModal() {
                                 <a
                                     href="https://github.com/monochrome-music/monochrome/blob/main/THEME_GUIDE.md"
                                     target="_blank"
-                                    style={{ textDecoration: 'underline', color: 'var(--primary)' }}
+                                    style={{ textDecoration: 'underline', color: 'var(--primary)' }} rel="noreferrer"
                                 >
                                     Read the Theme Guide
                                 </a>

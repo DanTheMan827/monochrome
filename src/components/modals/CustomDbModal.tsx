@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function CustomDbModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="custom-db-modal" className="modal">
+        <div id="custom-db-modal" className={`modal ${isOpen('customDb') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>

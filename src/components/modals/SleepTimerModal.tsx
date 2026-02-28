@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function SleepTimerModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="sleep-timer-modal" className="modal">
+        <div id="sleep-timer-modal" className={`modal ${isOpen('sleepTimer') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content" style={{ maxWidth: '300px' }}>
                 <h3 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>Sleep Timer</h3>

@@ -1,4 +1,5 @@
 //js/events.js
+import { modalStore } from '../src/store/modalStore.ts';
 import {
     SVG_PLAY,
     SVG_PAUSE,
@@ -678,7 +679,7 @@ export async function showAddToPlaylistModal(track) {
     if (!(await renderModal())) return;
 
     const closeModal = () => {
-        modal.classList.remove('active');
+        modalStore.close('playlistSelect');
         cleanup();
     };
 
@@ -716,7 +717,7 @@ export async function showAddToPlaylistModal(track) {
             // Pass track
             createModal._pendingTracks = [track];
 
-            createModal.classList.add('active');
+            modalStore.open('playlist');
             document.getElementById('playlist-name-input').focus();
             return;
         }
@@ -751,7 +752,7 @@ export async function showAddToPlaylistModal(track) {
     overlay.addEventListener('click', closeModal);
     list.addEventListener('click', handleOptionClick);
 
-    modal.classList.add('active');
+    modalStore.open('playlistSelect');
 }
 
 export async function handleTrackAction(
@@ -1094,7 +1095,7 @@ export async function handleTrackAction(
         if (!(await renderModal())) return;
 
         const closeModal = () => {
-            modal.classList.remove('active');
+            modalStore.close('playlistSelect');
             cleanup();
         };
 
@@ -1132,7 +1133,7 @@ export async function handleTrackAction(
                 // Pass track
                 createModal._pendingTracks = [item];
 
-                createModal.classList.add('active');
+                modalStore.open('playlist');
                 document.getElementById('playlist-name-input').focus();
                 return;
             }
@@ -1167,7 +1168,7 @@ export async function handleTrackAction(
         overlay.addEventListener('click', closeModal);
         list.addEventListener('click', handleOptionClick);
 
-        modal.classList.add('active');
+        modalStore.open('playlistSelect');
     } else if (action === 'go-to-artist') {
         const artistId = extraData?.artistId || item.artist?.id || item.artists?.[0]?.id;
         const trackerSheetId = extraData?.trackerSheetId || (item.isTracker ? item.trackerInfo?.sheetId : null);
@@ -1980,7 +1981,7 @@ function showSleepTimerModal(player) {
     if (!modal) return;
 
     const closeModal = () => {
-        modal.classList.remove('active');
+        modalStore.close('sleepTimer');
         cleanup();
     };
 
@@ -2022,5 +2023,5 @@ function showSleepTimerModal(player) {
     modal.addEventListener('click', handleOptionClick);
     modal.addEventListener('click', handleCancel);
 
-    modal.classList.add('active');
+    modalStore.open('sleepTimer');
 }

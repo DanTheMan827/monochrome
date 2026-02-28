@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function FolderModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="folder-modal" className="modal">
+        <div id="folder-modal" className={`modal ${isOpen('folder') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <h3 id="folder-modal-title">Create Folder</h3>

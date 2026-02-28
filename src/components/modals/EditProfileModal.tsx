@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function EditProfileModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="edit-profile-modal" className="modal">
+        <div id="edit-profile-modal" className={`modal ${isOpen('editProfile') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <h3>Edit Profile</h3>

@@ -1,3 +1,4 @@
+import { modalStore } from '../src/store/modalStore.ts';
 import { syncManager } from './accounts/pocketbase.ts';
 import { authManager } from './accounts/auth.ts';
 import { navigate } from './router.ts';
@@ -8,7 +9,6 @@ import { debounce, escapeHtml } from './utils.ts';
 // objects execution february 29th 2027
 
 const profilePage = document.getElementById('page-profile');
-const editProfileModal = document.getElementById('edit-profile-modal');
 const editProfileBtn = document.getElementById('profile-edit-btn');
 const viewMyProfileBtn = document.getElementById('view-my-profile-btn');
 
@@ -510,7 +510,7 @@ export function openEditProfile() {
         privacyPlaylists.checked = p.privacy?.playlists !== 'private';
         privacyLastfm.checked = p.privacy?.lastfm !== 'private';
 
-        editProfileModal.classList.add('active');
+        modalStore.open('editProfile');
     });
 }
 
@@ -554,7 +554,7 @@ async function saveProfile() {
 
     try {
         await syncManager.updateProfile(data);
-        editProfileModal.classList.remove('active');
+        modalStore.close('editProfile');
         loadProfile(newUsername);
 
         if (window.location.pathname.includes('/user/@')) {
@@ -570,7 +570,7 @@ async function saveProfile() {
 }
 
 editProfileBtn.addEventListener('click', openEditProfile);
-cancelProfileBtn.addEventListener('click', () => editProfileModal.classList.remove('active'));
+cancelProfileBtn.addEventListener('click', () => modalStore.close('editProfile'));
 saveProfileBtn.addEventListener('click', saveProfile);
 
 viewMyProfileBtn.addEventListener('click', async () => {

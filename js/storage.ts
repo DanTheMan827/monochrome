@@ -1,4 +1,5 @@
 //storage.js
+import { modalStore } from '../src/store/modalStore.ts';
 export const apiSettings = {
     STORAGE_KEY: 'monochrome-api-instances-v9',
     INSTANCES_URLS: [
@@ -2271,23 +2272,14 @@ export const modalSettings = {
         if (document.querySelector('.modal-overlay')) {
             return true;
         }
-        const modalIds = [
-            'playlist-modal',
-            'folder-modal',
-            'playlist-select-modal',
-            'shortcuts-modal',
-            'missing-tracks-modal',
-            'sleep-timer-modal',
-            'discography-download-modal',
-            'custom-db-modal',
-            'tracker-modal',
-            'epilepsy-warning-modal',
-        ];
-        for (const id of modalIds) {
-            const modal = document.getElementById(id);
-            if (modal && modal.classList.contains('active')) {
-                return true;
-            }
+        // Check modalStore for any open modals
+        const allModalIds = [
+            'playlist', 'editProfile', 'folder', 'emailAuth', 'playlistSelect',
+            'shortcuts', 'missingTracks', 'sleepTimer', 'discographyDownload',
+            'customDb', 'themeStore', 'tracker', 'epilepsyWarning',
+        ] as const;
+        if (allModalIds.some((id) => modalStore.isOpen(id))) {
+            return true;
         }
         return false;
     },
@@ -2298,31 +2290,13 @@ export const modalSettings = {
             modal.remove();
         });
 
-        // Close all modals with active class
-        document.querySelectorAll('.modal.active').forEach((modal) => {
-            modal.classList.remove('active');
-        });
-
-        // Close specific modals by ID
-        const modalIds = [
-            'playlist-modal',
-            'folder-modal',
-            'playlist-select-modal',
-            'shortcuts-modal',
-            'missing-tracks-modal',
-            'sleep-timer-modal',
-            'discography-download-modal',
-            'custom-db-modal',
-            'tracker-modal',
-            'epilepsy-warning-modal',
-        ];
-
-        modalIds.forEach((id) => {
-            const modal = document.getElementById(id);
-            if (modal) {
-                modal.classList.remove('active');
-            }
-        });
+        // Close all modals via modalStore
+        const allModalIds = [
+            'playlist', 'editProfile', 'folder', 'emailAuth', 'playlistSelect',
+            'shortcuts', 'missingTracks', 'sleepTimer', 'discographyDownload',
+            'customDb', 'themeStore', 'tracker', 'epilepsyWarning',
+        ] as const;
+        allModalIds.forEach((id) => modalStore.close(id));
     },
 };
 

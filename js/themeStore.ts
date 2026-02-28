@@ -1,3 +1,4 @@
+import { modalStore } from '../src/store/modalStore.ts';
 import { syncManager } from './accounts/pocketbase.ts';
 import { authManager } from './accounts/auth.ts';
 import { navigate } from './router.ts';
@@ -17,12 +18,12 @@ export class ThemeStore {
 
     init() {
         document.getElementById('open-theme-store-btn')?.addEventListener('click', () => {
-            this.modal.classList.add('active');
+            modalStore.open('themeStore');
             this.loadThemes();
         });
 
         this.modal?.querySelector('.close-modal-btn')?.addEventListener('click', () => {
-            this.modal.classList.remove('active');
+            modalStore.close('themeStore');
         });
 
         const tabs = this.modal?.querySelectorAll('.search-tab');
@@ -49,15 +50,15 @@ export class ThemeStore {
 
         if (authManager) {
             authManager.onAuthStateChanged(() => {
-                if (this.modal.classList.contains('active')) {
+                if (modalStore.isOpen('themeStore')) {
                     this.checkAuth();
                 }
             });
         }
 
         document.getElementById('theme-store-login-btn')?.addEventListener('click', () => {
-            this.modal.classList.remove('active');
-            document.getElementById('email-auth-modal')?.classList.add('active');
+            modalStore.close('themeStore');
+            modalStore.open('emailAuth');
         });
 
         this.setupEditorTools();
@@ -201,7 +202,7 @@ export class ThemeStore {
             const link = div.querySelector('.author-link');
             link?.addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.modal.classList.remove('active');
+                modalStore.close('themeStore');
                 navigate(`/user/@${theme.expand.author.username}`);
             });
         }
@@ -239,7 +240,7 @@ export class ThemeStore {
         if (theme.expand?.author?.username) {
             authorEl.innerHTML = `by <span style="cursor: pointer; text-decoration: underline; color: var(--primary);">${this.escapeHtml(authorName)}</span>`;
             authorEl.querySelector('span').onclick = () => {
-                this.modal.classList.remove('active');
+                modalStore.close('themeStore');
                 navigate(`/user/@${theme.expand.author.username}`);
             };
         } else {
@@ -254,7 +255,7 @@ export class ThemeStore {
         const applyBtn = document.getElementById('theme-details-apply-btn');
         applyBtn.onclick = async () => {
             this.applyTheme(theme);
-            this.modal.classList.remove('active');
+            modalStore.close('themeStore');
 
             try {
                 const latest = await this.pb.collection('themes').getOne(theme.id);

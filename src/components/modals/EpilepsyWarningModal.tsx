@@ -1,6 +1,9 @@
+import { useModalStore } from '../../store/modalStore';
+
 export function EpilepsyWarningModal() {
+    const { isOpen } = useModalStore();
     return (
-        <div id="epilepsy-warning-modal" className="modal">
+        <div id="epilepsy-warning-modal" className={`modal ${isOpen('epilepsyWarning') ? 'active' : ''}`}>
             <div className="modal-overlay"></div>
             <div className="modal-content">
                 <h3 style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -30,7 +33,7 @@ export function EpilepsyWarningModal() {
                 </p>
                 <div className="modal-actions" style={{ flexDirection: 'column', gap: '0.5rem' }}>
                     <button id="epilepsy-accept-btn" className="btn-primary" style={{ width: '100%' }}>
-                        Proceed & Don't Show Again
+                        Proceed & Don&apos;t Show Again
                     </button>
                     <button id="epilepsy-cancel-btn" className="btn-secondary" style={{ width: '100%' }}>Cancel</button>
                 </div>
