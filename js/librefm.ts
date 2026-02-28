@@ -84,7 +84,7 @@ export class LibreFmScrobbler {
         const signatureString = sortedKeys.map((key) => `${key}${filteredParams[key]}`).join('') + this.API_SECRET;
 
         try {
-            const { default: md5 } = await import('./md5.js');
+            const { default: md5 } = await import('./md5.ts');
             return md5(signatureString);
         } catch {
             console.error('MD5 library not available');

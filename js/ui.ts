@@ -1825,7 +1825,7 @@ export class UIRenderer {
                 }
 
                 // Filter out blocked content
-                const { contentBlockingSettings } = await import('./storage.js');
+                const { contentBlockingSettings } = await import('./storage.ts');
                 items = items.filter((item) => {
                     if (item.type === 'track') {
                         return !contentBlockingSettings.shouldHideTrack(item);
@@ -2079,7 +2079,7 @@ export class UIRenderer {
         if (!items || items.length === 0) return [];
 
         // Import blocking settings
-        const { contentBlockingSettings } = await import('./storage.js');
+        const { contentBlockingSettings } = await import('./storage.ts');
 
         // First filter out blocked content
         if (type === 'track') {
@@ -2529,7 +2529,7 @@ export class UIRenderer {
                     .getSimilarArtists(album.artist.id)
                     .then(async (similar) => {
                         // Filter out blocked artists
-                        const { contentBlockingSettings } = await import('./storage.js');
+                        const { contentBlockingSettings } = await import('./storage.ts');
                         const filteredSimilar = contentBlockingSettings.filterArtists(similar || []);
 
                         if (filteredSimilar.length > 0 && similarArtistsContainer && similarArtistsSection) {
@@ -2554,7 +2554,7 @@ export class UIRenderer {
                     .getSimilarAlbums(albumId)
                     .then(async (similar) => {
                         // Filter out blocked albums
-                        const { contentBlockingSettings } = await import('./storage.js');
+                        const { contentBlockingSettings } = await import('./storage.ts');
                         const filteredSimilar = contentBlockingSettings.filterAlbums(similar || []);
 
                         if (filteredSimilar.length > 0 && similarAlbumsContainer && similarAlbumsSection) {
@@ -2601,7 +2601,7 @@ export class UIRenderer {
             });
 
             // Filter out blocked tracks
-            const { contentBlockingSettings } = await import('./storage.js');
+            const { contentBlockingSettings } = await import('./storage.ts');
             recommendedTracks = contentBlockingSettings.filterTracks(recommendedTracks);
 
             if (recommendedTracks.length > 0) {
@@ -3407,7 +3407,7 @@ export class UIRenderer {
                     .getSimilarArtists(artistId)
                     .then(async (similar) => {
                         // Filter out blocked artists
-                        const { contentBlockingSettings } = await import('./storage.js');
+                        const { contentBlockingSettings } = await import('./storage.ts');
                         const filteredSimilar = contentBlockingSettings.filterArtists(similar || []);
 
                         if (filteredSimilar.length > 0) {

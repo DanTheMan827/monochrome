@@ -379,7 +379,7 @@ export class Player {
         }
 
         // Check if track is blocked
-        const { contentBlockingSettings } = await import('./storage.js');
+        const { contentBlockingSettings } = await import('./storage.ts');
         if (contentBlockingSettings.shouldHideTrack(track)) {
             console.warn(`Attempted to play blocked track: ${track.title}. Skipping...`);
             this.playNext();
@@ -638,7 +638,7 @@ export class Player {
         }
 
         // Import blocking settings dynamically
-        import('./storage.js').then(({ contentBlockingSettings }) => {
+        import('./storage.ts').then(({ contentBlockingSettings }) => {
             if (
                 this.repeatMode === REPEAT_MODE.ONE &&
                 !currentQueue[this.currentQueueIndex]?.isUnavailable &&
@@ -685,7 +685,7 @@ export class Player {
                 return;
             }
 
-            import('./storage.js').then(({ contentBlockingSettings }) => {
+            import('./storage.ts').then(({ contentBlockingSettings }) => {
                 const track = currentQueue[this.currentQueueIndex];
                 if (track?.isUnavailable || contentBlockingSettings.shouldHideTrack(track)) {
                     return this.playPrev(recursiveCount + 1);

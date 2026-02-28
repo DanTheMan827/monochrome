@@ -868,7 +868,7 @@ async function bulkDownloadToZipNeutralino(
 
     try {
         // Load the bridge explicitly to ensure we go through the parent shell
-        const bridge = await import('./desktop/neutralino-bridge.js');
+        const bridge = await import('./desktop/neutralino-bridge.ts');
 
         // Native Save Dialog via Bridge
         const savePath = await bridge.os.showSaveDialog(`Select save location for ${folderName}.zip`, {

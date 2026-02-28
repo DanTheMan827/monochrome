@@ -788,7 +788,7 @@ export async function handleTrackAction(
     if (isCollection && collectionActions.includes(action)) {
         try {
             // Check if album/artist is blocked
-            const { contentBlockingSettings } = await import('./storage.js');
+            const { contentBlockingSettings } = await import('./storage.ts');
             if (type === 'album' && contentBlockingSettings.shouldHideAlbum(item)) {
                 showNotification('This album is blocked');
                 return;
@@ -916,7 +916,7 @@ export async function handleTrackAction(
 
     // Individual Track Actions
     // Check if track/artist is blocked
-    const { contentBlockingSettings } = await import('./storage.js');
+    const { contentBlockingSettings } = await import('./storage.ts');
     if (type === 'track' && contentBlockingSettings.shouldHideTrack(item)) {
         showNotification('This track is blocked');
         return;
@@ -1370,7 +1370,7 @@ export async function handleTrackAction(
             showNotification('No original URL available for this track.');
         }
     } else if (action === 'block-track') {
-        const { contentBlockingSettings } = await import('./storage.js');
+        const { contentBlockingSettings } = await import('./storage.ts');
         if (contentBlockingSettings.isTrackBlocked(item.id)) {
             contentBlockingSettings.unblockTrack(item.id);
             trackUnblockTrack(item);
@@ -1381,7 +1381,7 @@ export async function handleTrackAction(
             showNotification(`Blocked track: ${item.title}`);
         }
     } else if (action === 'block-album') {
-        const { contentBlockingSettings } = await import('./storage.js');
+        const { contentBlockingSettings } = await import('./storage.ts');
         const albumId = type === 'album' ? item.id : item.album?.id;
         const albumTitle = type === 'album' ? item.title : item.album?.title;
         const albumArtist = type === 'album' ? item.artist : item.album?.artist;
@@ -1403,7 +1403,7 @@ export async function handleTrackAction(
             showNotification(`Blocked album: ${albumTitle || 'Unknown Album'}`);
         }
     } else if (action === 'block-artist') {
-        const { contentBlockingSettings } = await import('./storage.js');
+        const { contentBlockingSettings } = await import('./storage.ts');
         const artistId = item.artist?.id || item.artists?.[0]?.id;
         const artistName = item.artist?.name || item.artists?.[0]?.name || item.name;
 
@@ -1455,7 +1455,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     }
 
     // Update block/unblock labels
-    const { contentBlockingSettings } = await import('./storage.js');
+    const { contentBlockingSettings } = await import('./storage.ts');
     const type = contextMenu._contextType || 'track';
 
     const blockTrackItem = contextMenu.querySelector('li[data-action="block-track"]');

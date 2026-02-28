@@ -467,7 +467,7 @@ export function initializeUIInteractions(player, api, ui) {
             document.getElementById(contentId)?.classList.add('active');
 
             // Save active tab
-            import('./storage.js').then(({ settingsUiState }) => {
+            import('./storage.ts').then(({ settingsUiState }) => {
                 settingsUiState.setActiveTab(tab.dataset.tab);
             });
         });

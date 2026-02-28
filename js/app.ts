@@ -66,21 +66,21 @@ let metadataModule = null;
 
 async function loadSettingsModule() {
     if (!settingsModule) {
-        settingsModule = await import('./settings.js');
+        settingsModule = await import('./settings.ts');
     }
     return settingsModule;
 }
 
 async function loadDownloadsModule() {
     if (!downloadsModule) {
-        downloadsModule = await import('./downloads.js');
+        downloadsModule = await import('./downloads.ts');
     }
     return downloadsModule;
 }
 
 async function loadMetadataModule() {
     if (!metadataModule) {
-        metadataModule = await import('./metadata.js');
+        metadataModule = await import('./metadata.ts');
     }
     return metadataModule;
 }
@@ -345,7 +345,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Linux Media Keys Fix
     if (window.NL_MODE) {
-        import('./desktop/neutralino-bridge.js').then(({ events }) => {
+        import('./desktop/neutralino-bridge.ts').then(({ events }) => {
             events.on('mediaNext', () => player.playNext());
             events.on('mediaPrevious', () => player.playPrev());
             events.on('mediaPlayPause', () => player.handlePlayPause());
@@ -366,7 +366,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     ) {
         window.NL_MODE = true;
         try {
-            const desktopModule = await import('./desktop/desktop.js');
+            const desktopModule = await import('./desktop/desktop.ts');
             await desktopModule.initDesktop(player);
         } catch (err) {
             console.error('Failed to load desktop module:', err);

@@ -107,7 +107,7 @@ export class LastFMScrobbler {
         console.log('Signature string:', signatureString);
 
         try {
-            const { default: md5 } = await import('./md5.js');
+            const { default: md5 } = await import('./md5.ts');
             return md5(signatureString);
         } catch (e) {
             console.error('MD5 library not available', e);
