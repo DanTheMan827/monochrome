@@ -1,7 +1,8 @@
 import React from 'react';
+import { NavigateCapture } from './NavigateCapture';
 
 const App: React.FC = () => {
-    return null; // The existing app renders into the DOM directly
+    return <NavigateCapture />;
 };
 
 export default App;

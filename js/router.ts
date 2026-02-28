@@ -1,13 +1,24 @@
-//router.js
+//router.ts
 import { getTrackArtists } from './utils.ts';
 import { loadProfile } from './profile.ts';
+import { getNavigateFunction } from '../src/navigation.ts';
 
 export function navigate(path: string): void {
     if (path === window.location.pathname) {
         return;
     }
-    window.history.pushState({}, '', path);
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    const rrNavigate = getNavigateFunction();
+    if (rrNavigate) {
+        // Use React Router for navigation so its history is kept in sync,
+        // then fire a synthetic popstate so the existing imperative route
+        // handler in app.ts picks up the change.
+        rrNavigate(path);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+    } else {
+        // Fallback before React has mounted (e.g. during initial load)
+        window.history.pushState({}, '', path);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+    }
 }
 
 export function createRouter(ui: Record<string, unknown>) {
@@ -32,7 +43,7 @@ export function createRouter(ui: Record<string, unknown>) {
 
         // Helper to extract provider prefix and ID from params
         // Supports formats like: /track/t/123 (Tidal), /track/q/123 (Qobuz), /track/123 (default)
-        const extractProviderAndId = (p) => {
+        const extractProviderAndId = (p: string): { provider: string | null; id: string } => {
             if (p.startsWith('t/')) {
                 return { provider: 'tidal', id: p.slice(2) };
             }
@@ -118,7 +129,7 @@ export function createRouter(ui: Record<string, unknown>) {
     return router;
 }
 
-export function updateTabTitle(player) {
+export function updateTabTitle(player: { currentTrack?: { title: string; [key: string]: unknown } | null }): void {
     if (player.currentTrack) {
         const track = player.currentTrack;
         document.title = `${track.title} • ${getTrackArtists(track)}`;
