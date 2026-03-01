@@ -1,4 +1,4 @@
-import RefreshIcon from '../../assets/icons/history.svg?react';
+import HistoryIcon from '../../assets/icons/history.svg?react';
 import TrashIcon from '../../assets/icons/trash.svg?react';
 
 export function AudioSettings() {
@@ -232,7 +232,7 @@ export function AudioSettings() {
                   className="btn-secondary"
                   title="Reset to Flat"
                 >
-                  <RefreshIcon width={16} height={16} />
+                  <HistoryIcon width={16} height={16} />
                 </button>
                 <button
                   id="eq-export-btn"
