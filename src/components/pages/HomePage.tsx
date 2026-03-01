@@ -1,3 +1,6 @@
+import RotateCwIcon from '../../assets/icons/rotate-cw.svg?react';
+import TrashIcon from '../../assets/icons/trash.svg?react';
+
 export function HomePage() {
   return (
     <div id="page-home" className="page">
@@ -39,20 +42,7 @@ export function HomePage() {
               title="Refresh"
               style={{ padding: '4px 8px' }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
+              <RotateCwIcon width={16} height={16} />
             </button>
           </div>
           <div className="track-list" id="home-recommended-songs"></div>
@@ -73,20 +63,7 @@ export function HomePage() {
               title="Refresh"
               style={{ padding: '4px 8px' }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
+              <RotateCwIcon width={16} height={16} />
             </button>
           </div>
           <div className="card-grid" id="home-recommended-albums"></div>
@@ -107,20 +84,7 @@ export function HomePage() {
               title="Refresh"
               style={{ padding: '4px 8px' }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                <path d="M21 3v5h-5" />
-              </svg>
+              <RotateCwIcon width={16} height={16} />
             </button>
           </div>
           <div className="card-grid" id="home-recommended-artists"></div>
@@ -141,21 +105,7 @@ export function HomePage() {
               title="Clear History"
               style={{ padding: '4px 8px' }}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 6h18" />
-                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-              </svg>
+              <TrashIcon width={16} height={16} />
             </button>
           </div>
           <div className="card-grid" id="home-recent-mixed"></div>

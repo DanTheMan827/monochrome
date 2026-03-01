@@ -1,4 +1,7 @@
 import { useModalStore } from '../../store/modalStore';
+import ChevronLeftIcon from '../../assets/icons/chevron-left.svg?react';
+import SearchIcon from '../../assets/icons/search.svg?react';
+import SpinnerIcon from '../../assets/icons/spinner.svg?react';
 
 export function ThemeStoreModal() {
     const { isOpen } = useModalStore();
@@ -45,19 +48,7 @@ export function ThemeStoreModal() {
                             gap: '0.5rem',
                         }}
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <path d="m15 18-6-6 6-6" />
-                        </svg>
+                        <ChevronLeftIcon width={16} height={16} />
                         Back
                     </button>
                     <div style={{ flex: '1', overflowY: 'auto', paddingRight: '0.5rem' }}>
@@ -115,21 +106,7 @@ export function ThemeStoreModal() {
                     style={{ flex: '1', overflowY: 'auto', minHeight: '0' }}
                 >
                     <div className="track-list-search-container" style={{ margin: '0 0 1rem 0' }}>
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            width="20"
-                            height="20"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="search-icon"
-                        >
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
+                        <SearchIcon width={20} height={20} className="search-icon" />
                         <input
                             type="search"
                             id="theme-store-search"
@@ -141,19 +118,7 @@ export function ThemeStoreModal() {
                     <div id="community-themes-grid" className="card-grid"></div>
                     <div id="theme-store-loading" style={{ textAlign: 'center', padding: '2rem', display: 'none' }}>
                         <div className="animate-spin" style={{ display: 'inline-block' }}>
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="24"
-                                height="24"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            >
-                                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                            </svg>
+                            <SpinnerIcon width={24} height={24} />
                         </div>
                     </div>
                 </div>

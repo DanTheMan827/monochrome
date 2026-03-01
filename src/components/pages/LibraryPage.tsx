@@ -1,3 +1,7 @@
+import ShuffleIcon from '../../assets/icons/shuffle.svg?react';
+import DownloadIcon from '../../assets/icons/download.svg?react';
+import FolderIcon from '../../assets/icons/folder.svg?react';
+
 export function LibraryPage() {
   return (
     <div id="page-library" className="page">
@@ -48,23 +52,7 @@ export function LibraryPage() {
               }}
               title="Shuffle Liked Tracks"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m18 14 4 4-4 4" />
-                <path d="m18 2 4 4-4 4" />
-                <path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22" />
-                <path d="M2 6h1.972a4 4 0 0 1 3.6 2.2" />
-                <path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45" />
-              </svg>
+              <ShuffleIcon width={16} height={16} />
             </button>
             <button
               id="download-liked-tracks-btn"
@@ -80,21 +68,7 @@ export function LibraryPage() {
               }}
               title="Download Liked Tracks"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+              <DownloadIcon width={16} height={16} />
             </button>
           </div>
           <div className="track-list" id="library-tracks-container"></div>
@@ -112,19 +86,7 @@ export function LibraryPage() {
           <div className="track-list" id="library-local-container">
             <div id="local-files-intro" style={{ padding: '20px', textAlign: 'center' }}>
               <button id="select-local-folder-btn" className="btn-secondary">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  style={{ marginRight: '8px' }}
-                >
-                  <path
-                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                  ></path>
-                </svg>
+                <FolderIcon width={20} height={20} style={{ marginRight: '8px' }} />
                 <span id="select-local-folder-text">Select Music Folder</span>
               </button>
               <p

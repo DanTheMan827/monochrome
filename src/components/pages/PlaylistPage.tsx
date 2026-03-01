@@ -1,3 +1,10 @@
+import PlayIcon from '../../assets/icons/play.svg?react';
+import ShuffleIcon from '../../assets/icons/shuffle.svg?react';
+import DownloadIcon from '../../assets/icons/download.svg?react';
+import HeartIcon from '../../assets/icons/heart.svg?react';
+import SearchIcon from '../../assets/icons/search.svg?react';
+import RefreshIcon from '../../assets/icons/rotate-cw.svg?react';
+
 export function PlaylistPage() {
   return (
     <section id="page-playlist" className="page">
@@ -17,53 +24,15 @@ export function PlaylistPage() {
           <div className="meta" id="playlist-detail-description"></div>
           <div className="detail-header-actions">
             <button id="play-playlist-btn" className="btn-primary" title="Play">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <polygon points="7 3 21 12 7 21 7 3"></polygon>
-              </svg>
+              <PlayIcon width={20} height={20} fill="currentColor" />
               <span>Play</span>
             </button>
             <button id="shuffle-playlist-btn" className="btn-primary" title="Shuffle">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="m18 14 4 4-4 4" />
-                <path d="m18 2 4 4-4 4" />
-                <path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22" />
-                <path d="M2 6h1.972a4 4 0 0 1 3.6 2.2" />
-                <path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45" />
-              </svg>
+              <ShuffleIcon width={18} height={18} />
               <span>Shuffle</span>
             </button>
             <button id="download-playlist-btn" className="btn-primary" title="Download">
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
+              <DownloadIcon width={20} height={20} />
               <span>Download</span>
             </button>
             <button
@@ -73,43 +42,14 @@ export function PlaylistPage() {
               data-type="playlist"
               title="Save to Favorites"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="heart-icon"
-              >
-                <path
-                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                ></path>
-              </svg>
+              <HeartIcon width={20} height={20} className="heart-icon" />
               <span>Save</span>
             </button>
           </div>
         </div>
       </header>
       <form className="track-list-search-container" onSubmit={(e) => e.preventDefault()}>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="search-icon"
-        >
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
+        <SearchIcon width={20} height={20} className="search-icon" />
         <input
           type="search"
           id="track-list-search-input"
@@ -146,19 +86,7 @@ export function PlaylistPage() {
             className="btn-secondary"
             title="Refresh Recommendations"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-              <path d="M21 3v5h-5" />
-            </svg>
+            <RefreshIcon width={18} height={18} />
           </button>
         </div>
         <div className="track-list" id="playlist-detail-recommended"></div>
