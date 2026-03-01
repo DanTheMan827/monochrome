@@ -17,9 +17,10 @@ function isAnalyticsEnabled() {
  */
 export function trackEvent(eventName, props = {}) {
     if (!isAnalyticsEnabled()) return;
-    if (window.plausible) {
+    const w = window as Window & { plausible?: (event: string, options?: Record<string, unknown>) => void };
+    if (w.plausible) {
         try {
-            window.plausible(eventName, { props });
+            w.plausible(eventName, { props });
         } catch {
             // Silently fail if analytics is blocked
         }

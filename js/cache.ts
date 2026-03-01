@@ -1,6 +1,13 @@
 //js/cache.js
 export class APICache {
-    constructor(options = {}) {
+    memoryCache: Map<string, { key: string; data: unknown; timestamp: number }>;
+    maxSize: number;
+    ttl: number;
+    dbName: string;
+    dbVersion: number;
+    db: IDBDatabase | null;
+
+    constructor(options: { maxSize?: number; ttl?: number } = {}) {
         this.memoryCache = new Map();
         this.maxSize = options.maxSize || 200;
         this.ttl = options.ttl || 1000 * 60 * 30;
@@ -23,7 +30,7 @@ export class APICache {
             };
 
             request.onupgradeneeded = (event) => {
-                const db = event.target.result;
+                const db = (event.target as IDBOpenDBRequest).result;
 
                 if (!db.objectStoreNames.contains('responses')) {
                     const store = db.createObjectStore('responses', { keyPath: 'key' });
@@ -88,7 +95,7 @@ export class APICache {
         }
     }
 
-    getFromIndexedDB(key) {
+    getFromIndexedDB(key): Promise<{ key: string; data: unknown; timestamp: number } | null> {
         return new Promise((resolve, reject) => {
             if (!this.db) {
                 resolve(null);
@@ -104,7 +111,7 @@ export class APICache {
         });
     }
 
-    setInIndexedDB(entry) {
+    setInIndexedDB(entry): Promise<void> {
         return new Promise((resolve, reject) => {
             if (!this.db) {
                 resolve();
@@ -120,11 +127,11 @@ export class APICache {
         });
     }
 
-    async clear() {
+    async clear(): Promise<void> {
         this.memoryCache.clear();
 
         if (this.db) {
-            return new Promise((resolve, reject) => {
+            return new Promise<void>((resolve, reject) => {
                 const transaction = this.db.transaction(['responses'], 'readwrite');
                 const store = transaction.objectStore('responses');
                 const request = store.clear();
@@ -156,7 +163,7 @@ export class APICache {
                 const request = index.openCursor(range);
 
                 request.onsuccess = (event) => {
-                    const cursor = event.target.result;
+                    const cursor = (event.target as IDBRequest).result as IDBCursorWithValue | null;
                     if (cursor) {
                         cursor.delete();
                         cursor.continue();

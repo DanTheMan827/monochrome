@@ -53,6 +53,12 @@ import {
     trackStartMix,
 } from './analytics.ts';
 
+declare global {
+    interface Window {
+        renderQueueFunction?: () => void;
+    }
+}
+
 let currentTrackIdForWaveform = null;
 
 export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
@@ -360,7 +366,7 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     };
 
     window.addEventListener('waveform-toggle', (e) => {
-        if (!e.detail.enabled) {
+        if (!(e as CustomEvent<{ enabled: boolean }>).detail.enabled) {
             const progressBar = document.getElementById('progress-bar');
             const playerControls = document.querySelector('.player-controls');
             if (progressBar) {
@@ -472,7 +478,7 @@ function initializeSmoothSliders(audioPlayer, player) {
             seek(volumeBar, e, (position) => {
                 if (audioPlayer.muted) {
                     audioPlayer.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', 'false');
                 }
                 player.setVolume(position);
                 volumeFill.style.width = `${position * 100}%`;
@@ -497,7 +503,7 @@ function initializeSmoothSliders(audioPlayer, player) {
             const position = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
             if (audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
             player.setVolume(position);
             volumeFill.style.width = `${position * 100}%`;
@@ -546,7 +552,7 @@ function initializeSmoothSliders(audioPlayer, player) {
                 } else if (player.currentTrack && player.currentTrack.duration) {
                     const targetTime = position * player.currentTrack.duration;
                     const progressFill = document.querySelector('.progress-fill');
-                    if (progressFill) progressFill.style.width = `${position * 100}%`;
+                    if (progressFill) (progressFill as HTMLElement).style.width = `${position * 100}%`;
                     player.playTrackFromQueue(targetTime);
                 }
             });
@@ -558,7 +564,7 @@ function initializeSmoothSliders(audioPlayer, player) {
         seek(volumeBar, e, (position) => {
             if (audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
             player.setVolume(position);
             volumeFill.style.width = `${position * 100}%`;
@@ -574,7 +580,7 @@ function initializeSmoothSliders(audioPlayer, player) {
         const position = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
         if (audioPlayer.muted) {
             audioPlayer.muted = false;
-            localStorage.setItem('muted', false);
+            localStorage.setItem('muted', 'false');
         }
         player.setVolume(position);
         volumeFill.style.width = `${position * 100}%`;
@@ -586,7 +592,7 @@ function initializeSmoothSliders(audioPlayer, player) {
             seek(volumeBar, e, (position) => {
                 if (audioPlayer.muted) {
                     audioPlayer.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', 'false');
                 }
                 player.setVolume(position);
                 volumeFill.style.width = `${position * 100}%`;
@@ -603,7 +609,7 @@ function initializeSmoothSliders(audioPlayer, player) {
 
             if (delta > 0 && audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
 
             player.setVolume(newVolume);
@@ -622,7 +628,7 @@ function initializeSmoothSliders(audioPlayer, player) {
 
             if (delta > 0 && audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
 
             player.setVolume(newVolume);
@@ -641,7 +647,7 @@ export async function showAddToPlaylistModal(track) {
     const overlay = modal.querySelector('.modal-overlay');
 
     const renderModal = async () => {
-        const playlists = await db.getPlaylists(true);
+        const playlists = (await db.getPlaylists(true)) as { id: unknown; name: string; tracks?: { id: unknown }[] }[];
 
         const trackId = track.id;
         const playlistsWithTrack = new Set();
@@ -693,10 +699,10 @@ export async function showAddToPlaylistModal(track) {
             closeModal();
             const createModal = document.getElementById('playlist-modal');
             document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-            document.getElementById('playlist-name-input').value = '';
-            document.getElementById('playlist-cover-input').value = '';
-            document.getElementById('playlist-cover-file-input').value = '';
-            document.getElementById('playlist-description-input').value = '';
+            (document.getElementById('playlist-name-input') as HTMLInputElement).value = '';
+            (document.getElementById('playlist-cover-input') as HTMLInputElement).value = '';
+            (document.getElementById('playlist-cover-file-input') as HTMLInputElement).value = '';
+            (document.getElementById('playlist-description-input') as HTMLInputElement).value = '';
             createModal.dataset.editingId = '';
             document.getElementById('import-section').style.display = 'none';
 
@@ -715,7 +721,7 @@ export async function showAddToPlaylistModal(track) {
             }
 
             // Pass track
-            createModal._pendingTracks = [track];
+            (createModal as HTMLElement & { _pendingTracks?: unknown[] })._pendingTracks = [track];
 
             modalStore.open('playlist');
             document.getElementById('playlist-name-input').focus();
@@ -815,7 +821,7 @@ export async function handleTrackAction(
                         /* ignore */
                     }
                 }
-                tracks = playlist ? playlist.tracks : item.tracks || [];
+                tracks = playlist ? (playlist as { tracks?: unknown[] }).tracks : item.tracks || [];
                 collectionItem = playlist || item;
             } else if (type === 'mix') {
                 const data = await api.getMix(item.id);
@@ -1005,7 +1011,7 @@ export async function handleTrackAction(
                 }
             }
             btn.classList.toggle('active', added);
-            btn.title = added ? 'Remove from Favorites' : 'Add to Favorites';
+            (btn as HTMLElement).title = added ? 'Remove from Favorites' : 'Add to Favorites';
         });
 
         // Handle Library Page Update
@@ -1056,7 +1062,7 @@ export async function handleTrackAction(
         const overlay = modal.querySelector('.modal-overlay');
 
         const renderModal = async () => {
-            const playlists = await db.getPlaylists(true);
+            const playlists = (await db.getPlaylists(true)) as { id: unknown; name: string; tracks?: { id: unknown }[] }[];
             // Removed empty check to allow creating new playlist
 
             const trackId = item.id;
@@ -1109,10 +1115,10 @@ export async function handleTrackAction(
                 closeModal();
                 const createModal = document.getElementById('playlist-modal');
                 document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-                document.getElementById('playlist-name-input').value = '';
-                document.getElementById('playlist-cover-input').value = '';
-                document.getElementById('playlist-cover-file-input').value = '';
-                document.getElementById('playlist-description-input').value = '';
+                (document.getElementById('playlist-name-input') as HTMLInputElement).value = '';
+                (document.getElementById('playlist-cover-input') as HTMLInputElement).value = '';
+                (document.getElementById('playlist-cover-file-input') as HTMLInputElement).value = '';
+                (document.getElementById('playlist-description-input') as HTMLInputElement).value = '';
                 createModal.dataset.editingId = '';
                 document.getElementById('import-section').style.display = 'none';
 
@@ -1131,7 +1137,7 @@ export async function handleTrackAction(
                 }
 
                 // Pass track
-                createModal._pendingTracks = [item];
+                (createModal as HTMLElement & { _pendingTracks?: unknown[] })._pendingTracks = [item];
 
                 modalStore.open('playlist');
                 document.getElementById('playlist-name-input').focus();
@@ -1185,7 +1191,7 @@ export async function handleTrackAction(
     } else if (action === 'copy-link' || action === 'share') {
         // Use stored href from card if available, otherwise construct URL
         const contextMenu = document.getElementById('context-menu');
-        const storedHref = contextMenu?._contextHref;
+        const storedHref = (contextMenu as HTMLElement & { _contextHref?: string })?._contextHref;
         const url = getShareUrl(storedHref ? storedHref : `/track/${item.id || item.uuid}`);
 
         trackCopyLink(type, item.id || item.uuid);
@@ -1195,7 +1201,7 @@ export async function handleTrackAction(
     } else if (action === 'open-in-new-tab') {
         // Use stored href from card if available, otherwise construct URL
         const contextMenu = document.getElementById('context-menu');
-        const storedHref = contextMenu?._contextHref;
+        const storedHref = (contextMenu as HTMLElement & { _contextHref?: string })?._contextHref;
         const url = storedHref
             ? `${window.location.origin}${storedHref}`
             : `${window.location.origin}/track/${item.id || item.uuid}`;
@@ -1352,7 +1358,7 @@ export async function handleTrackAction(
         };
         const closeBtn = modal.querySelector('.track-info-close-btn');
         if (closeBtn) {
-            closeBtn.onclick = () => modal.remove();
+            (closeBtn as HTMLElement).onclick = () => modal.remove();
         }
         document.body.appendChild(modal);
     } else if (action === 'open-original-url') {
@@ -1672,7 +1678,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             } else {
                 const parentList = trackItem.closest('.track-list');
                 const allTrackElements = Array.from(parentList.querySelectorAll('.track-item'));
-                const trackList = allTrackElements.map((el) => trackDataStore.get(el)).filter(Boolean);
+                const trackList = allTrackElements.map((el) => trackDataStore.get(el as Element)).filter(Boolean);
 
                 if (trackList.length > 0) {
                     const startIndex = trackList.findIndex((t) => t.id == clickedTrackId);
@@ -1870,7 +1876,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
     });
 
     document.querySelector('.now-playing-bar .artist').addEventListener('click', (e) => {
-        const link = e.target.closest('.artist-link');
+        const link = (e.target as Element).closest('.artist-link') as HTMLElement | null;
         if (link) {
             e.stopPropagation();
             const artistId = link.dataset.artistId;
@@ -1991,7 +1997,7 @@ function showSleepTimerModal(player) {
             let minutes;
             if (timerOption.id === 'custom-timer-btn') {
                 const customInput = document.getElementById('custom-minutes');
-                minutes = parseInt(customInput.value);
+                minutes = parseInt((customInput as HTMLInputElement).value);
                 if (!minutes || minutes < 1) {
                     showNotification('Please enter a valid number of minutes');
                     return;

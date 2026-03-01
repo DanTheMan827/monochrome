@@ -1,28 +1,33 @@
 export class MusicDatabase {
+    dbName: string;
+    version: number;
+    db: IDBDatabase | null;
+
     constructor() {
         this.dbName = 'MonochromeDB';
         this.version = 8;
         this.db = null;
     }
 
-    async open() {
+    async open(): Promise<IDBDatabase> {
         if (this.db) return this.db;
 
-        return new Promise((resolve, reject) => {
+        return new Promise<IDBDatabase>((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = (event) => {
-                console.error('Database error:', event.target.error);
-                reject(event.target.error);
+                console.error('Database error:', (event.target as IDBOpenDBRequest).error);
+                reject((event.target as IDBOpenDBRequest).error);
             };
 
             request.onsuccess = (event) => {
-                this.db = event.target.result;
-                resolve(this.db);
+                const result = (event.target as IDBOpenDBRequest).result as IDBDatabase;
+                this.db = result;
+                resolve(result);
             };
 
             request.onupgradeneeded = (event) => {
-                const db = event.target.result;
+                const db = (event.target as IDBOpenDBRequest).result as IDBDatabase;
 
                 // Favorites stores
                 if (!db.objectStoreNames.contains('favorites_tracks')) {
@@ -80,7 +85,7 @@ export class MusicDatabase {
                 resolve(request?.result);
             };
             transaction.onerror = (event) => {
-                reject(event.target.error);
+                reject((event.target as IDBTransaction).error);
             };
         });
     }
@@ -103,7 +108,7 @@ export class MusicDatabase {
             const cursorReq = index.openCursor(null, 'prev');
 
             cursorReq.onsuccess = (e) => {
-                const cursor = e.target.result;
+                const cursor = (e.target as IDBRequest).result;
                 if (cursor) {
                     const lastTrack = cursor.value;
                     if (lastTrack.id === track.id) {
@@ -121,7 +126,7 @@ export class MusicDatabase {
             };
 
             transaction.oncomplete = () => resolve(entry);
-            transaction.onerror = (e) => reject(e.target.error);
+            transaction.onerror = (e) => reject((e.target as IDBTransaction).error);
         });
     }
 
@@ -150,7 +155,7 @@ export class MusicDatabase {
             const store = transaction.objectStore(storeName);
             const request = store.clear();
 
-            request.onsuccess = () => resolve();
+            request.onsuccess = () => resolve(undefined);
             request.onerror = () => reject(request.error);
         });
     }
@@ -364,7 +369,7 @@ export class MusicDatabase {
             await this.performTransaction(storeName, 'readwrite', (store) => store.delete(key));
             return false;
         } else {
-            const allPinned = await this.getPinned();
+            const allPinned = (await this.getPinned()) as { id: unknown; pinnedAt: number }[];
             if (allPinned.length >= 3) {
                 const oldest = allPinned.sort((a, b) => a.pinnedAt - b.pinnedAt)[0];
                 await this.performTransaction(storeName, 'readwrite', (store) => store.delete(oldest.id));
@@ -396,12 +401,12 @@ export class MusicDatabase {
         const userPlaylists = await this.getPlaylists(true);
         const userFolders = await this.getFolders();
         const data = {
-            favorites_tracks: tracks.map((t) => this._minifyItem('track', t)),
-            favorites_albums: albums.map((a) => this._minifyItem('album', a)),
-            favorites_artists: artists.map((a) => this._minifyItem('artist', a)),
-            favorites_playlists: playlists.map((p) => this._minifyItem('playlist', p)),
-            favorites_mixes: mixes.map((m) => this._minifyItem('mix', m)),
-            history_tracks: history.map((t) => this._minifyItem('track', t)),
+            favorites_tracks: (tracks as unknown[]).map((t) => this._minifyItem('track', t)),
+            favorites_albums: (albums as unknown[]).map((a) => this._minifyItem('album', a)),
+            favorites_artists: (artists as unknown[]).map((a) => this._minifyItem('artist', a)),
+            favorites_playlists: (playlists as unknown[]).map((p) => this._minifyItem('playlist', p)),
+            favorites_mixes: (mixes as unknown[]).map((m) => this._minifyItem('mix', m)),
+            history_tracks: (history as unknown[]).map((t) => this._minifyItem('track', t)),
             user_playlists: userPlaylists,
             user_folders: userFolders,
         };
@@ -465,7 +470,7 @@ export class MusicDatabase {
 
                     // Critical: Ensure key exists for IndexedDB store.put()
                     const keyPath = store.keyPath;
-                    if (keyPath && !item[keyPath]) {
+                    if (keyPath && typeof keyPath === 'string' && !item[keyPath]) {
                         console.warn(`Item missing keyPath "${keyPath}" in ${storeName}, generating fallback.`);
                         if (keyPath === 'uuid') item.uuid = crypto.randomUUID();
                         else if (keyPath === 'id')
@@ -482,7 +487,7 @@ export class MusicDatabase {
                 };
 
                 transaction.onerror = (event) => {
-                    console.error(`${storeName}: Transaction error:`, event.target.error);
+                    console.error(`${storeName}: Transaction error:`, (event.target as IDBTransaction).error);
                     reject(transaction.error);
                 };
             });
@@ -566,7 +571,7 @@ export class MusicDatabase {
     }
 
     async addTrackToPlaylist(playlistId, track) {
-        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId)) as { tracks?: { id: unknown }[]; updatedAt?: number; [key: string]: unknown };
         if (!playlist) throw new Error('Playlist not found');
         playlist.tracks = playlist.tracks || [];
         const trackWithDate = { ...track, addedAt: Date.now() };
@@ -583,7 +588,7 @@ export class MusicDatabase {
     }
 
     async addTracksToPlaylist(playlistId, tracks) {
-        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId)) as { tracks?: { id: unknown }[]; updatedAt?: number; [key: string]: unknown };
         if (!playlist) throw new Error('Playlist not found');
         playlist.tracks = playlist.tracks || [];
 
@@ -607,7 +612,7 @@ export class MusicDatabase {
     }
 
     async removeTrackFromPlaylist(playlistId, trackId) {
-        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId)) as { tracks?: { id: unknown }[]; updatedAt?: number; [key: string]: unknown };
         if (!playlist) throw new Error('Playlist not found');
         playlist.tracks = playlist.tracks || [];
         playlist.tracks = playlist.tracks.filter((t) => t.id != trackId);
@@ -642,11 +647,11 @@ export class MusicDatabase {
     }
 
     async addPlaylistToFolder(folderId, playlistId) {
-        const folder = await this.getFolder(folderId);
+        const folder = await this.getFolder(folderId) as { playlists?: unknown[]; updatedAt?: number; [key: string]: unknown } | null;
         if (!folder) throw new Error('Folder not found');
         folder.playlists = folder.playlists || [];
-        if (!folder.playlists.includes(playlistId)) {
-            folder.playlists.push(playlistId);
+        if (!(folder.playlists as unknown[]).includes(playlistId)) {
+            (folder.playlists as unknown[]).push(playlistId);
             folder.updatedAt = Date.now();
             await this.performTransaction('user_folders', 'readwrite', (store) => store.put(folder));
         }
@@ -754,7 +759,7 @@ export class MusicDatabase {
     }
 
     async updatePlaylistName(playlistId, newName) {
-        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId)) as { name?: string; updatedAt?: number; [key: string]: unknown };
         if (!playlist) throw new Error('Playlist not found');
         playlist.name = newName;
         playlist.updatedAt = Date.now();
@@ -763,7 +768,7 @@ export class MusicDatabase {
     }
 
     async updatePlaylistDescription(playlistId, newDescription) {
-        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId)) as { description?: string; updatedAt?: number; [key: string]: unknown };
         if (!playlist) throw new Error('Playlist not found');
         playlist.description = newDescription;
         playlist.updatedAt = Date.now();
@@ -803,7 +808,7 @@ export class MusicDatabase {
             };
 
             transaction.onerror = (event) => {
-                reject(event.target.error);
+                reject((event.target as IDBTransaction).error);
             };
         });
     }

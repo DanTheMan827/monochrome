@@ -17,6 +17,10 @@ export const DASH_MANIFEST_UNAVAILABLE_CODE = 'DASH_MANIFEST_UNAVAILABLE';
 const TIDAL_V2_TOKEN = 'txNoH4kkV41MfH25';
 
 export class LosslessAPI {
+    settings: any;
+    cache: APICache;
+    streamCache: Map<string, unknown>;
+
     constructor(settings) {
         this.settings = settings;
         this.cache = new APICache({
@@ -42,7 +46,7 @@ export class LosslessAPI {
         }
     }
 
-    async fetchWithRetry(relativePath, options = {}) {
+    async fetchWithRetry(relativePath: string, options: { type?: string; minVersion?: string; signal?: AbortSignal; [key: string]: unknown } = {}) {
         const type = options.type || 'api';
         let instances = await this.settings.getInstances(type);
         if (instances.length === 0) {
@@ -217,8 +221,8 @@ export class LosslessAPI {
             for (let j = 0; j < results.length; j++) {
                 const result = results[j];
                 const id = chunk[j];
-                if (result.status === 'fulfilled' && result.value.album?.releaseDate) {
-                    albumDateMap.set(id, result.value.album.releaseDate);
+                if (result.status === 'fulfilled' && (result.value as { album?: { releaseDate?: string; id?: unknown } })?.album?.releaseDate) {
+                    albumDateMap.set(id, (result.value as { album: { releaseDate: string } }).album.releaseDate);
                 }
             }
         }
@@ -736,7 +740,7 @@ export class LosslessAPI {
         }
     }
 
-    async getArtist(artistId, options = {}) {
+    async getArtist(artistId, options: { lightweight?: boolean; skipCache?: boolean } = {}) {
         const cacheKey = options.lightweight ? `artist_${artistId}_light` : `artist_${artistId}`;
         if (!options.skipCache) {
             const cached = await this.cache.get('artist', cacheKey);
@@ -795,10 +799,10 @@ export class LosslessAPI {
             // Attempt to find more albums/EPs via search since the direct feed might be limited
             try {
                 const searchResults = await this.searchAlbums(artist.name);
-                if (searchResults && searchResults.items) {
+                if (searchResults && (searchResults as { items?: unknown[] }).items) {
                     const numericArtistId = Number(artistId);
 
-                    for (const item of searchResults.items) {
+                    for (const item of (searchResults as { items: { id?: unknown; artist?: { id?: unknown }; artists?: { id?: unknown }[] } [] }).items) {
                         const itemArtistId = item.artist?.id;
                         const matchesArtist =
                             itemArtistId === numericArtistId ||
@@ -816,7 +820,7 @@ export class LosslessAPI {
 
         const rawReleases = Array.from(albumMap.values());
         const allReleases = this.deduplicateAlbums(rawReleases).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         const eps = allReleases.filter((a) => a.type === 'EP' || a.type === 'SINGLE');
@@ -912,7 +916,7 @@ export class LosslessAPI {
         }
     }
 
-    async getRecommendedTracksForPlaylist(tracks, limit = 20, options = {}) {
+    async getRecommendedTracksForPlaylist(tracks, limit = 20, options: { refresh?: boolean } = {}) {
         const artistMap = new Map();
 
         // Check if tracks already have artist info (some might)
@@ -936,7 +940,7 @@ export class LosslessAPI {
                 try {
                     // Search for the track to get full metadata
                     const searchQuery = `"${track.title}" ${track.artist?.name || ''}`.trim();
-                    const searchResult = await this.searchTracks(searchQuery, { signal: AbortSignal.timeout(5000) });
+                    const searchResult = await this.searchTracks(searchQuery, { signal: AbortSignal.timeout(5000) }) as { items?: { artist?: { id: unknown; [key: string]: unknown }; artists?: { id: unknown }[] }[] };
 
                     if (searchResult.items && searchResult.items.length > 0) {
                         const foundTrack = searchResult.items[0];
@@ -1001,7 +1005,7 @@ export class LosslessAPI {
         results.forEach((tracks) => {
             if (tracks.length > 0) {
                 recommendedTracks.push(...tracks);
-                seenTrackIds.add(...tracks.map((t) => t.id));
+                tracks.map((t) => t.id).forEach((id) => seenTrackIds.add(id));
             }
         });
 
@@ -1092,7 +1096,7 @@ export class LosslessAPI {
             return this.streamCache.get(cacheKey);
         }
 
-        const lookup = await this.getTrack(id, quality);
+        const lookup = await this.getTrack(id, quality) as { originalTrackUrl?: string; info?: { manifest: string } };
 
         let streamUrl;
         if (lookup.originalTrackUrl) {
@@ -1108,14 +1112,14 @@ export class LosslessAPI {
         return streamUrl;
     }
 
-    async downloadTrack(id, quality = 'HI_RES_LOSSLESS', filename, options = {}) {
+    async downloadTrack(id, quality = 'HI_RES_LOSSLESS', filename, options: { onProgress?: (p: Record<string, unknown>) => void; track?: unknown; signal?: AbortSignal } = {}) {
         const { onProgress, track } = options;
 
         try {
             // MP3_320 is not a native TIDAL quality, we download LOSSLESS and convert
             const downloadQuality = quality === 'MP3_320' ? 'LOSSLESS' : quality;
 
-            const lookup = await this.getTrack(id, downloadQuality);
+            const lookup = await this.getTrack(id, downloadQuality) as { originalTrackUrl?: string; info?: { manifest: string } };
             let streamUrl;
             let blob;
 

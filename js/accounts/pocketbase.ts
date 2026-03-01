@@ -517,7 +517,7 @@ const syncManager = {
                 const cloudData = await this.getUserData();
 
                 if (cloudData) {
-                    let database = db;
+                    let database: any = db;
                     if (typeof database === 'function') {
                         database = await database();
                     } else {

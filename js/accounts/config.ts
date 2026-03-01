@@ -1,6 +1,9 @@
 //js/accounts/config.js
+// @ts-ignore - Firebase CDN import not resolvable at build time
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+// @ts-ignore - Firebase CDN import not resolvable at build time
 import { getAuth, GoogleAuthProvider } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+// @ts-ignore - Firebase CDN import not resolvable at build time
 import { getDatabase } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
 let app = null;
@@ -32,7 +35,7 @@ function getStoredConfig() {
 // Attempt to initialize on load
 // Priority: server-injected env (auth gate) > localStorage > default
 const storedConfig = getStoredConfig();
-const config = window.__FIREBASE_CONFIG__ || storedConfig || DEFAULT_CONFIG;
+const config = (window as Window & { __FIREBASE_CONFIG__?: Record<string, string> }).__FIREBASE_CONFIG__ || storedConfig || DEFAULT_CONFIG;
 
 if (config) {
     try {
@@ -121,7 +124,7 @@ export function initializeFirebaseSettingsUI() {
     // Check for shared config in URL first
     checkAndImportConfig();
 
-    const firebaseConfigInput = document.getElementById('firebase-config-input');
+    const firebaseConfigInput = document.getElementById('firebase-config-input') as HTMLInputElement | null;
     const saveFirebaseConfigBtn = document.getElementById('save-firebase-config-btn');
     const clearFirebaseConfigBtn = document.getElementById('clear-firebase-config-btn');
     const shareFirebaseConfigBtn = document.getElementById('share-firebase-config-btn');

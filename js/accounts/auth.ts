@@ -1,17 +1,22 @@
 // js/accounts/auth.js
 import { auth, provider } from './config.ts';
-import {
-    signInWithPopup,
-    signInWithRedirect,
-    getRedirectResult,
-    signOut as firebaseSignOut,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    sendPasswordResetEmail,
-} from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+
+declare global {
+    interface Window {
+        __AUTH_GATE__?: boolean;
+        __FIREBASE_CONFIG__?: Record<string, string>;
+        __POCKETBASE_URL__?: string;
+    }
+}
+
+// @ts-ignore - Firebase CDN import not resolvable at build time
+import { signInWithPopup, signInWithRedirect, getRedirectResult, signOut as firebaseSignOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 
 export class AuthManager {
+    user: { uid: string; email?: string | null; [key: string]: unknown } | null;
+    unsubscribe: (() => void) | null;
+    authListeners: ((user: unknown) => void)[];
+
     constructor() {
         this.user = null;
         this.unsubscribe = null;
@@ -177,7 +182,7 @@ export class AuthManager {
                 // Hide description + privacy paragraphs, keep only status
                 accountPage.querySelectorAll('.account-content > p, .account-content > div').forEach((el) => {
                     if (el.id !== 'firebase-status' && el.id !== 'auth-buttons-container') {
-                        el.style.display = 'none';
+                        (el as HTMLElement).style.display = 'none';
                     }
                 });
             }
@@ -189,7 +194,7 @@ export class AuthManager {
                 const pbFromEnv = !!window.__POCKETBASE_URL__;
                 if (fbFromEnv && pbFromEnv) {
                     const settingItem = customDbBtn.closest('.setting-item');
-                    if (settingItem) settingItem.style.display = 'none';
+                    if (settingItem) (settingItem as HTMLElement).style.display = 'none';
                 }
             }
 
