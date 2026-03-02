@@ -52,9 +52,68 @@ import {
     trackStartMix,
 } from './analytics.ts';
 
-let currentTrackIdForWaveform = null;
+interface PlayerInstance {
+    shuffleActive: boolean;
+    repeatMode: number;
+    currentTrack: TrackData | null;
+    quality: string;
+    isFallbackRetry: boolean;
+    dashInitialized: boolean;
+    dashPlayer: { reset(): void };
+    userVolume: number;
+    api: ApiInstance;
+    updateMediaSessionPlaybackState(): void;
+    updateMediaSessionPositionState(): void;
+    playNext(): void;
+    handlePlayPause(): void;
+    playPrev(): void;
+    toggleShuffle(): void;
+    toggleRepeat(): number;
+    isSleepTimerActive(): boolean;
+    clearSleepTimer(): void;
+    getCurrentQueue(): TrackData[];
+    setVolume(volume: number): void;
+    playTrackFromQueue(targetTime?: number): void;
+    addToQueue(tracks: TrackData | TrackData[]): void;
+    addNextToQueue(tracks: TrackData | TrackData[]): void;
+    setQueue(tracks: TrackData[], index: number): void;
+    playAtIndex(index: number): void;
+    setSleepTimer(minutes: number): void;
+}
 
-export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
+interface ApiInstance {
+    getStreamUrl(trackId: string | number, quality: string): Promise<string>;
+    getAlbum(id: string | number): Promise<{ album: TrackAlbum; tracks: TrackData[] }>;
+    getPlaylist(id: string | number): Promise<{ playlist: PlaylistData; tracks: TrackData[] }>;
+    getMix(id: string | number): Promise<{ mix: MixData; tracks: TrackData[] }>;
+    getArtist(id: string | number): Promise<ArtistData>;
+    getTrack(id: string | number): Promise<{ track: TrackData }>;
+    getTrackRecommendations(id: string | number): Promise<TrackData[]>;
+}
+
+interface ScrobblerInstance {
+    isAuthenticated(): boolean;
+    updateNowPlaying(track: TrackData): void;
+    loveTrack(track: TrackData): void;
+}
+
+interface UIInstance {
+    renderRecentPage(): void;
+    renderPinnedItems(): void;
+    createTrackItemHTML(item: TrackData, index: number, showLike: boolean, showMenu: boolean): string;
+    updateLikeState(el: Element, type: string, id: string | number): void;
+}
+
+interface ContextMenuElement extends HTMLElement {
+    _contextType: string | null;
+    _contextTrack: TrackData | null;
+    _contextHref: string | null;
+    _originalHTML: string | null;
+}
+
+let currentTrackIdForWaveform: string | number | null = null;
+
+export function initializePlayerEvents(player: PlayerInstance, audioPlayer: HTMLAudioElement, scrobbler: ScrobblerInstance, ui: UIInstance): void {
     const playPauseBtn = document.querySelector('.now-playing-bar .play-pause-btn');
     const nextBtn = document.getElementById('next-btn');
     const prevBtn = document.getElementById('prev-btn');
@@ -64,7 +123,7 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     const sleepTimerBtnMobile = document.getElementById('sleep-timer-btn');
 
     // History tracking
-    let historyLoggedTrackId = null;
+    let historyLoggedTrackId: string | number | null = null;
 
     audioPlayer.addEventListener('loadstart', () => {
         historyLoggedTrackId = null;
@@ -72,17 +131,17 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
 
     // Sync UI with player state on load
     if (player.shuffleActive) {
-        shuffleBtn.classList.add('active');
+        shuffleBtn?.classList.add('active');
     }
 
     if (player.repeatMode && player.repeatMode !== REPEAT_MODE.OFF) {
-        repeatBtn.classList.add('active');
+        repeatBtn?.classList.add('active');
         if (player.repeatMode === REPEAT_MODE.ONE) {
-            repeatBtn.classList.add('repeat-one');
+            repeatBtn?.classList.add('repeat-one');
         }
-        repeatBtn.title = player.repeatMode === REPEAT_MODE.ALL ? 'Repeat Queue' : 'Repeat One';
+        if (repeatBtn) repeatBtn.title = player.repeatMode === REPEAT_MODE.ALL ? 'Repeat Queue' : 'Repeat One';
     } else {
-        repeatBtn.title = 'Repeat';
+        if (repeatBtn) repeatBtn.title = 'Repeat';
     }
 
     audioPlayer.addEventListener('play', () => {
@@ -104,7 +163,7 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
             updateWaveform();
         }
 
-        playPauseBtn.innerHTML = SVG_PAUSE;
+        if (playPauseBtn) playPauseBtn.innerHTML = SVG_PAUSE;
         player.updateMediaSessionPlaybackState();
         player.updateMediaSessionPositionState();
         updateTabTitle(player);
@@ -119,7 +178,7 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
         if (player.currentTrack) {
             trackPauseTrack(player.currentTrack);
         }
-        playPauseBtn.innerHTML = SVG_PLAY;
+        if (playPauseBtn) playPauseBtn.innerHTML = SVG_PLAY;
         player.updateMediaSessionPlaybackState();
         player.updateMediaSessionPositionState();
     });
@@ -133,8 +192,8 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
         if (duration) {
             const progressFill = document.getElementById('progress-fill');
             const currentTimeEl = document.getElementById('current-time');
-            progressFill.style.width = `${(currentTime / duration) * 100}%`;
-            currentTimeEl.textContent = formatTime(currentTime);
+            if (progressFill) progressFill.style.width = `${(currentTime / duration) * 100}%`;
+            if (currentTimeEl) currentTimeEl.textContent = formatTime(currentTime);
 
             // Log to history after 10 seconds of playback
             if (currentTime >= 10 && player.currentTrack && player.currentTrack.id !== historyLoggedTrackId) {
@@ -151,13 +210,13 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
 
     audioPlayer.addEventListener('loadedmetadata', () => {
         const totalDurationEl = document.getElementById('total-duration');
-        totalDurationEl.textContent = formatTime(audioPlayer.duration);
+        if (totalDurationEl) totalDurationEl.textContent = formatTime(audioPlayer.duration);
         player.updateMediaSessionPositionState();
     });
 
-    audioPlayer.addEventListener('error', async (e) => {
-        console.error('Audio playback error:', e);
-        playPauseBtn.innerHTML = SVG_PLAY;
+    audioPlayer.addEventListener('error', async () => {
+        console.error('Audio playback error');
+        if (playPauseBtn) playPauseBtn.innerHTML = SVG_PLAY;
 
         const currentQuality = player.quality;
 
@@ -210,24 +269,24 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
         }
     });
 
-    playPauseBtn.addEventListener('click', () => player.handlePlayPause());
-    nextBtn.addEventListener('click', () => {
+    playPauseBtn?.addEventListener('click', () => player.handlePlayPause());
+    nextBtn?.addEventListener('click', () => {
         trackSkipTrack(player.currentTrack, 'next');
         player.playNext();
     });
-    prevBtn.addEventListener('click', () => {
+    prevBtn?.addEventListener('click', () => {
         trackSkipTrack(player.currentTrack, 'previous');
         player.playPrev();
     });
 
-    shuffleBtn.addEventListener('click', () => {
+    shuffleBtn?.addEventListener('click', () => {
         player.toggleShuffle();
         trackToggleShuffle(player.shuffleActive);
         shuffleBtn.classList.toggle('active', player.shuffleActive);
         if (window.renderQueueFunction) window.renderQueueFunction();
     });
 
-    repeatBtn.addEventListener('click', () => {
+    repeatBtn?.addEventListener('click', () => {
         const mode = player.toggleRepeat();
         trackToggleRepeat(mode === REPEAT_MODE.OFF ? 'off' : mode === REPEAT_MODE.ALL ? 'all' : 'one');
         repeatBtn.classList.toggle('active', mode !== REPEAT_MODE.OFF);
@@ -304,7 +363,7 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
 
             try {
                 const streamUrl = await player.api.getStreamUrl(player.currentTrack.id, 'LOW');
-                const waveformData = await waveformGenerator.getWaveform(streamUrl, player.currentTrack.id);
+                const waveformData = await waveformGenerator.getWaveform(streamUrl, String(player.currentTrack.id));
 
                 if (waveformData && currentTrackIdForWaveform === player.currentTrack.id) {
                     let { peaks, duration } = waveformData;
@@ -357,8 +416,8 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
         }
     };
 
-    window.addEventListener('waveform-toggle', (e) => {
-        if (!e.detail.enabled) {
+    window.addEventListener('waveform-toggle', (e: Event) => {
+        if (!(e as CustomEvent).detail.enabled) {
             const progressBar = document.getElementById('progress-bar');
             const playerControls = document.querySelector('.player-controls');
             if (progressBar) {
@@ -373,18 +432,20 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
         updateWaveform();
     });
 
-    const updateVolumeUI = () => {
+    const updateVolumeUI = (): void => {
         const { muted } = audioPlayer;
         const volume = player.userVolume;
-        volumeBtn.innerHTML = muted || volume === 0 ? SVG_MUTE : SVG_VOLUME;
+        if (volumeBtn) volumeBtn.innerHTML = muted || volume === 0 ? SVG_MUTE : SVG_VOLUME;
         const effectiveVolume = muted ? 0 : volume * 100;
-        volumeFill.style.setProperty('--volume-level', `${effectiveVolume}%`);
-        volumeFill.style.width = `${effectiveVolume}%`;
+        if (volumeFill) {
+            volumeFill.style.setProperty('--volume-level', `${effectiveVolume}%`);
+            volumeFill.style.width = `${effectiveVolume}%`;
+        }
     };
 
-    volumeBtn.addEventListener('click', () => {
+    volumeBtn?.addEventListener('click', () => {
         audioPlayer.muted = !audioPlayer.muted;
-        localStorage.setItem('muted', audioPlayer.muted);
+        localStorage.setItem('muted', String(audioPlayer.muted));
     });
 
     audioPlayer.addEventListener('volumechange', updateVolumeUI);
@@ -396,14 +457,14 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     player.setVolume(savedVolume);
     audioPlayer.muted = savedMuted;
 
-    volumeFill.style.width = `${savedVolume * 100}%`;
-    volumeBar.style.setProperty('--volume-level', `${savedVolume * 100}%`);
+    if (volumeFill) volumeFill.style.width = `${savedVolume * 100}%`;
+    if (volumeBar) volumeBar.style.setProperty('--volume-level', `${savedVolume * 100}%`);
     updateVolumeUI();
 
     initializeSmoothSliders(audioPlayer, player);
 }
 
-function initializeSmoothSliders(audioPlayer, player) {
+function initializeSmoothSliders(audioPlayer: HTMLAudioElement, player: PlayerInstance): void {
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
     const currentTimeEl = document.getElementById('current-time');
@@ -416,15 +477,15 @@ function initializeSmoothSliders(audioPlayer, player) {
     let isAdjustingVolume = false;
     let lastSeekPosition = 0;
 
-    const seek = (bar, event, setter) => {
+    const seek = (bar: HTMLElement, event: MouseEvent, setter: (position: number) => void): void => {
         const rect = bar.getBoundingClientRect();
         const position = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
         setter(position);
     };
 
-    const updateSeekUI = (position) => {
+    const updateSeekUI = (position: number): void => {
         if (!isNaN(audioPlayer.duration)) {
-            progressFill.style.width = `${position * 100}%`;
+            if (progressFill) progressFill.style.width = `${position * 100}%`;
             if (currentTimeEl) {
                 currentTimeEl.textContent = formatTime(position * audioPlayer.duration);
             }
@@ -432,19 +493,19 @@ function initializeSmoothSliders(audioPlayer, player) {
     };
 
     // Progress bar with smooth dragging
-    progressBar.addEventListener('mousedown', (e) => {
+    progressBar?.addEventListener('mousedown', (e: MouseEvent) => {
         isSeeking = true;
         wasPlaying = !audioPlayer.paused;
         if (wasPlaying) audioPlayer.pause();
 
-        seek(progressBar, e, (position) => {
+        seek(progressBar, e, (position: number) => {
             lastSeekPosition = position;
             updateSeekUI(position);
         });
     });
 
     // Touch events for mobile
-    progressBar.addEventListener('touchstart', (e) => {
+    progressBar?.addEventListener('touchstart', (e: TouchEvent) => {
         e.preventDefault();
         isSeeking = true;
         wasPlaying = !audioPlayer.paused;
@@ -458,29 +519,29 @@ function initializeSmoothSliders(audioPlayer, player) {
         updateSeekUI(position);
     });
 
-    document.addEventListener('mousemove', (e) => {
-        if (isSeeking) {
-            seek(progressBar, e, (position) => {
+    document.addEventListener('mousemove', (e: MouseEvent) => {
+        if (isSeeking && progressBar) {
+            seek(progressBar, e, (position: number) => {
                 lastSeekPosition = position;
                 updateSeekUI(position);
             });
         }
 
-        if (isAdjustingVolume) {
-            seek(volumeBar, e, (position) => {
+        if (isAdjustingVolume && volumeBar) {
+            seek(volumeBar, e, (position: number) => {
                 if (audioPlayer.muted) {
                     audioPlayer.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', 'false');
                 }
                 player.setVolume(position);
-                volumeFill.style.width = `${position * 100}%`;
-                volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
+                if (volumeFill) volumeFill.style.width = `${position * 100}%`;
+                if (volumeBar) volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
             });
         }
     });
 
-    document.addEventListener('touchmove', (e) => {
-        if (isSeeking) {
+    document.addEventListener('touchmove', (e: TouchEvent) => {
+        if (isSeeking && progressBar) {
             const touch = e.touches[0];
             const rect = progressBar.getBoundingClientRect();
             const position = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
@@ -489,16 +550,16 @@ function initializeSmoothSliders(audioPlayer, player) {
             updateSeekUI(position);
         }
 
-        if (isAdjustingVolume) {
+        if (isAdjustingVolume && volumeBar) {
             const touch = e.touches[0];
             const rect = volumeBar.getBoundingClientRect();
             const position = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
             if (audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
             player.setVolume(position);
-            volumeFill.style.width = `${position * 100}%`;
+            if (volumeFill) volumeFill.style.width = `${position * 100}%`;
             volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
         }
     });
@@ -534,37 +595,37 @@ function initializeSmoothSliders(audioPlayer, player) {
         }
     });
 
-    progressBar.addEventListener('click', (e) => {
+    progressBar?.addEventListener('click', (e: MouseEvent) => {
         if (!isSeeking) {
             // Only handle click if not result of a drag release
-            seek(progressBar, e, (position) => {
+            seek(progressBar, e, (position: number) => {
                 if (!isNaN(audioPlayer.duration) && audioPlayer.duration > 0 && audioPlayer.duration !== Infinity) {
                     audioPlayer.currentTime = position * audioPlayer.duration;
                     player.updateMediaSessionPositionState();
                 } else if (player.currentTrack && player.currentTrack.duration) {
                     const targetTime = position * player.currentTrack.duration;
-                    const progressFill = document.querySelector('.progress-fill');
-                    if (progressFill) progressFill.style.width = `${position * 100}%`;
+                    const pFill = document.querySelector('.progress-fill') as HTMLElement | null;
+                    if (pFill) pFill.style.width = `${position * 100}%`;
                     player.playTrackFromQueue(targetTime);
                 }
             });
         }
     });
 
-    volumeBar.addEventListener('mousedown', (e) => {
+    volumeBar?.addEventListener('mousedown', (e: MouseEvent) => {
         isAdjustingVolume = true;
-        seek(volumeBar, e, (position) => {
+        seek(volumeBar, e, (position: number) => {
             if (audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
             player.setVolume(position);
-            volumeFill.style.width = `${position * 100}%`;
+            if (volumeFill) volumeFill.style.width = `${position * 100}%`;
             volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
         });
     });
 
-    volumeBar.addEventListener('touchstart', (e) => {
+    volumeBar?.addEventListener('touchstart', (e: TouchEvent) => {
         e.preventDefault();
         isAdjustingVolume = true;
         const touch = e.touches[0];
@@ -572,27 +633,27 @@ function initializeSmoothSliders(audioPlayer, player) {
         const position = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
         if (audioPlayer.muted) {
             audioPlayer.muted = false;
-            localStorage.setItem('muted', false);
+            localStorage.setItem('muted', 'false');
         }
         player.setVolume(position);
-        volumeFill.style.width = `${position * 100}%`;
+        if (volumeFill) volumeFill.style.width = `${position * 100}%`;
         volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
     });
 
-    volumeBar.addEventListener('click', (e) => {
+    volumeBar?.addEventListener('click', (e: MouseEvent) => {
         if (!isAdjustingVolume) {
-            seek(volumeBar, e, (position) => {
+            seek(volumeBar, e, (position: number) => {
                 if (audioPlayer.muted) {
                     audioPlayer.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', 'false');
                 }
                 player.setVolume(position);
-                volumeFill.style.width = `${position * 100}%`;
-                volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
+                if (volumeFill) volumeFill.style.width = `${position * 100}%`;
+                if (volumeBar) volumeBar.style.setProperty('--volume-level', `${position * 100}%`);
             });
         }
     });
-    volumeBar.addEventListener(
+    volumeBar?.addEventListener(
         'wheel',
         (e) => {
             e.preventDefault();
@@ -601,12 +662,12 @@ function initializeSmoothSliders(audioPlayer, player) {
 
             if (delta > 0 && audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
 
             player.setVolume(newVolume);
-            volumeFill.style.width = `${newVolume * 100}%`;
-            volumeBar.style.setProperty('--volume-level', `${newVolume * 100}%`);
+            if (volumeFill) volumeFill.style.width = `${newVolume * 100}%`;
+            if (volumeBar) volumeBar.style.setProperty('--volume-level', `${newVolume * 100}%`);
         },
         { passive: false }
     );
@@ -620,36 +681,37 @@ function initializeSmoothSliders(audioPlayer, player) {
 
             if (delta > 0 && audioPlayer.muted) {
                 audioPlayer.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', 'false');
             }
 
             player.setVolume(newVolume);
-            volumeFill.style.width = `${newVolume * 100}%`;
-            volumeBar.style.setProperty('--volume-level', `${newVolume * 100}%`);
+            if (volumeFill) volumeFill.style.width = `${newVolume * 100}%`;
+            if (volumeBar) volumeBar.style.setProperty('--volume-level', `${newVolume * 100}%`);
         },
         { passive: false }
     );
 }
 
 // Standalone function to show add to playlist modal
-export async function showAddToPlaylistModal(track) {
+export async function showAddToPlaylistModal(track: TrackData): Promise<void> {
     const modal = document.getElementById('playlist-select-modal');
     const list = document.getElementById('playlist-select-list');
     const cancelBtn = document.getElementById('playlist-select-cancel');
-    const overlay = modal.querySelector('.modal-overlay');
+    const overlay = modal?.querySelector('.modal-overlay');
 
-    const renderModal = async () => {
-        const playlists = await db.getPlaylists(true);
+    const renderModal = async (): Promise<boolean> => {
+        const playlists = await db.getPlaylists(true) as PlaylistData[];
 
         const trackId = track.id;
-        const playlistsWithTrack = new Set();
+        const playlistsWithTrack = new Set<string | number>();
 
         for (const playlist of playlists) {
-            if (playlist.tracks && playlist.tracks.some((t) => t.id == trackId)) {
+            if (playlist.tracks && playlist.tracks.some((t: TrackData) => t.id == trackId)) {
                 playlistsWithTrack.add(playlist.id);
             }
         }
 
+        if (!list) return false;
         list.innerHTML =
             `
             <div class="modal-option create-new-option" style="border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
@@ -657,7 +719,7 @@ export async function showAddToPlaylistModal(track) {
             </div>
         ` +
             playlists
-                .map((p) => {
+                .map((p: PlaylistData) => {
                     const alreadyContains = playlistsWithTrack.has(p.id);
                     return `
                 <div class="modal-option ${alreadyContains ? 'already-contains' : ''}" data-id="${p.id}">
@@ -676,27 +738,34 @@ export async function showAddToPlaylistModal(track) {
 
     if (!(await renderModal())) return;
 
-    const closeModal = () => {
-        modal.classList.remove('active');
+    const closeModal = (): void => {
+        modal?.classList.remove('active');
         cleanup();
     };
 
-    const handleOptionClick = async (e) => {
-        const removeBtn = e.target.closest('.remove-from-playlist-btn-modal');
-        const option = e.target.closest('.modal-option');
+    const handleOptionClick = async (e: Event): Promise<void> => {
+        const target = e.target as HTMLElement;
+        const removeBtn = target.closest('.remove-from-playlist-btn-modal');
+        const option = target.closest('.modal-option') as HTMLElement | null;
 
         if (!option) return;
 
         if (option.classList.contains('create-new-option')) {
             closeModal();
-            const createModal = document.getElementById('playlist-modal');
-            document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-            document.getElementById('playlist-name-input').value = '';
-            document.getElementById('playlist-cover-input').value = '';
-            document.getElementById('playlist-cover-file-input').value = '';
-            document.getElementById('playlist-description-input').value = '';
-            createModal.dataset.editingId = '';
-            document.getElementById('import-section').style.display = 'none';
+            const createModal = document.getElementById('playlist-modal') as HTMLElement | null;
+            const titleEl = document.getElementById('playlist-modal-title');
+            const nameInput = document.getElementById('playlist-name-input') as HTMLInputElement | null;
+            const coverInput = document.getElementById('playlist-cover-input') as HTMLInputElement | null;
+            const coverFileInput = document.getElementById('playlist-cover-file-input') as HTMLInputElement | null;
+            const descInput = document.getElementById('playlist-description-input') as HTMLInputElement | null;
+            const importSection = document.getElementById('import-section');
+            if (titleEl) titleEl.textContent = 'Create Playlist';
+            if (nameInput) nameInput.value = '';
+            if (coverInput) coverInput.value = '';
+            if (coverFileInput) coverFileInput.value = '';
+            if (descInput) descInput.value = '';
+            if (createModal) createModal.dataset.editingId = '';
+            if (importSection) importSection.style.display = 'none';
 
             // Reset cover upload state
             const coverUploadBtn = document.getElementById('playlist-cover-upload-btn');
@@ -713,10 +782,10 @@ export async function showAddToPlaylistModal(track) {
             }
 
             // Pass track
-            createModal._pendingTracks = [track];
+            if (createModal) (createModal as HTMLElement & { _pendingTracks: TrackData[] })._pendingTracks = [track];
 
-            createModal.classList.add('active');
-            document.getElementById('playlist-name-input').focus();
+            createModal?.classList.add('active');
+            nameInput?.focus();
             return;
         }
 
@@ -727,7 +796,7 @@ export async function showAddToPlaylistModal(track) {
             await db.removeTrackFromPlaylist(playlistId, track.id);
             const updatedPlaylist = await db.getPlaylist(playlistId);
             syncManager.syncUserPlaylist(updatedPlaylist, 'update');
-            showNotification(`Removed from playlist: ${option.querySelector('span').textContent}`);
+            showNotification(`Removed from playlist: ${option.querySelector('span')?.textContent}`);
             await renderModal();
         } else {
             if (option.classList.contains('already-contains')) return;
@@ -735,35 +804,35 @@ export async function showAddToPlaylistModal(track) {
             await db.addTrackToPlaylist(playlistId, track);
             const updatedPlaylist = await db.getPlaylist(playlistId);
             syncManager.syncUserPlaylist(updatedPlaylist, 'update');
-            showNotification(`Added to playlist: ${option.querySelector('span').textContent}`);
+            showNotification(`Added to playlist: ${option.querySelector('span')?.textContent}`);
             closeModal();
         }
     };
 
-    const cleanup = () => {
-        cancelBtn.removeEventListener('click', closeModal);
-        overlay.removeEventListener('click', closeModal);
-        list.removeEventListener('click', handleOptionClick);
+    const cleanup = (): void => {
+        cancelBtn?.removeEventListener('click', closeModal);
+        overlay?.removeEventListener('click', closeModal);
+        list?.removeEventListener('click', handleOptionClick);
     };
 
-    cancelBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', closeModal);
-    list.addEventListener('click', handleOptionClick);
+    cancelBtn?.addEventListener('click', closeModal);
+    overlay?.addEventListener('click', closeModal);
+    list?.addEventListener('click', handleOptionClick);
 
-    modal.classList.add('active');
+    modal?.classList.add('active');
 }
 
 export async function handleTrackAction(
-    action,
-    item,
-    player,
-    api,
-    lyricsManager,
-    type = 'track',
-    ui = null,
-    scrobbler = null,
-    extraData = null
-) {
+    action: string,
+    item: TrackData & Record<string, unknown>,
+    player: PlayerInstance,
+    api: ApiInstance,
+    lyricsManager: unknown,
+    type: string = 'track',
+    ui: UIInstance | null = null,
+    scrobbler: ScrobblerInstance | null = null,
+    extraData: Record<string, string> | null = null
+): Promise<void> {
     if (!item) return;
 
     // Actions not allowed for unavailable tracks
@@ -788,37 +857,37 @@ export async function handleTrackAction(
         try {
             // Check if album/artist is blocked
             const { contentBlockingSettings } = await import('./storage.ts');
-            if (type === 'album' && contentBlockingSettings.shouldHideAlbum(item)) {
+            if (type === 'album' && contentBlockingSettings.shouldHideAlbum(item as unknown as TrackAlbum)) {
                 showNotification('This album is blocked');
                 return;
             }
 
-            let tracks = [];
-            let collectionItem = item;
+            let tracks: TrackData[] = [];
+            let collectionItem: TrackData & Record<string, unknown> = item;
 
             if (type === 'album') {
                 const data = await api.getAlbum(item.id);
                 tracks = data.tracks;
-                collectionItem = data.album || item;
+                collectionItem = (data.album || item) as TrackData & Record<string, unknown>;
             } else if (type === 'playlist') {
-                const data = await api.getPlaylist(item.uuid);
+                const data = await api.getPlaylist(item.uuid as string | number);
                 tracks = data.tracks;
-                collectionItem = data.playlist || item;
+                collectionItem = (data.playlist || item) as TrackData & Record<string, unknown>;
             } else if (type === 'user-playlist') {
-                let playlist = await db.getPlaylist(item.id);
+                let playlist = await db.getPlaylist(item.id) as PlaylistData | null;
                 if (!playlist) {
                     try {
-                        playlist = await syncManager.getPublicPlaylist(item.id);
+                        playlist = await syncManager.getPublicPlaylist(item.id) as PlaylistData | null;
                     } catch {
                         /* ignore */
                     }
                 }
-                tracks = playlist ? playlist.tracks : item.tracks || [];
-                collectionItem = playlist || item;
+                tracks = playlist?.tracks ?? (item.tracks as TrackData[] | undefined) ?? [];
+                collectionItem = (playlist as TrackData & Record<string, unknown>) || item;
             } else if (type === 'mix') {
                 const data = await api.getMix(item.id);
                 tracks = data.tracks;
-                collectionItem = data.mix || item;
+                collectionItem = (data.mix || item) as TrackData & Record<string, unknown>;
             }
 
             if (tracks.length === 0 && action !== 'start-mix') {
@@ -833,7 +902,7 @@ export async function handleTrackAction(
                         tracks,
                         api,
                         downloadQualitySettings.getQuality(),
-                        lyricsManager
+                        lyricsManager as null
                     );
                 } else {
                     await downloadPlaylistAsZip(
@@ -841,7 +910,7 @@ export async function handleTrackAction(
                         tracks,
                         api,
                         downloadQualitySettings.getQuality(),
-                        lyricsManager
+                        lyricsManager as null
                     );
                 }
                 return;
@@ -944,7 +1013,7 @@ export async function handleTrackAction(
         }
     } else if (action === 'download') {
         trackDownloadTrack(item, downloadQualitySettings.getQuality());
-        await downloadTrackWithMetadata(item, downloadQualitySettings.getQuality(), api, lyricsManager);
+        await downloadTrackWithMetadata(item, downloadQualitySettings.getQuality(), api, lyricsManager as null);
     } else if (action === 'toggle-like') {
         const added = await db.toggleFavorite(type, item);
         syncManager.syncLibraryItem(type, item, added);
@@ -981,7 +1050,7 @@ export async function handleTrackAction(
         // Also check header buttons
         const headerBtn = document.getElementById(`like-${type}-btn`);
 
-        const elementsToUpdate = [...document.querySelectorAll(selector)];
+        const elementsToUpdate: HTMLElement[] = [...document.querySelectorAll(selector)] as HTMLElement[];
         if (headerBtn) elementsToUpdate.push(headerBtn);
 
         const nowPlayingLikeBtn = document.getElementById('now-playing-like-btn');
@@ -1041,7 +1110,7 @@ export async function handleTrackAction(
 
                     if (newEl) {
                         tracksContainer.appendChild(newEl);
-                        trackDataStore.set(newEl, item);
+                        trackDataStore.set(newEl as HTMLElement, item);
                         ui.updateLikeState(newEl, 'track', item.id);
                     }
                 }
@@ -1051,21 +1120,22 @@ export async function handleTrackAction(
         const modal = document.getElementById('playlist-select-modal');
         const list = document.getElementById('playlist-select-list');
         const cancelBtn = document.getElementById('playlist-select-cancel');
-        const overlay = modal.querySelector('.modal-overlay');
+        const overlay = modal?.querySelector('.modal-overlay');
 
-        const renderModal = async () => {
-            const playlists = await db.getPlaylists(true);
+        const renderModal = async (): Promise<boolean> => {
+            const playlists = await db.getPlaylists(true) as PlaylistData[];
             // Removed empty check to allow creating new playlist
 
             const trackId = item.id;
-            const playlistsWithTrack = new Set();
+            const playlistsWithTrack = new Set<string | number>();
 
             for (const playlist of playlists) {
-                if (playlist.tracks && playlist.tracks.some((track) => track.id == trackId)) {
+                if (playlist.tracks && playlist.tracks.some((track: TrackData) => track.id == trackId)) {
                     playlistsWithTrack.add(playlist.id);
                 }
             }
 
+            if (!list) return false;
             list.innerHTML =
                 `
                 <div class="modal-option create-new-option" style="border-bottom: 1px solid var(--border); margin-bottom: 0.5rem;">
@@ -1073,7 +1143,7 @@ export async function handleTrackAction(
                 </div>
             ` +
                 playlists
-                    .map((p) => {
+                    .map((p: PlaylistData) => {
                         const alreadyContains = playlistsWithTrack.has(p.id);
                         return `
                     <div class="modal-option ${alreadyContains ? 'already-contains' : ''}" data-id="${p.id}">
@@ -1092,27 +1162,34 @@ export async function handleTrackAction(
 
         if (!(await renderModal())) return;
 
-        const closeModal = () => {
-            modal.classList.remove('active');
+        const closeModal = (): void => {
+            modal?.classList.remove('active');
             cleanup();
         };
 
-        const handleOptionClick = async (e) => {
-            const removeBtn = e.target.closest('.remove-from-playlist-btn-modal');
-            const option = e.target.closest('.modal-option');
+        const handleOptionClick = async (e: Event): Promise<void> => {
+            const target = e.target as HTMLElement;
+            const removeBtn = target.closest('.remove-from-playlist-btn-modal');
+            const option = target.closest('.modal-option') as HTMLElement | null;
 
             if (!option) return;
 
             if (option.classList.contains('create-new-option')) {
                 closeModal();
-                const createModal = document.getElementById('playlist-modal');
-                document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-                document.getElementById('playlist-name-input').value = '';
-                document.getElementById('playlist-cover-input').value = '';
-                document.getElementById('playlist-cover-file-input').value = '';
-                document.getElementById('playlist-description-input').value = '';
-                createModal.dataset.editingId = '';
-                document.getElementById('import-section').style.display = 'none';
+                const createModal = document.getElementById('playlist-modal') as HTMLElement | null;
+                const titleEl = document.getElementById('playlist-modal-title');
+                const nameInput = document.getElementById('playlist-name-input') as HTMLInputElement | null;
+                const coverInput = document.getElementById('playlist-cover-input') as HTMLInputElement | null;
+                const coverFileInput = document.getElementById('playlist-cover-file-input') as HTMLInputElement | null;
+                const descInput = document.getElementById('playlist-description-input') as HTMLInputElement | null;
+                const importSection = document.getElementById('import-section');
+                if (titleEl) titleEl.textContent = 'Create Playlist';
+                if (nameInput) nameInput.value = '';
+                if (coverInput) coverInput.value = '';
+                if (coverFileInput) coverFileInput.value = '';
+                if (descInput) descInput.value = '';
+                if (createModal) createModal.dataset.editingId = '';
+                if (importSection) importSection.style.display = 'none';
 
                 // Reset cover upload state
                 const coverUploadBtn = document.getElementById('playlist-cover-upload-btn');
@@ -1129,10 +1206,10 @@ export async function handleTrackAction(
                 }
 
                 // Pass track
-                createModal._pendingTracks = [item];
+                if (createModal) (createModal as HTMLElement & { _pendingTracks: TrackData[] })._pendingTracks = [item];
 
-                createModal.classList.add('active');
-                document.getElementById('playlist-name-input').focus();
+                createModal?.classList.add('active');
+                nameInput?.focus();
                 return;
             }
 
@@ -1143,7 +1220,7 @@ export async function handleTrackAction(
                 await db.removeTrackFromPlaylist(playlistId, item.id);
                 const updatedPlaylist = await db.getPlaylist(playlistId);
                 syncManager.syncUserPlaylist(updatedPlaylist, 'update');
-                showNotification(`Removed from playlist: ${option.querySelector('span').textContent}`);
+                showNotification(`Removed from playlist: ${option.querySelector('span')?.textContent}`);
                 await renderModal();
             } else {
                 if (option.classList.contains('already-contains')) return;
@@ -1151,22 +1228,22 @@ export async function handleTrackAction(
                 await db.addTrackToPlaylist(playlistId, item);
                 const updatedPlaylist = await db.getPlaylist(playlistId);
                 syncManager.syncUserPlaylist(updatedPlaylist, 'update');
-                showNotification(`Added to playlist: ${option.querySelector('span').textContent}`);
+                showNotification(`Added to playlist: ${option.querySelector('span')?.textContent}`);
                 closeModal();
             }
         };
 
-        const cleanup = () => {
-            cancelBtn.removeEventListener('click', closeModal);
-            overlay.removeEventListener('click', closeModal);
-            list.removeEventListener('click', handleOptionClick);
+        const cleanup = (): void => {
+            cancelBtn?.removeEventListener('click', closeModal);
+            overlay?.removeEventListener('click', closeModal);
+            list?.removeEventListener('click', handleOptionClick);
         };
 
-        cancelBtn.addEventListener('click', closeModal);
-        overlay.addEventListener('click', closeModal);
-        list.addEventListener('click', handleOptionClick);
+        cancelBtn?.addEventListener('click', closeModal);
+        overlay?.addEventListener('click', closeModal);
+        list?.addEventListener('click', handleOptionClick);
 
-        modal.classList.add('active');
+        modal?.classList.add('active');
     } else if (action === 'go-to-artist') {
         const artistId = extraData?.artistId || item.artist?.id || item.artists?.[0]?.id;
         const trackerSheetId = extraData?.trackerSheetId || (item.isTracker ? item.trackerInfo?.sheetId : null);
@@ -1182,7 +1259,7 @@ export async function handleTrackAction(
         }
     } else if (action === 'copy-link' || action === 'share') {
         // Use stored href from card if available, otherwise construct URL
-        const contextMenu = document.getElementById('context-menu');
+        const contextMenu = document.getElementById('context-menu') as ContextMenuElement | null;
         const storedHref = contextMenu?._contextHref;
         const url = getShareUrl(storedHref ? storedHref : `/track/${item.id || item.uuid}`);
 
@@ -1192,7 +1269,7 @@ export async function handleTrackAction(
         });
     } else if (action === 'open-in-new-tab') {
         // Use stored href from card if available, otherwise construct URL
-        const contextMenu = document.getElementById('context-menu');
+        const contextMenu = document.getElementById('context-menu') as ContextMenuElement | null;
         const storedHref = contextMenu?._contextHref;
         const url = storedHref
             ? `${window.location.origin}${storedHref}`
@@ -1207,10 +1284,10 @@ export async function handleTrackAction(
 
         if (isTracker && item.trackerInfo) {
             // Detailed unreleased/tracker track info
-            const releaseDate = item.trackerInfo.releaseDate || item.streamStartDate;
+            const releaseDate = (item.trackerInfo.releaseDate as string | undefined) || item.streamStartDate;
             const dateDisplay = releaseDate ? new Date(releaseDate).toLocaleDateString() : 'Unknown';
             const addedDate = item.trackerInfo.addedDate
-                ? new Date(item.trackerInfo.addedDate).toLocaleDateString()
+                ? new Date(item.trackerInfo.addedDate as string).toLocaleDateString()
                 : 'Unknown';
 
             infoHTML = `
@@ -1232,8 +1309,8 @@ export async function handleTrackAction(
                             <p><strong style="color: var(--foreground);">Duration:</strong> ${escapeHtml(formatTime(item.duration))}</p>
                             ${releaseDate !== 'Unknown' ? `<p><strong style="color: var(--foreground);">Release Date:</strong> ${escapeHtml(dateDisplay)}</p>` : ''}
                             ${item.trackerInfo.addedDate ? `<p><strong style="color: var(--foreground);">Added to Tracker:</strong> ${escapeHtml(addedDate)}</p>` : ''}
-                            ${item.trackerInfo.leakedDate ? `<p><strong style="color: var(--foreground);">Leak Date:</strong> ${escapeHtml(new Date(item.trackerInfo.leakedDate).toLocaleDateString())}</p>` : ''}
-                            ${item.trackerInfo.recordingDate ? `<p><strong style="color: var(--foreground);">Recording Date:</strong> ${escapeHtml(new Date(item.trackerInfo.recordingDate).toLocaleDateString())}</p>` : ''}
+                            ${item.trackerInfo.leakedDate ? `<p><strong style="color: var(--foreground);">Leak Date:</strong> ${escapeHtml(new Date(item.trackerInfo.leakedDate as string).toLocaleDateString())}</p>` : ''}
+                            ${item.trackerInfo.recordingDate ? `<p><strong style="color: var(--foreground);">Recording Date:</strong> ${escapeHtml(new Date(item.trackerInfo.recordingDate as string).toLocaleDateString())}</p>` : ''}
                         </div>
                         
                         ${
@@ -1301,12 +1378,12 @@ export async function handleTrackAction(
                         </div>
                         
                         ${
-                            item.credits && item.credits.length > 0
+                            Array.isArray(item.credits) && item.credits.length > 0
                                 ? `
                             <div style="margin-top: 1rem; padding: 0.75rem; background: var(--accent); border-radius: 8px;">
                                 <p style="color: var(--foreground); font-weight: 500; margin-bottom: 0.5rem;">Credits</p>
                                 <div style="font-size: 0.85rem; line-height: 1.6;">
-                                    ${item.credits.map((c) => `<p>${escapeHtml(c.type)}: ${escapeHtml(c.name)}</p>`).join('')}
+                                    ${(item.credits as {type: string; name: string}[]).map((c: {type: string; name: string}) => `<p>${escapeHtml(c.type)}: ${escapeHtml(c.name)}</p>`).join('')}
                                 </div>
                             </div>
                         `
@@ -1314,15 +1391,15 @@ export async function handleTrackAction(
                         }
                         
                         ${
-                            item.composers && item.composers.length > 0
+                            Array.isArray(item.composers) && item.composers.length > 0
                                 ? `
-                            <p style="margin-top: 0.5rem;"><strong style="color: var(--foreground);">Composers:</strong> ${escapeHtml(item.composers.map((c) => c.name).join(', '))}</p>
+                            <p style="margin-top: 0.5rem;"><strong style="color: var(--foreground);">Composers:</strong> ${escapeHtml((item.composers as {name: string}[]).map((c: {name: string}) => c.name).join(', '))}</p>
                         `
                                 : ''
                         }
                         
                         ${
-                            item.lyrics?.text
+                            (item.lyrics as Record<string, unknown> | undefined)?.text
                                 ? `
                             <div style="margin-top: 1rem; padding: 0.75rem; background: var(--accent); border-radius: 8px;">
                                 <p style="color: var(--foreground); font-weight: 500; margin-bottom: 0.5rem;">Has Lyrics</p>
@@ -1348,19 +1425,19 @@ export async function handleTrackAction(
         modal.onclick = (e) => {
             if (e.target === modal) modal.remove();
         };
-        const closeBtn = modal.querySelector('.track-info-close-btn');
+        const closeBtn = modal.querySelector('.track-info-close-btn') as HTMLElement | null;
         if (closeBtn) {
             closeBtn.onclick = () => modal.remove();
         }
         document.body.appendChild(modal);
     } else if (action === 'open-original-url') {
         // Open the original source URL for the track
-        let url = null;
+        let url: string | null = null;
 
         if (item.isTracker && item.trackerInfo && item.trackerInfo.sourceUrl) {
-            url = item.trackerInfo.sourceUrl;
+            url = item.trackerInfo.sourceUrl as string;
         } else if (item.remoteUrl) {
-            url = item.remoteUrl;
+            url = item.remoteUrl as string;
         }
 
         if (url) {
@@ -1390,7 +1467,7 @@ export async function handleTrackAction(
             return;
         }
 
-        const albumObj = { id: albumId, title: albumTitle, artist: albumArtist };
+        const albumObj = { id: albumId, title: albumTitle || '', cover: '', artist: albumArtist } as TrackAlbum;
 
         if (contentBlockingSettings.isAlbumBlocked(albumId)) {
             contentBlockingSettings.unblockAlbum(albumId);
@@ -1404,14 +1481,14 @@ export async function handleTrackAction(
     } else if (action === 'block-artist') {
         const { contentBlockingSettings } = await import('./storage.ts');
         const artistId = item.artist?.id || item.artists?.[0]?.id;
-        const artistName = item.artist?.name || item.artists?.[0]?.name || item.name;
+        const artistName = item.artist?.name || item.artists?.[0]?.name || (item.name as string | undefined);
 
         if (!artistId) {
             showNotification('No artist information available');
             return;
         }
 
-        const artistObj = { id: artistId, name: artistName };
+        const artistObj = { id: artistId, name: artistName || 'Unknown Artist' };
 
         if (contentBlockingSettings.isArtistBlocked(artistId)) {
             contentBlockingSettings.unblockArtist(artistId);
@@ -1425,7 +1502,7 @@ export async function handleTrackAction(
     }
 }
 
-async function updateContextMenuLikeState(contextMenu, contextTrack) {
+async function updateContextMenuLikeState(contextMenu: ContextMenuElement, contextTrack: TrackData & Record<string, unknown>): Promise<void> {
     if (!contextMenu || !contextTrack) return;
 
     const likeItem = contextMenu.querySelector('li[data-action="toggle-like"]');
@@ -1440,14 +1517,14 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
         pinItem.textContent = isPinned ? 'Unpin' : 'Pin';
     }
 
-    const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]');
+    const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]') as HTMLElement | null;
     if (trackMixItem) {
         const hasMix = contextTrack.mixes && contextTrack.mixes.TRACK_MIX;
         trackMixItem.style.display = hasMix ? 'block' : 'none';
     }
 
     // Show/hide "Open Original URL" only for unreleased/tracker tracks
-    const openOriginalUrlItem = contextMenu.querySelector('li[data-action="open-original-url"]');
+    const openOriginalUrlItem = contextMenu.querySelector('li[data-action="open-original-url"]') as HTMLElement | null;
     if (openOriginalUrlItem) {
         const isUnreleased = contextTrack.isTracker || (contextTrack.trackerInfo && contextTrack.trackerInfo.sourceUrl);
         openOriginalUrlItem.style.display = isUnreleased ? 'block' : 'none';
@@ -1457,7 +1534,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     const { contentBlockingSettings } = await import('./storage.ts');
     const type = contextMenu._contextType || 'track';
 
-    const blockTrackItem = contextMenu.querySelector('li[data-action="block-track"]');
+    const blockTrackItem = contextMenu.querySelector('li[data-action="block-track"]') as HTMLElement | null;
     if (blockTrackItem) {
         const isBlocked = contentBlockingSettings.isTrackBlocked(contextTrack.id);
         blockTrackItem.textContent = isBlocked
@@ -1465,7 +1542,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
             : blockTrackItem.dataset.labelBlock || 'Block track';
     }
 
-    const blockAlbumItem = contextMenu.querySelector('li[data-action="block-album"]');
+    const blockAlbumItem = contextMenu.querySelector('li[data-action="block-album"]') as HTMLElement | null;
     if (blockAlbumItem) {
         const albumId = type === 'album' ? contextTrack.id : contextTrack.album?.id;
         const isBlocked = albumId ? contentBlockingSettings.isAlbumBlocked(albumId) : false;
@@ -1474,7 +1551,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
             : blockAlbumItem.dataset.labelBlock || 'Block album';
     }
 
-    const blockArtistItem = contextMenu.querySelector('li[data-action="block-artist"]');
+    const blockArtistItem = contextMenu.querySelector('li[data-action="block-artist"]') as HTMLElement | null;
     if (blockArtistItem) {
         const artistId = contextTrack.artist?.id || contextTrack.artists?.[0]?.id;
         const isBlocked = artistId ? contentBlockingSettings.isArtistBlocked(artistId) : false;
@@ -1484,7 +1561,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     }
 
     // Filter items based on type
-    contextMenu.querySelectorAll('li[data-action]').forEach((item) => {
+    contextMenu.querySelectorAll<HTMLElement>('li[data-action]').forEach((item: HTMLElement) => {
         const filter = item.dataset.typeFilter;
         if (filter) {
             const types = filter.split(',');
@@ -1502,7 +1579,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     });
 
     // Handle multiple artists for "Go to artist"
-    const artistItem = contextMenu.querySelector('li[data-action="go-to-artist"]');
+    const artistItem = contextMenu.querySelector('li[data-action="go-to-artist"]') as HTMLElement | null;
     if (artistItem) {
         const artists = Array.isArray(contextTrack.artists)
             ? contextTrack.artists
@@ -1526,11 +1603,12 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     }
 }
 
-export function initializeTrackInteractions(player, api, mainContent, contextMenu, lyricsManager, ui, scrobbler) {
-    let contextTrack = null;
+export function initializeTrackInteractions(player: PlayerInstance, api: ApiInstance, mainContent: HTMLElement, contextMenu: ContextMenuElement, lyricsManager: unknown, ui: UIInstance, scrobbler: ScrobblerInstance): void {
+    let contextTrack: (TrackData & Record<string, unknown>) | null = null;
 
-    mainContent.addEventListener('click', async (e) => {
-        const actionBtn = e.target.closest('.track-action-btn, .like-btn, .play-btn');
+    mainContent.addEventListener('click', async (e: Event) => {
+        const target = e.target as HTMLElement;
+        const actionBtn = target.closest('.track-action-btn, .like-btn, .play-btn') as HTMLElement | null;
         if (actionBtn && actionBtn.dataset.action) {
             e.preventDefault(); // Prevent card navigation
             e.stopPropagation();
@@ -1538,7 +1616,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             const action = actionBtn.dataset.action;
             const type = actionBtn.dataset.type || 'track';
 
-            let item = itemElement ? trackDataStore.get(itemElement) : trackDataStore.get(actionBtn);
+            let item: (TrackData & Record<string, unknown>) | undefined = itemElement ? trackDataStore.get(itemElement as HTMLElement) as TrackData | undefined : trackDataStore.get(actionBtn) as TrackData | undefined;
 
             // If no item from element (e.g. header buttons), try to get from hash
             if (!item && action === 'toggle-like') {
@@ -1547,15 +1625,15 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                     try {
                         if (type === 'album') {
                             const data = await api.getAlbum(id);
-                            item = data.album;
+                            item = data.album as TrackData & Record<string, unknown>;
                         } else if (type === 'artist') {
-                            item = await api.getArtist(id);
+                            item = await api.getArtist(id) as unknown as TrackData & Record<string, unknown>;
                         } else if (type === 'playlist') {
                             const data = await api.getPlaylist(id);
-                            item = data.playlist;
+                            item = data.playlist as TrackData & Record<string, unknown>;
                         } else if (type === 'mix') {
                             const data = await api.getMix(id);
-                            item = data.mix;
+                            item = data.mix as TrackData & Record<string, unknown>;
                         } else if (type === 'track') {
                             const data = await api.getTrack(id);
                             item = data.track;
@@ -1567,23 +1645,23 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             }
 
             if (item) {
-                await handleTrackAction(action, item, player, api, lyricsManager, type, ui, scrobbler);
+                await handleTrackAction(action, item as TrackData & Record<string, unknown>, player, api, lyricsManager, type, ui, scrobbler);
             }
             return;
         }
 
-        const cardMenuBtn = e.target.closest('.card-menu-btn');
+        const cardMenuBtn = target.closest('.card-menu-btn') as HTMLElement | null;
         if (cardMenuBtn) {
             e.stopPropagation();
-            const card = cardMenuBtn.closest('.card');
+            const card = cardMenuBtn.closest('.card') as HTMLElement | null;
             const type = cardMenuBtn.dataset.type;
             const id = cardMenuBtn.dataset.id;
 
-            let item = card ? trackDataStore.get(card) : null;
+            let item: TrackData & Record<string, unknown> = card ? trackDataStore.get(card) as TrackData & Record<string, unknown> : null as unknown as TrackData & Record<string, unknown>;
 
             if (!item) {
                 // Fallback: create a shell item
-                item = { id, uuid: id, title: card.querySelector('.card-title')?.textContent || 'Item' };
+                item = { id: id as string, uuid: id, title: card?.querySelector('.card-title')?.textContent || 'Item', duration: 0 } as unknown as TrackData & Record<string, unknown>;
             }
 
             if (contextMenu._originalHTML) {
@@ -1593,20 +1671,20 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
 
             contextTrack = item;
             contextMenu._contextTrack = item;
-            contextMenu._contextType = type;
+            contextMenu._contextType = type || null;
 
             await updateContextMenuLikeState(contextMenu, item);
             const rect = cardMenuBtn.getBoundingClientRect();
-            positionMenu(contextMenu, rect.left, rect.bottom + 5, rect);
+            positionMenu(contextMenu, rect.left, rect.bottom + 5, rect as never);
             return;
         }
 
-        const menuBtn = e.target.closest('.track-menu-btn');
+        const menuBtn = target.closest('.track-menu-btn') as HTMLElement | null;
         if (menuBtn) {
             e.stopPropagation();
-            const trackItem = menuBtn.closest('.track-item');
+            const trackItem = menuBtn.closest('.track-item') as HTMLElement | null;
             if (trackItem && !trackItem.dataset.queueIndex) {
-                const clickedTrack = trackDataStore.get(trackItem);
+                const clickedTrack = trackDataStore.get(trackItem) as (TrackData & Record<string, unknown>) | undefined;
 
                 if (clickedTrack && clickedTrack.isLocal) return;
 
@@ -1625,7 +1703,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                     return;
                 }
 
-                contextTrack = clickedTrack;
+                contextTrack = clickedTrack || null;
                 if (contextTrack) {
                     if (contextMenu._originalHTML) {
                         contextMenu.innerHTML = contextMenu._originalHTML;
@@ -1635,33 +1713,33 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                     contextMenu._contextType = 'track';
                     await updateContextMenuLikeState(contextMenu, contextTrack);
                     const rect = menuBtn.getBoundingClientRect();
-                    positionMenu(contextMenu, rect.left, rect.bottom + 5, rect);
+                    positionMenu(contextMenu, rect.left, rect.bottom + 5, rect as never);
                 }
             }
             return;
         }
 
-        const trackItem = e.target.closest('.track-item');
+        const trackItem = target.closest('.track-item') as HTMLElement | null;
         if (trackItem && (trackItem.classList.contains('unavailable') || trackItem.classList.contains('blocked'))) {
             return;
         }
         if (
             trackItem &&
             !trackItem.dataset.queueIndex &&
-            !e.target.closest('.remove-from-playlist-btn') &&
-            !e.target.closest('.artist-link')
+            !target.closest('.remove-from-playlist-btn') &&
+            !target.closest('.artist-link')
         ) {
             const clickedTrackId = trackItem.dataset.trackId;
             const isSearch = window.location.pathname.startsWith('/search/');
 
             if (isSearch) {
-                const clickedTrack = trackDataStore.get(trackItem);
+                const clickedTrack = trackDataStore.get(trackItem) as TrackData | undefined;
                 if (clickedTrack) {
                     player.setQueue([clickedTrack], 0);
-                    document.getElementById('shuffle-btn').classList.remove('active');
+                    document.getElementById('shuffle-btn')?.classList.remove('active');
                     player.playTrackFromQueue();
 
-                    api.getTrackRecommendations(clickedTrack.id).then((recs) => {
+                    api.getTrackRecommendations(clickedTrack.id).then((recs: TrackData[]) => {
                         if (recs && recs.length > 0) {
                             player.addToQueue(recs);
                         }
@@ -1669,21 +1747,21 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                 }
             } else {
                 const parentList = trackItem.closest('.track-list');
-                const allTrackElements = Array.from(parentList.querySelectorAll('.track-item'));
-                const trackList = allTrackElements.map((el) => trackDataStore.get(el)).filter(Boolean);
+                const allTrackElements = parentList ? Array.from(parentList.querySelectorAll('.track-item')) : [];
+                const trackList = allTrackElements.map((el) => trackDataStore.get(el as HTMLElement) as TrackData | undefined).filter(Boolean) as TrackData[];
 
                 if (trackList.length > 0) {
                     const startIndex = trackList.findIndex((t) => t.id == clickedTrackId);
 
                     player.setQueue(trackList, startIndex);
-                    document.getElementById('shuffle-btn').classList.remove('active');
+                    document.getElementById('shuffle-btn')?.classList.remove('active');
                     player.playTrackFromQueue();
                 }
             }
         }
 
         // Handle artist link clicks in track lists
-        const artistLink = e.target.closest('.artist-link');
+        const artistLink = target.closest('.artist-link') as HTMLElement | null;
         if (artistLink) {
             e.stopPropagation();
             const artistId = artistLink.dataset.artistId;
@@ -1696,21 +1774,21 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             return;
         }
 
-        const card = e.target.closest('.card');
+        const card = target.closest('.card') as HTMLElement | null;
         if (card) {
             // Don't navigate if card is blocked (unless clicking menu button)
-            if (card.classList.contains('blocked') && !e.target.closest('.card-menu-btn')) {
+            if (card.classList.contains('blocked') && !target.closest('.card-menu-btn')) {
                 return;
             }
 
-            if (e.target.closest('.edit-playlist-btn') || e.target.closest('.delete-playlist-btn')) {
+            if (target.closest('.edit-playlist-btn') || target.closest('.delete-playlist-btn')) {
                 return;
             }
 
             const href = card.dataset.href;
             if (href) {
                 // Allow native links inside card to work if any exist
-                if (e.target.closest('a')) return;
+                if (target.closest('a')) return;
 
                 e.preventDefault();
                 navigate(href);
@@ -1718,19 +1796,20 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
         }
     });
 
-    mainContent.addEventListener('contextmenu', async (e) => {
-        const trackItem = e.target.closest('.track-item, .queue-track-item');
-        const card = e.target.closest('.card');
+    mainContent.addEventListener('contextmenu', async (e: MouseEvent) => {
+        const ctxTarget = e.target as HTMLElement;
+        const trackItem = ctxTarget.closest('.track-item, .queue-track-item') as HTMLElement | null;
+        const card = ctxTarget.closest('.card') as HTMLElement | null;
 
         if (trackItem) {
             e.preventDefault();
             if (trackItem.classList.contains('queue-track-item')) {
                 // For queue items, get track from player's queue
-                const queueIndex = parseInt(trackItem.dataset.queueIndex);
-                contextTrack = player.getCurrentQueue()[queueIndex];
+                const queueIndex = parseInt(trackItem.dataset.queueIndex || '0');
+                contextTrack = player.getCurrentQueue()[queueIndex] as TrackData & Record<string, unknown>;
             } else {
                 // For regular track items
-                contextTrack = trackDataStore.get(trackItem);
+                contextTrack = (trackDataStore.get(trackItem) as TrackData & Record<string, unknown>) || null;
             }
 
             if (contextTrack) {
@@ -1743,9 +1822,9 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
 
                 // Hide actions for unavailable tracks
                 const unavailableActions = ['play-next', 'add-to-queue', 'download', 'track-mix'];
-                contextMenu.querySelectorAll('[data-action]').forEach((btn) => {
-                    if (unavailableActions.includes(btn.dataset.action)) {
-                        btn.style.display = contextTrack.isUnavailable ? 'none' : 'block';
+                contextMenu.querySelectorAll<HTMLElement>('[data-action]').forEach((btn: HTMLElement) => {
+                    if (unavailableActions.includes(btn.dataset.action || '')) {
+                        btn.style.display = contextTrack?.isUnavailable ? 'none' : 'block';
                     }
                 });
 
@@ -1767,11 +1846,12 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                       : 'item';
             const id = card.dataset.albumId || card.dataset.playlistId || card.dataset.mixId;
 
-            const item = trackDataStore.get(card) || {
-                id,
+            const item: TrackData & Record<string, unknown> = (trackDataStore.get(card) as TrackData & Record<string, unknown>) || ({
+                id: id || '',
                 uuid: id,
-                title: card.querySelector('.card-title')?.textContent,
-            };
+                title: card.querySelector('.card-title')?.textContent || '',
+                duration: 0,
+            } as unknown as TrackData & Record<string, unknown>);
 
             if (contextMenu._originalHTML) {
                 contextMenu.innerHTML = contextMenu._originalHTML;
@@ -1781,7 +1861,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             contextTrack = item;
             contextMenu._contextTrack = item;
             contextMenu._contextType = type.replace('userplaylist', 'user-playlist');
-            contextMenu._contextHref = card.dataset.href;
+            contextMenu._contextHref = card.dataset.href || null;
 
             await updateContextMenuLikeState(contextMenu, item);
             positionMenu(contextMenu, e.clientX, e.clientY);
@@ -1799,17 +1879,17 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
         }
     });
 
-    contextMenu.addEventListener('click', async (e) => {
+    contextMenu.addEventListener('click', async (e: Event) => {
         e.stopPropagation();
-        const target = e.target.closest('[data-action]');
-        if (!target) return;
+        const cmTarget = (e.target as HTMLElement).closest('[data-action]') as HTMLElement | null;
+        if (!cmTarget) return;
 
-        const action = target.dataset.action;
+        const action = cmTarget.dataset.action;
         const track = contextMenu._contextTrack || contextTrack;
         const type = contextMenu._contextType || 'track';
 
-        if (action === 'go-to-artists' || (action === 'go-to-artist' && target.dataset.hasMultipleArtists === 'true')) {
-            const artists = Array.isArray(track.artists) ? track.artists : track.artist ? [track.artist] : [];
+        if (action === 'go-to-artists' || (action === 'go-to-artist' && cmTarget.dataset.hasMultipleArtists === 'true')) {
+            const artists = Array.isArray(track?.artists) ? track.artists : track?.artist ? [track.artist] : [];
             if (artists.length > 1) {
                 // Save original HTML if not already saved
                 if (!contextMenu._originalHTML) {
@@ -1819,7 +1899,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                 // Render sub-menu
                 let subMenuHTML =
                     '<li data-action="back-to-main-menu" style="font-weight: bold; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; padding: 0.75rem 1rem; cursor: pointer;">← Back</li>';
-                artists.forEach((artist) => {
+                artists.forEach((artist: TrackArtist) => {
                     subMenuHTML += `<li data-action="go-to-artist" data-artist-id="${artist.id}" style="padding: 0.75rem 1rem; cursor: pointer;">${escapeHtml(artist.name || 'Unknown Artist')}</li>`;
                 });
                 contextMenu.innerHTML = `<ul>${subMenuHTML}</ul>`;
@@ -1832,7 +1912,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                 contextMenu.innerHTML = contextMenu._originalHTML;
                 contextMenu._originalHTML = null;
                 // Re-update like state since we replaced the HTML
-                await updateContextMenuLikeState(contextMenu, track);
+                if (track) await updateContextMenuLikeState(contextMenu, track);
             }
             return;
         }
@@ -1840,7 +1920,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
         if (action && track) {
             // Track context menu action
             trackContextMenuAction(action, type, track);
-            await handleTrackAction(action, track, player, api, lyricsManager, type, ui, scrobbler, target.dataset);
+            await handleTrackAction(action, track, player, api, lyricsManager, type, ui, scrobbler, cmTarget.dataset as Record<string, string>);
         }
 
         // Reset menu state before closing
@@ -1853,22 +1933,22 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
     });
 
     // Now playing bar interactions
-    document.querySelector('.now-playing-bar .title').addEventListener('click', () => {
+    document.querySelector('.now-playing-bar .title')?.addEventListener('click', () => {
         const track = player.currentTrack;
         if (track?.album?.id) {
             navigate(`/album/${track.album.id}`);
         }
     });
 
-    document.querySelector('.now-playing-bar .album').addEventListener('click', () => {
+    document.querySelector('.now-playing-bar .album')?.addEventListener('click', () => {
         const track = player.currentTrack;
         if (track?.album?.id) {
             navigate(`/album/${track.album.id}`);
         }
     });
 
-    document.querySelector('.now-playing-bar .artist').addEventListener('click', (e) => {
-        const link = e.target.closest('.artist-link');
+    document.querySelector('.now-playing-bar .artist')?.addEventListener('click', (e: Event) => {
+        const link = (e.target as HTMLElement | null)?.closest('.artist-link') as HTMLElement | null;
         if (link) {
             e.stopPropagation();
             const artistId = link.dataset.artistId;
@@ -1974,28 +2054,28 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
     }
 }
 
-function showSleepTimerModal(player) {
+function showSleepTimerModal(player: PlayerInstance): void {
     const modal = document.getElementById('sleep-timer-modal');
     if (!modal) return;
 
-    const closeModal = () => {
+    const closeModal = (): void => {
         modal.classList.remove('active');
         cleanup();
     };
 
-    const handleOptionClick = (e) => {
-        const timerOption = e.target.closest('.timer-option');
+    const handleOptionClick = (e: Event): void => {
+        const timerOption = (e.target as HTMLElement).closest('.timer-option') as HTMLElement | null;
         if (timerOption) {
-            let minutes;
+            let minutes: number;
             if (timerOption.id === 'custom-timer-btn') {
-                const customInput = document.getElementById('custom-minutes');
-                minutes = parseInt(customInput.value);
+                const customInput = document.getElementById('custom-minutes') as HTMLInputElement | null;
+                minutes = parseInt(customInput?.value || '');
                 if (!minutes || minutes < 1) {
                     showNotification('Please enter a valid number of minutes');
                     return;
                 }
             } else {
-                minutes = parseInt(timerOption.dataset.minutes);
+                minutes = parseInt(timerOption.dataset.minutes || '');
             }
 
             if (minutes) {
@@ -2007,13 +2087,14 @@ function showSleepTimerModal(player) {
         }
     };
 
-    const handleCancel = (e) => {
-        if (e.target.id === 'cancel-sleep-timer' || e.target.classList.contains('modal-overlay')) {
+    const handleCancel = (e: Event): void => {
+        const cancelTarget = e.target as HTMLElement;
+        if (cancelTarget.id === 'cancel-sleep-timer' || cancelTarget.classList.contains('modal-overlay')) {
             closeModal();
         }
     };
 
-    const cleanup = () => {
+    const cleanup = (): void => {
         modal.removeEventListener('click', handleOptionClick);
         modal.removeEventListener('click', handleCancel);
     };

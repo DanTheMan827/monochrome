@@ -185,7 +185,7 @@ interface Window {
     __FIREBASE_CONFIG__?: Record<string, string>;
     __POCKETBASE_URL__?: string;
     monochromePlayer?: any;
-    renderQueueFunction?: (queue: any[], currentIndex: number) => void;
+    renderQueueFunction?: () => void;
     Kuroshiro?: new () => {
         init(analyzer: unknown): Promise<void>;
         convert(text: string, options: { to: string; mode: string }): Promise<string>;
