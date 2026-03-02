@@ -1,13 +1,17 @@
 import { getCoverBlob } from './utils.ts';
 
-async function writeID3v2Tag(mp3Blob, metadata, coverBlob = null) {
-    const frames = [];
+interface CoverApi {
+    getCoverUrl(id: string, size?: string): string;
+}
+
+async function writeID3v2Tag(mp3Blob: Blob, metadata: TrackData, coverBlob: Blob | null = null): Promise<Blob> {
+    const frames: Uint8Array[] = [];
 
     if (metadata.title) {
         frames.push(createTextFrame('TIT2', metadata.title));
     }
 
-    const artistName = metadata.artist?.name || metadata.artists?.[0]?.name;
+    const artistName: string | undefined = metadata.artist?.name || metadata.artists?.[0]?.name;
     if (artistName) {
         frames.push(createTextFrame('TPE1', artistName));
     }
@@ -16,7 +20,7 @@ async function writeID3v2Tag(mp3Blob, metadata, coverBlob = null) {
         frames.push(createTextFrame('TALB', metadata.album.title));
     }
 
-    const albumArtistName = metadata.album?.artist?.name || metadata.artist?.name || metadata.artists?.[0]?.name;
+    const albumArtistName: string | undefined = metadata.album?.artist?.name || metadata.artist?.name || metadata.artists?.[0]?.name;
     if (albumArtistName) {
         frames.push(createTextFrame('TPE2', albumArtistName));
     }
@@ -26,7 +30,7 @@ async function writeID3v2Tag(mp3Blob, metadata, coverBlob = null) {
     }
 
     if (metadata.album?.releaseDate) {
-        const year = new Date(metadata.album.releaseDate).getFullYear();
+        const year: number = new Date(metadata.album.releaseDate).getFullYear();
         if (!Number.isNaN(year) && Number.isFinite(year)) {
             frames.push(createTextFrame('TYER', year.toString()));
         }
@@ -49,22 +53,22 @@ async function writeID3v2Tag(mp3Blob, metadata, coverBlob = null) {
     return buildID3v2Tag(mp3Blob, frames);
 }
 
-function createTextFrame(frameId, text) {
+function createTextFrame(frameId: string, text: string): Uint8Array {
     // ID3v2.3 UTF-16 encoding with BOM
-    const bom = new Uint8Array([0xff, 0xfe]); // UTF-16LE BOM
-    const utf16Bytes = new Uint8Array(text.length * 2);
+    const bom: Uint8Array = new Uint8Array([0xff, 0xfe]); // UTF-16LE BOM
+    const utf16Bytes: Uint8Array = new Uint8Array(text.length * 2);
 
-    for (let i = 0; i < text.length; i++) {
-        const charCode = text.charCodeAt(i);
+    for (let i: number = 0; i < text.length; i++) {
+        const charCode: number = text.charCodeAt(i);
         utf16Bytes[i * 2] = charCode & 0xff;
         utf16Bytes[i * 2 + 1] = (charCode >> 8) & 0xff;
     }
 
-    const frameSize = 1 + bom.length + utf16Bytes.length;
-    const frame = new Uint8Array(10 + frameSize);
-    const view = new DataView(frame.buffer);
+    const frameSize: number = 1 + bom.length + utf16Bytes.length;
+    const frame: Uint8Array = new Uint8Array(10 + frameSize);
+    const view: DataView = new DataView(frame.buffer);
 
-    for (let i = 0; i < 4; i++) {
+    for (let i: number = 0; i < 4; i++) {
         frame[i] = frameId.charCodeAt(i);
     }
 
@@ -78,23 +82,23 @@ function createTextFrame(frameId, text) {
     return frame;
 }
 
-async function createAPICFrame(coverBlob) {
-    const imageBytes = new Uint8Array(await coverBlob.arrayBuffer());
-    const mimeType = coverBlob.type || 'image/jpeg';
-    const mimeBytes = new TextEncoder().encode(mimeType);
+async function createAPICFrame(coverBlob: Blob): Promise<Uint8Array> {
+    const imageBytes: Uint8Array = new Uint8Array(await coverBlob.arrayBuffer());
+    const mimeType: string = coverBlob.type || 'image/jpeg';
+    const mimeBytes: Uint8Array = new TextEncoder().encode(mimeType);
 
-    const frameSize = 1 + mimeBytes.length + 1 + 1 + 1 + imageBytes.length;
+    const frameSize: number = 1 + mimeBytes.length + 1 + 1 + 1 + imageBytes.length;
 
-    const frame = new Uint8Array(10 + frameSize);
-    const view = new DataView(frame.buffer);
+    const frame: Uint8Array = new Uint8Array(10 + frameSize);
+    const view: DataView = new DataView(frame.buffer);
 
-    for (let i = 0; i < 4; i++) {
+    for (let i: number = 0; i < 4; i++) {
         frame[i] = 'APIC'.charCodeAt(i);
     }
 
     view.setUint32(4, frameSize, false);
 
-    let offset = 10;
+    let offset: number = 10;
     frame[offset++] = 0x00;
 
     frame.set(mimeBytes, offset);
@@ -110,17 +114,17 @@ async function createAPICFrame(coverBlob) {
     return frame;
 }
 
-function buildID3v2Tag(mp3Blob, frames) {
-    const framesData = new Uint8Array(frames.reduce((acc, f) => acc + f.length, 0));
-    let offset = 0;
+function buildID3v2Tag(mp3Blob: Blob, frames: Uint8Array[]): Blob {
+    const framesData: Uint8Array = new Uint8Array(frames.reduce((acc: number, f: Uint8Array) => acc + f.length, 0));
+    let offset: number = 0;
     for (const frame of frames) {
         framesData.set(frame, offset);
         offset += frame.length;
     }
 
-    const tagSize = framesData.length;
+    const tagSize: number = framesData.length;
 
-    const header = new Uint8Array(10);
+    const header: Uint8Array = new Uint8Array(10);
     header[0] = 0x49;
     header[1] = 0x44;
     header[2] = 0x33;
@@ -133,23 +137,23 @@ function buildID3v2Tag(mp3Blob, frames) {
     header[8] = (tagSize >> 7) & 0x7f;
     header[9] = tagSize & 0x7f;
 
-    return new Blob([header, framesData, mp3Blob], { type: 'audio/mpeg' });
+    return new Blob([header as BlobPart, framesData as BlobPart, mp3Blob], { type: 'audio/mpeg' });
 }
 
-export async function addMp3Metadata(mp3Blob, track, api) {
+export async function addMp3Metadata(mp3Blob: Blob, track: TrackData, api: CoverApi): Promise<Blob> {
     try {
-        let coverBlob = null;
+        let coverBlob: Blob | null = null;
 
         if (track.album?.cover) {
             try {
                 coverBlob = await getCoverBlob(api, track.album.cover);
-            } catch (error) {
+            } catch (error: unknown) {
                 console.warn('Failed to fetch album art for MP3:', error);
             }
         }
 
         return await writeID3v2Tag(mp3Blob, track, coverBlob);
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Failed to add MP3 metadata:', error);
         return mp3Blob;
     }
