@@ -1,6 +1,29 @@
 import { libreFmSettings, lastFMStorage } from './storage.ts';
 
+interface LibreFmSession {
+    key: string;
+    name: string;
+}
+
+interface LibreFmApiResponse {
+    error?: number;
+    message?: string;
+    token?: string;
+    session?: LibreFmSession;
+}
+
 export class LibreFmScrobbler {
+    private API_KEY: string;
+    private API_SECRET: string;
+    private API_URL: string;
+    private sessionKey: string | null;
+    private username: string | null;
+    private currentTrack: TrackData | null;
+    private scrobbleTimer: ReturnType<typeof setTimeout> | null;
+    private scrobbleThreshold: number;
+    private hasScrobbled: boolean;
+    private isScrobbling: boolean;
+
     constructor() {
         this.API_KEY = 'monochrome_music_app';
         this.API_SECRET = 'monochrome_music_secret_2024';
@@ -17,11 +40,11 @@ export class LibreFmScrobbler {
         this.loadSession();
     }
 
-    loadSession() {
+    loadSession(): void {
         try {
             const session = localStorage.getItem('librefm-session');
             if (session) {
-                const data = JSON.parse(session);
+                const data = JSON.parse(session) as LibreFmSession;
                 this.sessionKey = data.key;
                 this.username = data.name;
             }
@@ -30,7 +53,7 @@ export class LibreFmScrobbler {
         }
     }
 
-    saveSession(sessionKey, username) {
+    saveSession(sessionKey: string, username: string): void {
         this.sessionKey = sessionKey;
         this.username = username;
         localStorage.setItem(
@@ -42,17 +65,17 @@ export class LibreFmScrobbler {
         );
     }
 
-    clearSession() {
+    clearSession(): void {
         this.sessionKey = null;
         this.username = null;
         localStorage.removeItem('librefm-session');
     }
 
-    isAuthenticated() {
+    isAuthenticated(): boolean {
         return !!this.sessionKey && libreFmSettings.isEnabled();
     }
 
-    _getScrobbleArtist(track) {
+    _getScrobbleArtist(track: TrackData | null): string {
         if (!track) return 'Unknown Artist';
 
         let artistName = 'Unknown Artist';
@@ -75,7 +98,7 @@ export class LibreFmScrobbler {
         return artistName || 'Unknown Artist';
     }
 
-    async generateSignature(params) {
+    async generateSignature(params: Record<string, string>): Promise<string> {
         const filteredParams = { ...params };
         delete filteredParams.format;
         delete filteredParams.callback;
@@ -92,8 +115,8 @@ export class LibreFmScrobbler {
         }
     }
 
-    async makeRequest(method, params = {}, requiresAuth = false) {
-        const requestParams = {
+    async makeRequest(method: string, params: Record<string, string> = {}, requiresAuth: boolean = false): Promise<LibreFmApiResponse> {
+        const requestParams: Record<string, string> = {
             method,
             api_key: this.API_KEY,
             ...params,
@@ -120,7 +143,7 @@ export class LibreFmScrobbler {
                 body: formData,
             });
 
-            const data = await response.json();
+            const data = (await response.json()) as LibreFmApiResponse;
 
             if (data.error) {
                 throw new Error(data.message || 'Libre.fm API error');
@@ -133,11 +156,12 @@ export class LibreFmScrobbler {
         }
     }
 
-    async getAuthUrl() {
+    async getAuthUrl(): Promise<{ token: string; url: string }> {
         try {
             // First, get a token from Libre.fm
             const data = await this.makeRequest('auth.getToken');
             const token = data.token;
+            if (!token) throw new Error('No authentication token returned from Libre.fm API');
 
             localStorage.setItem('librefm-pending-token', token);
 
@@ -151,7 +175,7 @@ export class LibreFmScrobbler {
         }
     }
 
-    async completeAuthentication(token) {
+    async completeAuthentication(token: string): Promise<{ success: boolean; username: string }> {
         try {
             const data = await this.makeRequest('auth.getSession', { token });
 
@@ -171,7 +195,7 @@ export class LibreFmScrobbler {
         }
     }
 
-    async updateNowPlaying(track) {
+    async updateNowPlaying(track: TrackData): Promise<void> {
         if (!this.isAuthenticated()) return;
 
         this.currentTrack = track;
@@ -183,8 +207,8 @@ export class LibreFmScrobbler {
         this.clearScrobbleTimer();
 
         try {
-            const scrobbleTitle = track.cleanTitle || track.title;
-            const params = {
+            const scrobbleTitle = (track.cleanTitle as string | undefined) || track.title;
+            const params: Record<string, string> = {
                 artist: this._getScrobbleArtist(track),
                 track: scrobbleTitle,
             };
@@ -194,11 +218,11 @@ export class LibreFmScrobbler {
             }
 
             if (track.duration) {
-                params.duration = Math.floor(track.duration);
+                params.duration = String(Math.floor(track.duration));
             }
 
             if (track.trackNumber) {
-                params.trackNumber = track.trackNumber;
+                params.trackNumber = String(track.trackNumber);
             }
 
             await this.makeRequest('track.updateNowPlaying', params, true);
@@ -213,7 +237,7 @@ export class LibreFmScrobbler {
         }
     }
 
-    scheduleScrobble(delay) {
+    scheduleScrobble(delay: number): void {
         this.clearScrobbleTimer();
 
         this.scrobbleTimer = setTimeout(() => {
@@ -221,26 +245,26 @@ export class LibreFmScrobbler {
         }, delay);
     }
 
-    clearScrobbleTimer() {
+    clearScrobbleTimer(): void {
         if (this.scrobbleTimer) {
             clearTimeout(this.scrobbleTimer);
             this.scrobbleTimer = null;
         }
     }
 
-    async scrobbleCurrentTrack() {
+    async scrobbleCurrentTrack(): Promise<void> {
         if (!this.isAuthenticated() || !this.currentTrack || this.hasScrobbled) return;
 
         this.isScrobbling = true;
 
         try {
             const timestamp = Math.floor(Date.now() / 1000);
-            const scrobbleTitle = this.currentTrack.cleanTitle || this.currentTrack.title;
+            const scrobbleTitle = (this.currentTrack.cleanTitle as string | undefined) || this.currentTrack.title;
 
-            const params = {
+            const params: Record<string, string> = {
                 artist: this._getScrobbleArtist(this.currentTrack),
                 track: scrobbleTitle,
-                timestamp: timestamp,
+                timestamp: String(timestamp),
             };
 
             if (this.currentTrack.album?.title) {
@@ -248,11 +272,11 @@ export class LibreFmScrobbler {
             }
 
             if (this.currentTrack.duration) {
-                params.duration = Math.floor(this.currentTrack.duration);
+                params.duration = String(Math.floor(this.currentTrack.duration));
             }
 
             if (this.currentTrack.trackNumber) {
-                params.trackNumber = this.currentTrack.trackNumber;
+                params.trackNumber = String(this.currentTrack.trackNumber);
             }
 
             await this.makeRequest('track.scrobble', params, true);
@@ -266,7 +290,7 @@ export class LibreFmScrobbler {
         }
     }
 
-    async loveTrack(track) {
+    async loveTrack(track: TrackData): Promise<void> {
         if (!this.isAuthenticated()) return;
 
         try {
@@ -282,16 +306,16 @@ export class LibreFmScrobbler {
         }
     }
 
-    onTrackChange(track) {
+    onTrackChange(track: TrackData): void {
         if (!this.isAuthenticated()) return;
         this.updateNowPlaying(track);
     }
 
-    onPlaybackStop() {
+    onPlaybackStop(): void {
         this.clearScrobbleTimer();
     }
 
-    disconnect() {
+    disconnect(): void {
         this.clearSession();
         this.clearScrobbleTimer();
         this.currentTrack = null;
