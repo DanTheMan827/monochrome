@@ -416,8 +416,8 @@ export function initializePlayerEvents(player: PlayerInstance, audioPlayer: HTML
         }
     };
 
-    window.addEventListener('waveform-toggle', (e: Event) => {
-        if (!(e as CustomEvent).detail.enabled) {
+    window.addEventListener('waveform-toggle', ((e: CustomEvent) => {
+        if (!e.detail.enabled) {
             const progressBar = document.getElementById('progress-bar');
             const playerControls = document.querySelector('.player-controls');
             if (progressBar) {
@@ -430,7 +430,7 @@ export function initializePlayerEvents(player: PlayerInstance, audioPlayer: HTML
             }
         }
         updateWaveform();
-    });
+    }) as EventListener);
 
     const updateVolumeUI = (): void => {
         const { muted } = audioPlayer;
@@ -445,7 +445,7 @@ export function initializePlayerEvents(player: PlayerInstance, audioPlayer: HTML
 
     volumeBtn?.addEventListener('click', () => {
         audioPlayer.muted = !audioPlayer.muted;
-        localStorage.setItem('muted', String(audioPlayer.muted));
+        localStorage.setItem('muted', audioPlayer.muted ? 'true' : 'false');
     });
 
     audioPlayer.addEventListener('volumechange', updateVolumeUI);
@@ -604,8 +604,8 @@ function initializeSmoothSliders(audioPlayer: HTMLAudioElement, player: PlayerIn
                     player.updateMediaSessionPositionState();
                 } else if (player.currentTrack && player.currentTrack.duration) {
                     const targetTime = position * player.currentTrack.duration;
-                    const pFill = document.querySelector('.progress-fill') as HTMLElement | null;
-                    if (pFill) pFill.style.width = `${position * 100}%`;
+                    const progressFillEl = document.querySelector('.progress-fill') as HTMLElement | null;
+                    if (progressFillEl) progressFillEl.style.width = `${position * 100}%`;
                     player.playTrackFromQueue(targetTime);
                 }
             });
@@ -1657,7 +1657,7 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
             const type = cardMenuBtn.dataset.type;
             const id = cardMenuBtn.dataset.id;
 
-            let item: TrackData & Record<string, unknown> = card ? trackDataStore.get(card) as TrackData & Record<string, unknown> : null as unknown as TrackData & Record<string, unknown>;
+            let item: (TrackData & Record<string, unknown>) | null = card ? trackDataStore.get(card) as TrackData & Record<string, unknown> : null;
 
             if (!item) {
                 // Fallback: create a shell item
