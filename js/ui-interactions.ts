@@ -17,8 +17,11 @@ import { db } from './db.ts';
 import { syncManager } from './accounts/pocketbase.ts';
 import { showNotification, downloadTracks } from './downloads.ts';
 import { trackSearchTabChange, trackOpenQueue } from './analytics.ts';
+import type { Player } from './player.ts';
+import type { MusicAPI } from './music-api.ts';
+import type { UIRenderer } from './ui.ts';
 
-export function initializeUIInteractions(player, api, ui) {
+export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRenderer): void {
     const sidebar = document.querySelector('.sidebar');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
     const hamburgerBtn = document.getElementById('hamburger-btn');
@@ -26,39 +29,39 @@ export function initializeUIInteractions(player, api, ui) {
     const libraryPage = document.getElementById('page-library');
 
     if (libraryPage) {
-        libraryPage.addEventListener('dragstart', (e) => {
-            const playlistCard = e.target.closest('.card.user-playlist');
-            if (playlistCard) {
-                e.dataTransfer.setData('text/playlist-id', playlistCard.dataset.userPlaylistId);
+        libraryPage.addEventListener('dragstart', (e: DragEvent) => {
+            const playlistCard = (e.target as Element).closest('.card.user-playlist') as HTMLElement | null;
+            if (playlistCard && e.dataTransfer) {
+                e.dataTransfer.setData('text/playlist-id', playlistCard.dataset.userPlaylistId || '');
                 e.dataTransfer.effectAllowed = 'move';
             }
         });
 
-        const handleDragOver = (e) => {
-            const folderCard = e.target.closest('.card[data-folder-id]');
-            if (folderCard && e.dataTransfer.types.includes('text/playlist-id')) {
+        const handleDragOver = (e: DragEvent): void => {
+            const folderCard = (e.target as Element).closest('.card[data-folder-id]');
+            if (folderCard && e.dataTransfer?.types.includes('text/playlist-id')) {
                 e.preventDefault();
                 folderCard.classList.add('drag-over');
             }
         };
 
-        const handleDragLeave = (e) => {
-            const folderCard = e.target.closest('.card[data-folder-id]');
+        const handleDragLeave = (e: DragEvent): void => {
+            const folderCard = (e.target as Element).closest('.card[data-folder-id]');
             if (folderCard) {
                 folderCard.classList.remove('drag-over');
             }
         };
 
-        const handleDrop = async (e) => {
+        const handleDrop = async (e: DragEvent): Promise<void> => {
             e.preventDefault();
-            const folderCard = e.target.closest('.card[data-folder-id]');
-            if (folderCard) {
+            const folderCard = (e.target as Element).closest('.card[data-folder-id]') as HTMLElement | null;
+            if (folderCard && e.dataTransfer) {
                 folderCard.classList.remove('drag-over');
                 const playlistId = e.dataTransfer.getData('text/playlist-id');
                 const folderId = folderCard.dataset.folderId;
 
                 if (playlistId && folderId) {
-                    const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId);
+                    const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId) as Record<string, unknown> & { playlists: string[] };
                     syncManager.syncUserFolder(updatedFolder, 'update');
                     const subtitle = folderCard.querySelector('.card-subtitle');
                     if (subtitle) {
@@ -74,29 +77,29 @@ export function initializeUIInteractions(player, api, ui) {
         libraryPage.addEventListener('drop', handleDrop);
     }
 
-    let draggedQueueIndex = null;
+    let draggedQueueIndex: number | null = null;
 
     // Sidebar mobile
-    hamburgerBtn.addEventListener('click', () => {
-        sidebar.classList.add('is-open');
-        sidebarOverlay.classList.add('is-visible');
+    hamburgerBtn!.addEventListener('click', () => {
+        sidebar!.classList.add('is-open');
+        sidebarOverlay!.classList.add('is-visible');
     });
 
-    const closeSidebar = () => {
-        sidebar.classList.remove('is-open');
-        sidebarOverlay.classList.remove('is-visible');
+    const closeSidebar = (): void => {
+        sidebar?.classList.remove('is-open');
+        sidebarOverlay?.classList.remove('is-visible');
     };
 
-    sidebarOverlay.addEventListener('click', closeSidebar);
+    sidebarOverlay?.addEventListener('click', closeSidebar);
 
-    sidebar.addEventListener('click', (e) => {
-        if (e.target.closest('a')) {
+    sidebar?.addEventListener('click', (e) => {
+        if ((e.target as Element).closest('a')) {
             closeSidebar();
         }
     });
 
     // Queue panel
-    const renderQueueControls = (container) => {
+    const renderQueueControls = (container: HTMLElement): void => {
         const currentQueue = player.getCurrentQueue();
         const showActionBtns = currentQueue.length > 0;
 
@@ -121,7 +124,7 @@ export function initializeUIInteractions(player, api, ui) {
             </button>
         `;
 
-        container.querySelector('#close-side-panel-btn').addEventListener('click', () => {
+        container.querySelector('#close-side-panel-btn')!.addEventListener('click', () => {
             sidePanelManager.close();
         });
 
@@ -157,7 +160,7 @@ export function initializeUIInteractions(player, api, ui) {
         const addToPlaylistBtn = container.querySelector('#add-queue-to-playlist-btn');
         if (addToPlaylistBtn) {
             addToPlaylistBtn.addEventListener('click', async () => {
-                const playlists = await db.getPlaylists();
+                const playlists = await db.getPlaylists() as { id: string; name: string }[];
                 if (playlists.length === 0) {
                     showNotification('No playlists yet. Create one first.');
                     return;
@@ -190,13 +193,14 @@ export function initializeUIInteractions(player, api, ui) {
                     modal.remove();
                 };
 
-                modal.addEventListener('click', async (e) => {
-                    if (e.target.classList.contains('modal-overlay') || e.target.classList.contains('cancel-btn')) {
+                modal.addEventListener('click', async (e: MouseEvent) => {
+                    const target = e.target as Element;
+                    if (target.classList.contains('modal-overlay') || target.classList.contains('cancel-btn')) {
                         closeModal();
                         return;
                     }
 
-                    const option = e.target.closest('.modal-option');
+                    const option = target.closest('.modal-option') as HTMLElement | null;
                     if (option) {
                         const playlistId = option.dataset.id;
                         const playlistName = option.textContent;
@@ -208,7 +212,7 @@ export function initializeUIInteractions(player, api, ui) {
                                 addedCount++;
                             }
 
-                            const updatedPlaylist = await db.getPlaylist(playlistId);
+                            const updatedPlaylist = await db.getPlaylist(playlistId) as Record<string, unknown>;
                             syncManager.syncUserPlaylist(updatedPlaylist, 'update');
 
                             showNotification(`Added ${addedCount} tracks to playlist: ${playlistName}`);
@@ -232,7 +236,7 @@ export function initializeUIInteractions(player, api, ui) {
         }
     };
 
-    const renderQueueContent = (container) => {
+    const renderQueueContent = (container: HTMLElement): void => {
         const currentQueue = player.getCurrentQueue();
 
         if (currentQueue.length === 0) {
@@ -241,14 +245,14 @@ export function initializeUIInteractions(player, api, ui) {
         }
 
         const html = currentQueue
-            .map((track, index) => {
+            .map((track: TrackData, index: number) => {
                 const isPlaying = index === player.currentQueueIndex;
                 const isBlocked = contentBlockingSettings?.shouldHideTrack(track);
                 const trackTitle = getTrackTitle(track);
                 const trackArtists = getTrackArtists(track, { fallback: 'Unknown' });
                 const qualityBadge = createQualityBadgeHTML(track);
                 const blockedTitle = isBlocked
-                    ? `title="Blocked: ${contentBlockingSettings.isTrackBlocked(track.id) ? 'Track blocked' : contentBlockingSettings.isArtistBlocked(track.artist?.id) ? 'Artist blocked' : 'Album blocked'}"`
+                    ? `title="Blocked: ${contentBlockingSettings.isTrackBlocked(track.id) ? 'Track blocked' : contentBlockingSettings.isArtistBlocked(track.artist?.id ?? '') ? 'Artist blocked' : 'Album blocked'}"`
                     : '';
 
                 return `
@@ -260,7 +264,7 @@ export function initializeUIInteractions(player, api, ui) {
                         </svg>
                     </div>
                     <div class="track-item-info">
-                        <img src="${api.getCoverUrl(track.album?.cover)}"
+                        <img src="${api.getCoverUrl(track.album?.cover ?? '')}"
                              class="track-item-cover" loading="lazy">
                         <div class="track-item-details">
                             <div class="title">${escapeHtml(trackTitle)} ${qualityBadge}</div>
@@ -281,8 +285,8 @@ export function initializeUIInteractions(player, api, ui) {
 
         container.innerHTML = html;
 
-        container.querySelectorAll('.queue-track-item').forEach(async (item) => {
-            const index = parseInt(item.dataset.queueIndex);
+        container.querySelectorAll<HTMLElement>('.queue-track-item').forEach(async (item) => {
+            const index = parseInt(item.dataset.queueIndex || '0');
             const track = player.getCurrentQueue()[index];
 
             // Update like button state
@@ -296,7 +300,7 @@ export function initializeUIInteractions(player, api, ui) {
             }
 
             item.addEventListener('click', async (e) => {
-                const removeBtn = e.target.closest('.queue-remove-btn');
+                const removeBtn = (e.target as Element).closest('.queue-remove-btn');
                 if (removeBtn) {
                     e.stopPropagation();
                     player.removeFromQueue(index);
@@ -304,7 +308,7 @@ export function initializeUIInteractions(player, api, ui) {
                     return;
                 }
 
-                const likeBtn = e.target.closest('.queue-like-btn');
+                const likeBtn = (e.target as Element).closest('.queue-like-btn') as HTMLElement | null;
                 if (likeBtn && likeBtn.dataset.action === 'toggle-like') {
                     e.stopPropagation();
                     const track = player.getCurrentQueue()[index];
@@ -346,7 +350,7 @@ export function initializeUIInteractions(player, api, ui) {
                             likeItem.textContent = isLiked ? 'Unlike' : 'Like';
                         }
 
-                        const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]');
+                        const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]') as HTMLElement | null;
                         if (trackMixItem) {
                             const hasMix = track.mixes && track.mixes.TRACK_MIX;
                             trackMixItem.style.display = hasMix ? 'block' : 'none';
@@ -354,7 +358,7 @@ export function initializeUIInteractions(player, api, ui) {
 
                         positionMenu(contextMenu, e.clientX, e.clientY);
 
-                        contextMenu._contextTrack = track;
+                        (contextMenu as HTMLElement & { _contextTrack: TrackData })._contextTrack = track;
                     }
                 }
             });
@@ -382,16 +386,16 @@ export function initializeUIInteractions(player, api, ui) {
         });
     };
 
-    const refreshQueuePanel = () => {
+    const refreshQueuePanel = (): void => {
         sidePanelManager.refresh('queue', renderQueueControls, renderQueueContent);
     };
 
-    const openQueuePanel = () => {
+    const openQueuePanel = (): void => {
         trackOpenQueue();
         sidePanelManager.open('queue', 'Queue', renderQueueControls, renderQueueContent);
     };
 
-    queueBtn.addEventListener('click', openQueuePanel);
+    queueBtn?.addEventListener('click', openQueuePanel);
 
     // Expose renderQueue for external updates (e.g. shuffle, add to queue)
     window.renderQueueFunction = () => {
@@ -407,8 +411,8 @@ export function initializeUIInteractions(player, api, ui) {
 
     const folderPage = document.getElementById('page-folder');
     if (folderPage) {
-        folderPage.addEventListener('dragover', (e) => {
-            if (e.dataTransfer.types.includes('text/playlist-id')) {
+        folderPage.addEventListener('dragover', (e: DragEvent) => {
+            if (e.dataTransfer?.types.includes('text/playlist-id')) {
                 e.preventDefault();
                 folderPage.classList.add('drag-over-folder-page');
             }
@@ -416,33 +420,33 @@ export function initializeUIInteractions(player, api, ui) {
         folderPage.addEventListener('dragleave', () => {
             folderPage.classList.remove('drag-over-folder-page');
         });
-        folderPage.addEventListener('drop', async (e) => {
+        folderPage.addEventListener('drop', async (e: DragEvent) => {
             e.preventDefault();
             folderPage.classList.remove('drag-over-folder-page');
-            const playlistId = e.dataTransfer.getData('text/playlist-id');
+            const playlistId = e.dataTransfer?.getData('text/playlist-id');
             const folderId = window.location.pathname.split('/')[2];
             if (playlistId && folderId) {
                 try {
-                    const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId);
+                    const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId) as Record<string, unknown>;
                     syncManager.syncUserFolder(updatedFolder, 'update');
                     window.dispatchEvent(new HashChangeEvent('hashchange'));
                     showNotification('Playlist added to folder');
                 } catch (error) {
                     console.error('Failed to add playlist to folder:', error);
-                    showNotification('Failed to add playlist to folder', 'error');
+                    showNotification('Failed to add playlist to folder');
                 }
             }
         });
     }
 
     // Search and Library tabs
-    document.querySelectorAll('.search-tab').forEach((tab) => {
+    document.querySelectorAll<HTMLElement>('.search-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
             const page = tab.closest('.page');
             if (!page) return;
 
             // Track tab change
-            trackSearchTabChange(tab.dataset.tab);
+            trackSearchTabChange(tab.dataset.tab || '');
 
             page.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
             page.querySelectorAll('.search-tab-content').forEach((c) => c.classList.remove('active'));
@@ -456,9 +460,9 @@ export function initializeUIInteractions(player, api, ui) {
     });
 
     // Settings tabs
-    document.querySelectorAll('.settings-tab').forEach((tab) => {
+    document.querySelectorAll<HTMLElement>('.settings-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.settings-tab').forEach((t) => t.classList.remove('active'));
+            document.querySelectorAll<HTMLElement>('.settings-tab').forEach((t) => t.classList.remove('active'));
             document.querySelectorAll('.settings-tab-content').forEach((c) => c.classList.remove('active'));
 
             tab.classList.add('active');
@@ -468,14 +472,14 @@ export function initializeUIInteractions(player, api, ui) {
 
             // Save active tab
             import('./storage.ts').then(({ settingsUiState }) => {
-                settingsUiState.setActiveTab(tab.dataset.tab);
+                settingsUiState.setActiveTab(tab.dataset.tab || '');
             });
         });
     });
 
     // Tooltip for truncated text (desktop hover only)
     const canUseHoverTooltips = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    let tooltipEl = null;
+    let tooltipEl: HTMLElement | null = null;
 
     if (canUseHoverTooltips) {
         tooltipEl = document.getElementById('custom-tooltip');
@@ -485,12 +489,12 @@ export function initializeUIInteractions(player, api, ui) {
             document.body.appendChild(tooltipEl);
         }
 
-        const updateTooltipPosition = (e) => {
+        const updateTooltipPosition = (e: MouseEvent): void => {
             const x = e.clientX + 15;
             const y = e.clientY + 15;
 
             // Prevent going off-screen
-            const rect = tooltipEl.getBoundingClientRect();
+            const rect = tooltipEl!.getBoundingClientRect();
             const winWidth = window.innerWidth;
             const winHeight = window.innerHeight;
 
@@ -511,16 +515,16 @@ export function initializeUIInteractions(player, api, ui) {
             if (finalX + rect.width > winWidth - 5) finalX = winWidth - rect.width - 5;
             if (finalY + rect.height > winHeight - 5) finalY = winHeight - rect.height - 5;
 
-            tooltipEl.style.transform = `translate(${finalX}px, ${finalY}px)`;
+            tooltipEl!.style.transform = `translate(${finalX}px, ${finalY}px)`;
             // Reset top/left to 0 since we use transform
-            tooltipEl.style.top = '0';
-            tooltipEl.style.left = '0';
+            tooltipEl!.style.top = '0';
+            tooltipEl!.style.left = '0';
         };
 
         document.body.addEventListener('mouseover', (e) => {
             const selector =
                 '.card-title, .card-subtitle, .track-item-details .title, .track-item-details .artist, .now-playing-bar .title, .now-playing-bar .artist, .now-playing-bar .album, .pinned-item-name';
-            const target = e.target.closest(selector);
+            const target = (e.target as Element).closest(selector) as HTMLElement | null;
 
             if (target) {
                 // Remove native title if present to avoid double tooltip
@@ -529,16 +533,16 @@ export function initializeUIInteractions(player, api, ui) {
                 }
 
                 if (target.scrollWidth > target.clientWidth) {
-                    tooltipEl.innerHTML = target.innerHTML.trim();
-                    tooltipEl.classList.add('visible');
+                    tooltipEl!.innerHTML = target.innerHTML.trim();
+                    tooltipEl!.classList.add('visible');
                     updateTooltipPosition(e);
 
-                    const moveHandler = (moveEvent) => {
+                    const moveHandler = (moveEvent: MouseEvent): void => {
                         updateTooltipPosition(moveEvent);
                     };
 
-                    const outHandler = () => {
-                        tooltipEl.classList.remove('visible');
+                    const outHandler = (): void => {
+                        tooltipEl!.classList.remove('visible');
                         target.removeEventListener('mousemove', moveHandler);
                         target.removeEventListener('mouseleave', outHandler);
                         target.removeEventListener('click', outHandler);
@@ -559,7 +563,7 @@ export function initializeUIInteractions(player, api, ui) {
         }
 
         const contextMenu = document.getElementById('context-menu');
-        if (contextMenu && contextMenu.style.display === 'block' && !contextMenu.contains(e.target)) {
+        if (contextMenu && contextMenu.style.display === 'block' && !contextMenu.contains(e.target as Node)) {
             contextMenu.style.display = 'none';
         }
     });
