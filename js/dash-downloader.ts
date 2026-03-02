@@ -1,7 +1,34 @@
+interface DashSegment {
+    number: number;
+    time: number;
+}
+
+interface DashManifest {
+    baseUrl: string;
+    initialization: string | null;
+    media: string | null;
+    segments: DashSegment[];
+    repId: string | null;
+    mimeType: string | null;
+}
+
+interface DashDownloadProgress {
+    stage: string;
+    receivedBytes: number;
+    totalBytes: number | undefined;
+    currentSegment: number;
+    totalSegments: number;
+}
+
+interface DashDownloadOptions {
+    onProgress?: (progress: DashDownloadProgress) => void;
+    signal?: AbortSignal;
+}
+
 export class DashDownloader {
     constructor() {}
 
-    async downloadDashStream(manifestBlobUrl, options = {}) {
+    async downloadDashStream(manifestBlobUrl: string, options: DashDownloadOptions = {}): Promise<Blob> {
         const { onProgress, signal } = options;
 
         // 1. Fetch and Parse Manifest
@@ -18,7 +45,7 @@ export class DashDownloader {
         const mimeType = manifest.mimeType || 'audio/mp4';
 
         // 3. Download Segments
-        const chunks = [];
+        const chunks: ArrayBuffer[] = [];
         let downloadedBytes = 0;
         // Estimate total size? Hard to know exactly without Content-Length of each.
         // We can just track progress by segment count.
@@ -60,7 +87,7 @@ export class DashDownloader {
         return new Blob(chunks, { type: mimeType });
     }
 
-    parseManifest(manifestText) {
+    parseManifest(manifestText: string): DashManifest {
         const parser = new DOMParser();
         const xml = parser.parseFromString(manifestText, 'text/xml');
 
@@ -73,15 +100,15 @@ export class DashDownloader {
         // Prefer highest bandwidth audio adaptation set
         const adaptationSets = Array.from(period.querySelectorAll('AdaptationSet'));
 
-        adaptationSets.sort((a, b) => {
-            const getMaxBandwidth = (set) => {
-                const reps = Array.from(set.querySelectorAll('Representation'));
-                return reps.length ? Math.max(...reps.map((r) => parseInt(r.getAttribute('bandwidth') || '0', 10))) : 0;
+        adaptationSets.sort((a: Element, b: Element) => {
+            const getMaxBandwidth = (set: Element): number => {
+                const reps: Element[] = Array.from(set.querySelectorAll('Representation'));
+                return reps.length ? Math.max(...reps.map((r: Element) => parseInt(r.getAttribute('bandwidth') || '0', 10))) : 0;
             };
             return getMaxBandwidth(b) - getMaxBandwidth(a);
         });
 
-        let audioSet = adaptationSets.find((as) => as.getAttribute('mimeType')?.startsWith('audio'));
+        let audioSet: Element | undefined = adaptationSets.find((as: Element) => as.getAttribute('mimeType')?.startsWith('audio'));
 
         // Fallback: look for any adaptation set if mimeType is missing (rare)
         if (!audioSet && adaptationSets.length > 0) audioSet = adaptationSets[0];
@@ -89,9 +116,9 @@ export class DashDownloader {
 
         // Find Representation
         // Get all representations and sort by bandwidth descending
-        const representations = Array.from(audioSet.querySelectorAll('Representation')).sort((a, b) => {
-            const bwA = parseInt(a.getAttribute('bandwidth') || '0');
-            const bwB = parseInt(b.getAttribute('bandwidth') || '0');
+        const representations: Element[] = Array.from(audioSet.querySelectorAll('Representation')).sort((a: Element, b: Element) => {
+            const bwA: number = parseInt(a.getAttribute('bandwidth') || '0');
+            const bwB: number = parseInt(b.getAttribute('bandwidth') || '0');
             return bwB - bwA;
         });
 
@@ -118,23 +145,23 @@ export class DashDownloader {
             audioSet.querySelector('BaseURL') ||
             period.querySelector('BaseURL') ||
             mpd.querySelector('BaseURL');
-        const baseUrl = baseUrlTag ? baseUrlTag.textContent.trim() : '';
+        const baseUrl: string = baseUrlTag?.textContent?.trim() ?? '';
 
         // SegmentTimeline
         const segmentTimeline = segmentTemplate.querySelector('SegmentTimeline');
-        const segments = [];
+        const segments: DashSegment[] = [];
 
         if (segmentTimeline) {
             const sElements = segmentTimeline.querySelectorAll('S');
             let currentTime = 0;
             let currentNumber = startNumber;
 
-            sElements.forEach((s) => {
+            sElements.forEach((s: Element) => {
                 // t is optional, defaults to previous end
                 const tAttr = s.getAttribute('t');
                 if (tAttr) currentTime = parseInt(tAttr, 10);
 
-                const d = parseInt(s.getAttribute('d'), 10);
+                const d: number = parseInt(s.getAttribute('d') || '0', 10);
                 const r = parseInt(s.getAttribute('r') || '0', 10);
 
                 // Initial segment
@@ -163,30 +190,30 @@ export class DashDownloader {
         };
     }
 
-    generateSegmentUrls(manifest) {
+    generateSegmentUrls(manifest: DashManifest): string[] {
         const { baseUrl, initialization, media, segments, repId } = manifest;
-        const urls = [];
+        const urls: string[] = [];
 
         // Helper to resolve template strings
-        const resolveTemplate = (template, number, time) => {
+        const resolveTemplate = (template: string, number: number, time: number): string => {
             return template
-                .replace(/\$RepresentationID\$/g, repId)
-                .replace(/\$Number(?:%0([0-9]+)d)?\$/g, (match, width) => {
+                .replace(/\$RepresentationID\$/g, repId ?? '')
+                .replace(/\$Number(?:%0([0-9]+)d)?\$/g, (_match: string, width: string | undefined): string => {
                     if (width) {
                         return number.toString().padStart(parseInt(width), '0');
                     }
-                    return number;
+                    return number.toString();
                 })
-                .replace(/\$Time(?:%0([0-9]+)d)?\$/g, (match, width) => {
+                .replace(/\$Time(?:%0([0-9]+)d)?\$/g, (_match: string, width: string | undefined): string => {
                     if (width) {
                         return time.toString().padStart(parseInt(width), '0');
                     }
-                    return time;
+                    return time.toString();
                 });
         };
 
         // Helper to join paths handling slashes
-        const joinPath = (base, part) => {
+        const joinPath = (base: string, part: string): string => {
             if (!base) return part;
             if (part.startsWith('http')) return part; // Absolute path
             return base.endsWith('/') ? base + part : base + '/' + part;
@@ -200,8 +227,8 @@ export class DashDownloader {
 
         // 2. Media Segments
         if (segments && segments.length > 0) {
-            segments.forEach((seg) => {
-                const path = resolveTemplate(media, seg.number, seg.time);
+            segments.forEach((seg: DashSegment) => {
+                const path: string = resolveTemplate(media!, seg.number, seg.time);
                 urls.push(joinPath(baseUrl, path));
             });
         }
