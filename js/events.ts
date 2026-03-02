@@ -795,7 +795,7 @@ export async function showAddToPlaylistModal(track: TrackData): Promise<void> {
             e.stopPropagation();
             await db.removeTrackFromPlaylist(playlistId, track.id);
             const updatedPlaylist = await db.getPlaylist(playlistId);
-            syncManager.syncUserPlaylist(updatedPlaylist, 'update');
+            syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
             showNotification(`Removed from playlist: ${option.querySelector('span')?.textContent}`);
             await renderModal();
         } else {
@@ -803,7 +803,7 @@ export async function showAddToPlaylistModal(track: TrackData): Promise<void> {
 
             await db.addTrackToPlaylist(playlistId, track);
             const updatedPlaylist = await db.getPlaylist(playlistId);
-            syncManager.syncUserPlaylist(updatedPlaylist, 'update');
+            syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
             showNotification(`Added to playlist: ${option.querySelector('span')?.textContent}`);
             closeModal();
         }
@@ -877,7 +877,7 @@ export async function handleTrackAction(
                 let playlist = await db.getPlaylist(item.id) as PlaylistData | null;
                 if (!playlist) {
                     try {
-                        playlist = await syncManager.getPublicPlaylist(item.id) as PlaylistData | null;
+                        playlist = await syncManager.getPublicPlaylist(String(item.id)) as PlaylistData | null;
                     } catch {
                         /* ignore */
                     }
@@ -1016,7 +1016,7 @@ export async function handleTrackAction(
         await downloadTrackWithMetadata(item, downloadQualitySettings.getQuality(), api, lyricsManager as null);
     } else if (action === 'toggle-like') {
         const added = await db.toggleFavorite(type, item);
-        syncManager.syncLibraryItem(type, item, added);
+        syncManager.syncLibraryItem(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', item, added);
 
         // Track like/unlike
         if (added) {
@@ -1219,7 +1219,7 @@ export async function handleTrackAction(
                 e.stopPropagation();
                 await db.removeTrackFromPlaylist(playlistId, item.id);
                 const updatedPlaylist = await db.getPlaylist(playlistId);
-                syncManager.syncUserPlaylist(updatedPlaylist, 'update');
+                syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                 showNotification(`Removed from playlist: ${option.querySelector('span')?.textContent}`);
                 await renderModal();
             } else {
@@ -1227,7 +1227,7 @@ export async function handleTrackAction(
 
                 await db.addTrackToPlaylist(playlistId, item);
                 const updatedPlaylist = await db.getPlaylist(playlistId);
-                syncManager.syncUserPlaylist(updatedPlaylist, 'update');
+                syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                 showNotification(`Added to playlist: ${option.querySelector('span')?.textContent}`);
                 closeModal();
             }

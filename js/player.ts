@@ -124,8 +124,8 @@ export class Player {
         });
     }
 
-    private getVideoCoverUrl(videoCoverId: string): string {
-        return (this.api as MusicAPI & { tidalAPI: { getVideoCoverUrl(id: string): string } }).tidalAPI.getVideoCoverUrl(videoCoverId);
+    private getVideoCoverUrl(videoCoverId: string): string | null {
+        return (this.api as MusicAPI & { tidalAPI: { getVideoCoverUrl(id: string): string | null } }).tidalAPI.getVideoCoverUrl(videoCoverId);
     }
 
     setVolume(value: number): void {
@@ -224,7 +224,7 @@ export class Player {
                     const videoCoverUrl = track.album?.videoCover
                         ? this.getVideoCoverUrl(track.album.videoCover as string)
                         : null;
-                    const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover);
+                    const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover || '');
 
                     if (videoCoverUrl) {
                         if (coverEl.tagName === 'IMG') {
@@ -446,7 +446,7 @@ export class Player {
             const videoCoverUrl = track.album?.videoCover
                 ? this.getVideoCoverUrl(track.album.videoCover as string)
                 : null;
-            const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover);
+            const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover || '');
 
             if (videoCoverUrl) {
                 if (coverEl.tagName === 'IMG') {
@@ -593,7 +593,7 @@ export class Player {
                     }
                 } else {
                     // Tidal: Get track data for ReplayGain (should be cached by API)
-                    const trackData = await this.api.getTrack(track.id, this.quality);
+                    const trackData = await this.api.getTrack(track.id, this.quality) as { info?: { trackReplayGain?: number; trackPeakAmplitude?: number; albumReplayGain?: number; albumPeakAmplitude?: number; manifest?: string }; originalTrackUrl?: string } | null;
 
                     if (trackData && trackData.info) {
                         this.currentRgValues = {
@@ -608,11 +608,11 @@ export class Player {
                     this.applyReplayGain();
 
                     if (this.preloadCache.has(track.id)) {
-                        streamUrl = this.preloadCache.get(track.id);
-                    } else if (trackData.originalTrackUrl) {
+                        streamUrl = this.preloadCache.get(track.id) as string | undefined;
+                    } else if (trackData?.originalTrackUrl) {
                         streamUrl = trackData.originalTrackUrl;
-                    } else if (trackData.info?.manifest) {
-                        streamUrl = this.api.extractStreamUrlFromManifest(trackData.info.manifest);
+                    } else if (trackData?.info?.manifest) {
+                        streamUrl = this.api.extractStreamUrlFromManifest(trackData.info.manifest) ?? undefined;
                     } else {
                         streamUrl = await this.api.getStreamUrl(track.id, this.quality);
                     }
@@ -952,7 +952,8 @@ export class Player {
 
         this.api
             .getAlbum(track.album!.id)
-            .then(({ album }: { album?: TrackAlbum }) => {
+            .then((data: unknown) => {
+                const { album } = data as { album?: TrackAlbum };
                 if (album?.releaseDate && this.currentTrack?.id === track.id) {
                     track.album!.releaseDate = album.releaseDate;
                     const year = new Date(album.releaseDate).getFullYear();

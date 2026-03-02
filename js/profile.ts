@@ -521,7 +521,7 @@ export async function loadProfile(username: string): Promise<void> {
         });
     }
 
-    const currentUser: UserData | null = await syncManager.getUserData();
+    const currentUser = await syncManager.getUserData() as UserData | null;
     const isOwner: boolean = !!(currentUser && currentUser.profile && currentUser.profile.username === username);
 
     if (isOwner) {
@@ -560,9 +560,9 @@ export async function loadProfile(username: string): Promise<void> {
 }
 
 export function openEditProfile(): void {
-    syncManager.getUserData().then((data: UserData | null) => {
+    syncManager.getUserData().then((data) => {
         if (!data || !data.profile) return;
-        const p: ProfileData = data.profile;
+        const p = data.profile as ProfileData;
 
         editUsername.value = p.username || '';
         editDisplayName.value = p.display_name || '';
@@ -609,7 +609,7 @@ async function saveProfile(): Promise<void> {
         return;
     }
 
-    const currentUser: UserData | null = await syncManager.getUserData();
+    const currentUser = await syncManager.getUserData() as UserData | null;
     if (currentUser?.profile?.username !== newUsername) {
         const taken = await syncManager.isUsernameTaken(newUsername);
         if (taken) {
@@ -693,16 +693,17 @@ clearStatusBtn.addEventListener('click', () => {
     editStatusSearch.focus();
 });
 
-const performStatusSearch = debounce(async (query: string) => {
+const performStatusSearch = debounce(async (query: unknown) => {
     if (!query) {
         statusSearchResults.style.display = 'none';
         return;
     }
+    const q = String(query);
 
     try {
         const [tracks, albums] = await Promise.all([
-            api.searchTracks(query, { limit: 3 }),
-            api.searchAlbums(query, { limit: 3 }),
+            api.searchTracks(q, { limit: 3 }),
+            api.searchAlbums(q, { limit: 3 }),
         ]);
 
         statusSearchResults.innerHTML = '';
@@ -801,14 +802,15 @@ function renderEditFavoriteAlbums(): void {
     }
 }
 
-const performFavoriteAlbumSearch = debounce(async (query: string) => {
+const performFavoriteAlbumSearch = debounce(async (query: unknown) => {
     if (!query || currentFavoriteAlbums.length >= 5) {
         editFavoriteAlbumsResults.style.display = 'none';
         return;
     }
+    const q = String(query);
 
     try {
-        const results = await api.searchAlbums(query, { limit: 5 });
+        const results = await api.searchAlbums(q, { limit: 5 });
         editFavoriteAlbumsResults.innerHTML = '';
 
         if (results.items.length === 0) {
@@ -875,7 +877,7 @@ function getLastFmImage(images: LastFmImage[] | undefined): string | null {
 
 async function handleArtistClick(name: string | undefined): Promise<void> {
     try {
-        const results = await api.searchArtists(name, { limit: 1 });
+        const results = await api.searchArtists(name || '', { limit: 1 });
         if (results.items.length > 0) {
             navigate(`/artist/${results.items[0].id}`);
         } else {

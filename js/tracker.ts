@@ -303,7 +303,7 @@ function renderTrackerTracks(container: HTMLElement, tracks: TrackerTrack[]): vo
         if (index === 0) return; // Skip header
         const track = tracks[index - 1];
         if (element && track) {
-            trackDataStore.set(element, track);
+            trackDataStore.set(element, track as unknown as TrackData);
         }
     });
 
