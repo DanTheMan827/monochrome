@@ -1,12 +1,13 @@
-// js/desktop/desktop.js
+// js/desktop/desktop.ts
+import type { Player } from '../player.ts';
 import Neutralino from './neutralino-bridge.ts';
 import { initializeDiscordRPC } from './discord-rpc.ts';
 
-export async function initDesktop(player) {
+export async function initDesktop(player: Player | null): Promise<void> {
     console.log('[Desktop] Initializing desktop features...');
 
     // Assign to window for modules that use global Neutralino (like Player.js)
-    window.Neutralino = Neutralino;
+    window.Neutralino = Neutralino as unknown as NonNullable<typeof window.Neutralino>;
 
     try {
         await Neutralino.init();
@@ -16,7 +17,7 @@ export async function initDesktop(player) {
             console.log('[Desktop] Starting Discord RPC...');
             initializeDiscordRPC(player);
         }
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('[Desktop] Failed to initialize desktop environment:', error);
     }
 }
