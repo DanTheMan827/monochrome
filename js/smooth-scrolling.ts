@@ -1,15 +1,20 @@
-//js/smooth-scrolling.js
+//js/smooth-scrolling.ts
 import { smoothScrollingSettings } from './storage.ts';
 
-let lenis = null;
-let lenisLoaded = false;
-let lenisLoading = false;
+interface LenisInstance {
+    raf(time: number): void;
+    destroy(): void;
+}
 
-async function loadLenisScript() {
+let lenis: LenisInstance | null = null;
+let lenisLoaded: boolean = false;
+let lenisLoading: boolean = false;
+
+async function loadLenisScript(): Promise<boolean> {
     if (lenisLoaded) return true;
     if (lenisLoading) {
-        return new Promise((resolve) => {
-            const checkLoaded = setInterval(() => {
+        return new Promise<boolean>((resolve) => {
+            const checkLoaded: ReturnType<typeof setInterval> = setInterval(() => {
                 if (!lenisLoading) {
                     clearInterval(checkLoaded);
                     resolve(lenisLoaded);
@@ -21,8 +26,8 @@ async function loadLenisScript() {
     lenisLoading = true;
 
     try {
-        await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
+        await new Promise<Event>((resolve, reject) => {
+            const script: HTMLScriptElement = document.createElement('script');
             script.src = 'https://unpkg.com/@studio-freight/lenis';
             script.onload = resolve;
             script.onerror = reject;
@@ -33,7 +38,7 @@ async function loadLenisScript() {
         lenisLoading = false;
         console.log('✓ Lenis loaded successfully');
         return true;
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('✗ Failed to load Lenis:', error);
         lenisLoaded = false;
         lenisLoading = false;
@@ -41,11 +46,13 @@ async function loadLenisScript() {
     }
 }
 
-async function initializeSmoothScrolling() {
+async function initializeSmoothScrolling(): Promise<void> {
     if (lenis) return; // Already initialized
 
-    const loaded = await loadLenisScript();
+    const loaded: boolean = await loadLenisScript();
     if (!loaded) return;
+
+    if (!window.Lenis) return;
 
     lenis = new window.Lenis({
         wrapper: document.querySelector('.main-content'),
@@ -57,7 +64,7 @@ async function initializeSmoothScrolling() {
         wheelMultiplier: 0.8,
     });
 
-    function raf(time) {
+    function raf(time: number): void {
         if (lenis) {
             lenis.raf(time);
             requestAnimationFrame(raf);
@@ -67,24 +74,25 @@ async function initializeSmoothScrolling() {
     requestAnimationFrame(raf);
 }
 
-function destroySmoothScrolling() {
+function destroySmoothScrolling(): void {
     if (lenis) {
         lenis.destroy();
         lenis = null;
     }
 }
 
-async function setupSmoothScrolling() {
+async function setupSmoothScrolling(): Promise<void> {
     // Check if smooth scrolling is enabled
-    const smoothScrollingEnabled = smoothScrollingSettings.isEnabled();
+    const smoothScrollingEnabled: boolean = smoothScrollingSettings.isEnabled();
 
     if (smoothScrollingEnabled) {
         await initializeSmoothScrolling();
     }
 
     // Listen for toggle changes
-    window.addEventListener('smooth-scrolling-toggle', async function (e) {
-        if (e.detail.enabled) {
+    window.addEventListener('smooth-scrolling-toggle', async function (e: Event): Promise<void> {
+        const detail: { enabled: boolean } = (e as CustomEvent<{ enabled: boolean }>).detail;
+        if (detail.enabled) {
             await initializeSmoothScrolling();
         } else {
             destroySmoothScrolling();
