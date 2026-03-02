@@ -2,7 +2,41 @@ const API_BASE = 'https://temp.imgur.gg/api/upload';
 const COMPLETE_URL = 'https://temp.imgur.gg/api/upload/complete';
 const PING_URL = 'https://temp.imgur.gg/api/ping';
 
-export async function onRequest(context) {
+interface UploadRequestBody {
+    fileUrl?: string;
+    fileName?: string;
+}
+
+interface PartUrl {
+    url: string;
+}
+
+interface FileInfo {
+    success: boolean;
+    isMultipart: boolean;
+    uploadUrl: string;
+    fileId: string;
+    fileName: string;
+    partUrls: PartUrl[];
+    partSize: number;
+    uploadId: string;
+}
+
+interface MetadataResponse {
+    files?: FileInfo[];
+}
+
+interface MultipartPart {
+    PartNumber: number;
+    ETag: string;
+}
+
+interface CompleteResponse {
+    success: boolean;
+    [key: string]: unknown;
+}
+
+export async function onRequest(context: CFContext): Promise<Response> {
     const { request } = context;
 
     if (request.method === 'OPTIONS') {
@@ -15,27 +49,27 @@ export async function onRequest(context) {
 
     try {
         const contentType = request.headers.get('content-type') || '';
-        let file;
-        let fileName;
-        let fileType;
+        let file: ArrayBuffer;
+        let fileName: string;
+        let fileType: string;
 
         /* ========================= */
         /*        GET FILE           */
         /* ========================= */
 
         if (contentType.includes('application/json')) {
-            const body = await request.json();
+            const body = (await request.json()) as UploadRequestBody;
             if (!body.fileUrl) return jsonError('No fileUrl provided', 400);
 
             const res = await fetch(body.fileUrl);
             if (!res.ok) throw new Error('Failed to fetch remote file');
 
             file = await res.arrayBuffer();
-            fileName = body.fileName || body.fileUrl.split('/').pop();
+            fileName = body.fileName || body.fileUrl.split('/').pop()!;
             fileType = res.headers.get('content-type') || 'application/octet-stream';
         } else {
             const form = await request.formData();
-            const uploaded = form.get('file');
+            const uploaded = form.get('file') as File | null;
             if (!uploaded) return jsonError('No file provided', 400);
 
             if (uploaded.size > 100 * 1024 * 1024) {
@@ -87,7 +121,7 @@ export async function onRequest(context) {
             throw new Error(`Metadata failed: ${metadataText}`);
         }
 
-        const metadata = JSON.parse(metadataText);
+        const metadata = JSON.parse(metadataText) as MetadataResponse;
         const fileInfo = metadata.files?.[0];
 
         if (!fileInfo || !fileInfo.success) {
@@ -98,7 +132,7 @@ export async function onRequest(context) {
         /*      HANDLE UPLOAD        */
         /* ========================= */
 
-        let result;
+        let result: boolean | CompleteResponse;
 
         if (fileInfo.isMultipart) {
             result = await handleMultipart(fileInfo, file, sessionCookie);
@@ -114,8 +148,9 @@ export async function onRequest(context) {
             fileId: fileInfo.fileId,
             fileName: fileInfo.fileName,
         });
-    } catch (err) {
-        return jsonError(err.message, 500);
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return jsonError(message, 500);
     }
 }
 
@@ -123,7 +158,7 @@ export async function onRequest(context) {
 /* ================= SINGLE UPLOAD ===================== */
 /* ===================================================== */
 
-async function handleSingle(uploadUrl, fileBuffer, fileType) {
+async function handleSingle(uploadUrl: string, fileBuffer: ArrayBuffer, fileType: string): Promise<boolean> {
     if (!uploadUrl) throw new Error('Missing uploadUrl');
 
     const res = await fetch(uploadUrl, {
@@ -146,14 +181,14 @@ async function handleSingle(uploadUrl, fileBuffer, fileType) {
 /* ================= MULTIPART UPLOAD =================== */
 /* ===================================================== */
 
-async function handleMultipart(fileInfo, fileBuffer, sessionCookie) {
+async function handleMultipart(fileInfo: FileInfo, fileBuffer: ArrayBuffer, sessionCookie: string): Promise<CompleteResponse> {
     const { partUrls, partSize, uploadId, fileId } = fileInfo;
 
     if (!partUrls || !uploadId) {
         throw new Error('Invalid multipart metadata');
     }
 
-    const parts = [];
+    const parts: MultipartPart[] = [];
 
     for (let i = 0; i < partUrls.length; i++) {
         const start = i * partSize;
@@ -203,7 +238,7 @@ async function handleMultipart(fileInfo, fileBuffer, sessionCookie) {
         throw new Error(`Multipart complete failed: ${completeText}`);
     }
 
-    const completeData = JSON.parse(completeText);
+    const completeData = JSON.parse(completeText) as CompleteResponse;
 
     if (!completeData.success) {
         throw new Error('Multipart finalize returned failure');
@@ -216,7 +251,7 @@ async function handleMultipart(fileInfo, fileBuffer, sessionCookie) {
 /* ================= UTILITIES ========================= */
 /* ===================================================== */
 
-function jsonResponse(obj, status = 200) {
+function jsonResponse(obj: Record<string, unknown>, status: number = 200): Response {
     return new Response(JSON.stringify(obj), {
         status,
         headers: {
@@ -226,11 +261,11 @@ function jsonResponse(obj, status = 200) {
     });
 }
 
-function jsonError(message, status) {
+function jsonError(message: string, status: number): Response {
     return jsonResponse({ success: false, error: message }, status);
 }
 
-function corsHeaders() {
+function corsHeaders(): Record<string, string> {
     return {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -238,7 +273,7 @@ function corsHeaders() {
     };
 }
 
-function userAgentHeaders() {
+function userAgentHeaders(): Record<string, string> {
     return {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
     };
