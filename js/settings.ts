@@ -42,7 +42,51 @@ import { authManager } from './accounts/auth.ts';
 import { syncManager } from './accounts/pocketbase.ts';
 import { saveFirebaseConfig, clearFirebaseConfig } from './accounts/config.ts';
 
-export function initializeSettings(scrobbler, player, api, ui) {
+interface ScrobblerService {
+    isAuthenticated(): boolean;
+    username: string;
+    disconnect(): void;
+    getAuthUrl(): Promise<{ token: string; url: string }>;
+    completeAuthentication(token: string): Promise<{ success: boolean; username?: string }>;
+    authenticateWithCredentials(username: string, password: string): Promise<{ success: boolean }>;
+    reloadCredentials(): void;
+}
+
+interface Scrobbler {
+    lastfm: ScrobblerService;
+    librefm: ScrobblerService;
+}
+
+interface Player {
+    setQuality(quality: string): void;
+    applyReplayGain(): void;
+    setPlaybackSpeed(speed: number): void;
+}
+
+interface VisualizerPresets {
+    [key: string]: { loadPreset(name: string): void };
+}
+
+interface Visualizer {
+    setPreset(preset: string): void;
+    presets: VisualizerPresets;
+}
+
+interface SettingsApi {
+    settings: {
+        refreshInstances(): Promise<void>;
+        getInstances(type: string): Promise<Array<unknown>>;
+        saveInstances(instances: Array<unknown>, type: string): void;
+    };
+    clearCache(): Promise<void>;
+}
+
+interface SettingsUi {
+    renderApiSettings(): void;
+    visualizer?: Visualizer;
+}
+
+export function initializeSettings(scrobbler: Scrobbler, player: Player, api: SettingsApi, ui: SettingsUi): void {
     // Restore last active settings tab
     const savedTab = settingsUiState.getActiveTab();
     const settingsTab = document.querySelector(`.settings-tab[data-tab="${savedTab}"]`);
@@ -57,14 +101,14 @@ export function initializeSettings(scrobbler, player, api, ui) {
     authManager.updateUI(authManager.user);
 
     // Email Auth UI Logic
-    const toggleEmailBtn = document.getElementById('toggle-email-auth-btn');
-    const cancelEmailBtn = document.getElementById('cancel-email-auth-btn');
+    const toggleEmailBtn = document.getElementById('toggle-email-auth-btn') as HTMLButtonElement | null;
+    const cancelEmailBtn = document.getElementById('cancel-email-auth-btn') as HTMLButtonElement | null;
     const authModal = document.getElementById('email-auth-modal');
-    const emailInput = document.getElementById('auth-email');
-    const passwordInput = document.getElementById('auth-password');
-    const signInBtn = document.getElementById('email-signin-btn');
-    const signUpBtn = document.getElementById('email-signup-btn');
-    const resetPasswordBtn = document.getElementById('reset-password-btn');
+    const emailInput = document.getElementById('auth-email') as HTMLInputElement | null;
+    const passwordInput = document.getElementById('auth-password') as HTMLInputElement | null;
+    const signInBtn = document.getElementById('email-signin-btn') as HTMLButtonElement | null;
+    const signUpBtn = document.getElementById('email-signup-btn') as HTMLButtonElement | null;
+    const resetPasswordBtn = document.getElementById('reset-password-btn') as HTMLButtonElement | null;
 
     if (toggleEmailBtn && authModal) {
         toggleEmailBtn.addEventListener('click', () => {
@@ -77,24 +121,24 @@ export function initializeSettings(scrobbler, player, api, ui) {
             authModal.classList.remove('active');
         });
 
-        authModal.querySelector('.modal-overlay').addEventListener('click', () => {
+        authModal.querySelector('.modal-overlay')!.addEventListener('click', () => {
             authModal.classList.remove('active');
         });
     }
 
     if (signInBtn) {
         signInBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            const email = emailInput?.value ?? '';
+            const password = passwordInput?.value ?? '';
             if (!email || !password) {
                 alert('Please enter both email and password.');
                 return;
             }
             try {
                 await authManager.signInWithEmail(email, password);
-                authModal.classList.remove('active');
-                emailInput.value = '';
-                passwordInput.value = '';
+                authModal?.classList.remove('active');
+                if (emailInput) emailInput.value = '';
+                if (passwordInput) passwordInput.value = '';
             } catch {
                 // Error handled in authManager
             }
@@ -103,17 +147,17 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (signUpBtn) {
         signUpBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            const email = emailInput?.value ?? '';
+            const password = passwordInput?.value ?? '';
             if (!email || !password) {
                 alert('Please enter both email and password.');
                 return;
             }
             try {
                 await authManager.signUpWithEmail(email, password);
-                authModal.classList.remove('active');
-                emailInput.value = '';
-                passwordInput.value = '';
+                authModal?.classList.remove('active');
+                if (emailInput) emailInput.value = '';
+                if (passwordInput) passwordInput.value = '';
             } catch {
                 // Error handled in authManager
             }
@@ -122,7 +166,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (resetPasswordBtn) {
         resetPasswordBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
+            const email = emailInput?.value ?? '';
             if (!email) {
                 alert('Please enter your email address to reset your password.');
                 return;
@@ -135,76 +179,76 @@ export function initializeSettings(scrobbler, player, api, ui) {
         });
     }
 
-    const lastfmConnectBtn = document.getElementById('lastfm-connect-btn');
+    const lastfmConnectBtn = document.getElementById('lastfm-connect-btn') as HTMLButtonElement | null;
     const lastfmStatus = document.getElementById('lastfm-status');
-    const lastfmToggle = document.getElementById('lastfm-toggle');
+    const lastfmToggle = document.getElementById('lastfm-toggle') as HTMLInputElement | null;
     const lastfmToggleSetting = document.getElementById('lastfm-toggle-setting');
-    const lastfmLoveToggle = document.getElementById('lastfm-love-toggle');
+    const lastfmLoveToggle = document.getElementById('lastfm-love-toggle') as HTMLInputElement | null;
     const lastfmLoveSetting = document.getElementById('lastfm-love-setting');
-    const lastfmCustomCredsToggle = document.getElementById('lastfm-custom-creds-toggle');
+    const lastfmCustomCredsToggle = document.getElementById('lastfm-custom-creds-toggle') as HTMLInputElement | null;
     const lastfmCustomCredsToggleSetting = document.getElementById('lastfm-custom-creds-toggle-setting');
     const lastfmCustomCredsSetting = document.getElementById('lastfm-custom-creds-setting');
-    const lastfmCustomApiKey = document.getElementById('lastfm-custom-api-key');
-    const lastfmCustomApiSecret = document.getElementById('lastfm-custom-api-secret');
-    const lastfmSaveCustomCreds = document.getElementById('lastfm-save-custom-creds');
-    const lastfmClearCustomCreds = document.getElementById('lastfm-clear-custom-creds');
+    const lastfmCustomApiKey = document.getElementById('lastfm-custom-api-key') as HTMLInputElement | null;
+    const lastfmCustomApiSecret = document.getElementById('lastfm-custom-api-secret') as HTMLInputElement | null;
+    const lastfmSaveCustomCreds = document.getElementById('lastfm-save-custom-creds') as HTMLButtonElement | null;
+    const lastfmClearCustomCreds = document.getElementById('lastfm-clear-custom-creds') as HTMLButtonElement | null;
     const lastfmCredentialAuth = document.getElementById('lastfm-credential-auth');
     const lastfmCredentialForm = document.getElementById('lastfm-credential-form');
-    const lastfmUsernameInput = document.getElementById('lastfm-username');
-    const lastfmPasswordInput = document.getElementById('lastfm-password');
-    const lastfmLoginCredentialsBtn = document.getElementById('lastfm-login-credentials');
-    const lastfmUseOAuthBtn = document.getElementById('lastfm-use-oauth');
+    const lastfmUsernameInput = document.getElementById('lastfm-username') as HTMLInputElement | null;
+    const lastfmPasswordInput = document.getElementById('lastfm-password') as HTMLInputElement | null;
+    const lastfmLoginCredentialsBtn = document.getElementById('lastfm-login-credentials') as HTMLButtonElement | null;
+    const lastfmUseOAuthBtn = document.getElementById('lastfm-use-oauth') as HTMLButtonElement | null;
 
-    function updateLastFMUI() {
+    function updateLastFMUI(): void {
         if (scrobbler.lastfm.isAuthenticated()) {
-            lastfmStatus.textContent = `Connected as ${scrobbler.lastfm.username}`;
-            lastfmConnectBtn.textContent = 'Disconnect';
-            lastfmConnectBtn.classList.add('danger');
-            lastfmToggleSetting.style.display = 'flex';
-            lastfmLoveSetting.style.display = 'flex';
-            lastfmToggle.checked = lastFMStorage.isEnabled();
-            lastfmLoveToggle.checked = lastFMStorage.shouldLoveOnLike();
-            lastfmCustomCredsToggleSetting.style.display = 'flex';
-            lastfmCustomCredsToggle.checked = lastFMStorage.useCustomCredentials();
+            if (lastfmStatus) lastfmStatus.textContent = `Connected as ${scrobbler.lastfm.username}`;
+            if (lastfmConnectBtn) lastfmConnectBtn.textContent = 'Disconnect';
+            if (lastfmConnectBtn) lastfmConnectBtn.classList.add('danger');
+            if (lastfmToggleSetting) lastfmToggleSetting.style.display = 'flex';
+            if (lastfmLoveSetting) lastfmLoveSetting.style.display = 'flex';
+            if (lastfmToggle) lastfmToggle.checked = lastFMStorage.isEnabled();
+            if (lastfmLoveToggle) lastfmLoveToggle.checked = lastFMStorage.shouldLoveOnLike();
+            if (lastfmCustomCredsToggleSetting) lastfmCustomCredsToggleSetting.style.display = 'flex';
+            if (lastfmCustomCredsToggle) lastfmCustomCredsToggle.checked = lastFMStorage.useCustomCredentials();
             updateCustomCredsUI();
             hideCredentialAuth();
         } else {
-            lastfmStatus.textContent = 'Connect your Last.fm account to scrobble tracks';
-            lastfmConnectBtn.textContent = 'Connect Last.fm';
-            lastfmConnectBtn.classList.remove('danger');
-            lastfmToggleSetting.style.display = 'none';
-            lastfmLoveSetting.style.display = 'none';
-            lastfmCustomCredsToggleSetting.style.display = 'none';
-            lastfmCustomCredsSetting.style.display = 'none';
+            if (lastfmStatus) lastfmStatus.textContent = 'Connect your Last.fm account to scrobble tracks';
+            if (lastfmConnectBtn) lastfmConnectBtn.textContent = 'Connect Last.fm';
+            if (lastfmConnectBtn) lastfmConnectBtn.classList.remove('danger');
+            if (lastfmToggleSetting) lastfmToggleSetting.style.display = 'none';
+            if (lastfmLoveSetting) lastfmLoveSetting.style.display = 'none';
+            if (lastfmCustomCredsToggleSetting) lastfmCustomCredsToggleSetting.style.display = 'none';
+            if (lastfmCustomCredsSetting) lastfmCustomCredsSetting.style.display = 'none';
             // Hide credential auth by default - only show on OAuth failure
             hideCredentialAuth();
         }
     }
 
-    function showCredentialAuth() {
+    function showCredentialAuth(): void {
         if (lastfmCredentialAuth) lastfmCredentialAuth.style.display = 'block';
         if (lastfmCredentialForm) lastfmCredentialForm.style.display = 'block';
         // Focus on username field
         if (lastfmUsernameInput) lastfmUsernameInput.focus();
     }
 
-    function hideCredentialAuth() {
+    function hideCredentialAuth(): void {
         if (lastfmCredentialAuth) lastfmCredentialAuth.style.display = 'none';
         if (lastfmCredentialForm) lastfmCredentialForm.style.display = 'none';
         if (lastfmUsernameInput) lastfmUsernameInput.value = '';
         if (lastfmPasswordInput) lastfmPasswordInput.value = '';
     }
 
-    function updateCustomCredsUI() {
+    function updateCustomCredsUI(): void {
         const useCustom = lastFMStorage.useCustomCredentials();
-        lastfmCustomCredsSetting.style.display = useCustom ? 'flex' : 'none';
+        if (lastfmCustomCredsSetting) lastfmCustomCredsSetting.style.display = useCustom ? 'flex' : 'none';
 
         if (useCustom) {
-            lastfmCustomApiKey.value = lastFMStorage.getCustomApiKey();
-            lastfmCustomApiSecret.value = lastFMStorage.getCustomApiSecret();
+            if (lastfmCustomApiKey) lastfmCustomApiKey.value = lastFMStorage.getCustomApiKey();
+            if (lastfmCustomApiSecret) lastfmCustomApiSecret.value = lastFMStorage.getCustomApiSecret();
 
             const hasCreds = lastFMStorage.getCustomApiKey() && lastFMStorage.getCustomApiSecret();
-            lastfmClearCustomCreds.style.display = hasCreds ? 'inline-block' : 'none';
+            if (lastfmClearCustomCreds) lastfmClearCustomCreds.style.display = hasCreds ? 'inline-block' : 'none';
         }
     }
 
@@ -219,13 +263,13 @@ export function initializeSettings(scrobbler, player, api, ui) {
             return;
         }
 
-        let authWindow = null;
+        let authWindow: Window | null = null;
         if (!window.Neutralino) {
             authWindow = window.open('', '_blank');
         }
 
-        lastfmConnectBtn.disabled = true;
-        lastfmConnectBtn.textContent = 'Opening Last.fm...';
+        (lastfmConnectBtn as HTMLButtonElement).disabled = true;
+        lastfmConnectBtn!.textContent = 'Opening Last.fm...';
 
         try {
             const { token, url } = await scrobbler.lastfm.getAuthUrl();
@@ -244,7 +288,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             } else {
                 alert('Popup blocked! Please allow popups.');
                 lastfmConnectBtn.textContent = 'Connect Last.fm';
-                lastfmConnectBtn.disabled = false;
+                (lastfmConnectBtn as HTMLButtonElement).disabled = false;
                 return;
             }
 
@@ -260,7 +304,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                     clearInterval(checkAuth);
                     if (authWindow && !authWindow.closed) authWindow.close();
                     lastfmConnectBtn.textContent = 'Connect Last.fm';
-                    lastfmConnectBtn.disabled = false;
+                    (lastfmConnectBtn as HTMLButtonElement).disabled = false;
                     // Ask user if they want to use credentials instead
                     if (
                         confirm('Authorization timed out. Would you like to login with username and password instead?')
@@ -277,9 +321,9 @@ export function initializeSettings(scrobbler, player, api, ui) {
                         clearInterval(checkAuth);
                         if (authWindow && !authWindow.closed) authWindow.close();
                         lastFMStorage.setEnabled(true);
-                        lastfmToggle.checked = true;
+                        if (lastfmToggle) lastfmToggle.checked = true;
                         updateLastFMUI();
-                        lastfmConnectBtn.disabled = false;
+                        (lastfmConnectBtn as HTMLButtonElement).disabled = false;
                     }
                 } catch {
                     // Still waiting
@@ -300,27 +344,27 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // Last.fm Toggles
     if (lastfmToggle) {
         lastfmToggle.addEventListener('change', (e) => {
-            lastFMStorage.setEnabled(e.target.checked);
+            lastFMStorage.setEnabled((e.target as HTMLInputElement).checked);
         });
     }
 
     if (lastfmLoveToggle) {
         lastfmLoveToggle.addEventListener('change', (e) => {
-            lastFMStorage.setLoveOnLike(e.target.checked);
+            lastFMStorage.setLoveOnLike((e.target as HTMLInputElement).checked);
         });
     }
 
     // Custom Credentials Toggle
     if (lastfmCustomCredsToggle) {
         lastfmCustomCredsToggle.addEventListener('change', (e) => {
-            lastFMStorage.setUseCustomCredentials(e.target.checked);
+            lastFMStorage.setUseCustomCredentials((e.target as HTMLInputElement).checked);
             updateCustomCredsUI();
 
             // Reload credentials in the scrobbler
             scrobbler.lastfm.reloadCredentials();
 
             // If credentials are being disabled, clear any existing session
-            if (!e.target.checked && scrobbler.lastfm.isAuthenticated()) {
+            if (!(e.target as HTMLInputElement).checked && scrobbler.lastfm.isAuthenticated()) {
                 scrobbler.lastfm.disconnect();
                 updateLastFMUI();
                 alert('Switched to default API credentials. Please reconnect to Last.fm.');
@@ -331,8 +375,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // Save Custom Credentials
     if (lastfmSaveCustomCreds) {
         lastfmSaveCustomCreds.addEventListener('click', () => {
-            const apiKey = lastfmCustomApiKey.value.trim();
-            const apiSecret = lastfmCustomApiSecret.value.trim();
+            const apiKey = lastfmCustomApiKey?.value.trim() ?? '';
+            const apiSecret = lastfmCustomApiSecret?.value.trim() ?? '';
 
             if (!apiKey || !apiSecret) {
                 alert('Please enter both API Key and API Secret');
@@ -361,9 +405,9 @@ export function initializeSettings(scrobbler, player, api, ui) {
         lastfmClearCustomCreds.addEventListener('click', () => {
             if (confirm('Clear custom API credentials?')) {
                 lastFMStorage.clearCustomCredentials();
-                lastfmCustomApiKey.value = '';
-                lastfmCustomApiSecret.value = '';
-                lastfmCustomCredsToggle.checked = false;
+                if (lastfmCustomApiKey) lastfmCustomApiKey.value = '';
+                if (lastfmCustomApiSecret) lastfmCustomApiSecret.value = '';
+                if (lastfmCustomCredsToggle) lastfmCustomCredsToggle.checked = false;
 
                 // Reload credentials
                 scrobbler.lastfm.reloadCredentials();
@@ -393,24 +437,24 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 return;
             }
 
-            lastfmLoginCredentialsBtn.disabled = true;
-            lastfmLoginCredentialsBtn.textContent = 'Logging in...';
+            (lastfmLoginCredentialsBtn as HTMLButtonElement).disabled = true;
+            if (lastfmLoginCredentialsBtn) lastfmLoginCredentialsBtn.textContent = 'Logging in...';
 
             try {
                 const result = await scrobbler.lastfm.authenticateWithCredentials(username, password);
                 if (result.success) {
                     lastFMStorage.setEnabled(true);
-                    lastfmToggle.checked = true;
+                    if (lastfmToggle) lastfmToggle.checked = true;
                     updateLastFMUI();
                     // Clear password for security
                     if (lastfmPasswordInput) lastfmPasswordInput.value = '';
                 }
             } catch (error) {
                 console.error('Last.fm credential login failed:', error);
-                alert('Failed to login: ' + error.message);
+                alert('Failed to login: ' + (error instanceof Error ? error.message : String(error)));
             } finally {
-                lastfmLoginCredentialsBtn.disabled = false;
-                lastfmLoginCredentialsBtn.textContent = 'Login';
+                (lastfmLoginCredentialsBtn as HTMLButtonElement).disabled = false;
+                if (lastfmLoginCredentialsBtn) lastfmLoginCredentialsBtn.textContent = 'Login';
             }
         });
     }
@@ -425,32 +469,32 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     // Global Scrobble Settings
     // ========================================
-    const scrobblePercentageSlider = document.getElementById('scrobble-percentage-slider');
-    const scrobblePercentageInput = document.getElementById('scrobble-percentage-input');
+    const scrobblePercentageSlider = document.getElementById('scrobble-percentage-slider') as HTMLInputElement | null;
+    const scrobblePercentageInput = document.getElementById('scrobble-percentage-input') as HTMLInputElement | null;
 
     if (scrobblePercentageSlider && scrobblePercentageInput) {
         const percentage = lastFMStorage.getScrobblePercentage();
-        scrobblePercentageSlider.value = percentage;
-        scrobblePercentageInput.value = percentage;
+        scrobblePercentageSlider.value = String(percentage);
+        scrobblePercentageInput.value = String(percentage);
 
         scrobblePercentageSlider.addEventListener('input', (e) => {
-            const newPercentage = parseInt(e.target.value, 10);
-            scrobblePercentageInput.value = newPercentage;
+            const newPercentage = parseInt((e.target as HTMLInputElement).value, 10);
+            scrobblePercentageInput.value = String(newPercentage);
             lastFMStorage.setScrobblePercentage(newPercentage);
         });
 
         scrobblePercentageInput.addEventListener('change', (e) => {
-            let newPercentage = parseInt(e.target.value, 10);
+            let newPercentage = parseInt((e.target as HTMLInputElement).value, 10);
             newPercentage = Math.max(1, Math.min(100, newPercentage || 75));
-            scrobblePercentageSlider.value = newPercentage;
-            scrobblePercentageInput.value = newPercentage;
+            scrobblePercentageSlider.value = String(newPercentage);
+            scrobblePercentageInput.value = String(newPercentage);
             lastFMStorage.setScrobblePercentage(newPercentage);
         });
 
         scrobblePercentageInput.addEventListener('input', (e) => {
-            let newPercentage = parseInt(e.target.value, 10);
+            let newPercentage = parseInt((e.target as HTMLInputElement).value, 10);
             if (!isNaN(newPercentage) && newPercentage >= 1 && newPercentage <= 100) {
-                scrobblePercentageSlider.value = newPercentage;
+                scrobblePercentageSlider.value = String(newPercentage);
                 lastFMStorage.setScrobblePercentage(newPercentage);
             }
         });
@@ -459,13 +503,13 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     // ListenBrainz Settings
     // ========================================
-    const lbToggle = document.getElementById('listenbrainz-enabled-toggle');
+    const lbToggle = document.getElementById('listenbrainz-enabled-toggle') as HTMLInputElement | null;
     const lbTokenSetting = document.getElementById('listenbrainz-token-setting');
     const lbCustomUrlSetting = document.getElementById('listenbrainz-custom-url-setting');
-    const lbTokenInput = document.getElementById('listenbrainz-token-input');
-    const lbCustomUrlInput = document.getElementById('listenbrainz-custom-url-input');
+    const lbTokenInput = document.getElementById('listenbrainz-token-input') as HTMLInputElement | null;
+    const lbCustomUrlInput = document.getElementById('listenbrainz-custom-url-input') as HTMLInputElement | null;
 
-    const updateListenBrainzUI = () => {
+    const updateListenBrainzUI = (): void => {
         const isEnabled = listenBrainzSettings.isEnabled();
         if (lbToggle) lbToggle.checked = isEnabled;
         if (lbTokenSetting) lbTokenSetting.style.display = isEnabled ? 'flex' : 'none';
@@ -478,7 +522,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (lbToggle) {
         lbToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = (e.target as HTMLInputElement).checked;
             listenBrainzSettings.setEnabled(enabled);
             updateListenBrainzUI();
         });
@@ -486,26 +530,26 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (lbTokenInput) {
         lbTokenInput.addEventListener('change', (e) => {
-            listenBrainzSettings.setToken(e.target.value.trim());
+            listenBrainzSettings.setToken((e.target as HTMLInputElement).value.trim());
         });
     }
 
     if (lbCustomUrlInput) {
         lbCustomUrlInput.addEventListener('change', (e) => {
-            listenBrainzSettings.setCustomUrl(e.target.value.trim());
+            listenBrainzSettings.setCustomUrl((e.target as HTMLInputElement).value.trim());
         });
     }
 
     // ========================================
     // Maloja Settings
     // ========================================
-    const malojaToggle = document.getElementById('maloja-enabled-toggle');
+    const malojaToggle = document.getElementById('maloja-enabled-toggle') as HTMLInputElement | null;
     const malojaTokenSetting = document.getElementById('maloja-token-setting');
     const malojaCustomUrlSetting = document.getElementById('maloja-custom-url-setting');
-    const malojaTokenInput = document.getElementById('maloja-token-input');
-    const malojaCustomUrlInput = document.getElementById('maloja-custom-url-input');
+    const malojaTokenInput = document.getElementById('maloja-token-input') as HTMLInputElement | null;
+    const malojaCustomUrlInput = document.getElementById('maloja-custom-url-input') as HTMLInputElement | null;
 
-    const updateMalojaUI = () => {
+    const updateMalojaUI = (): void => {
         const isEnabled = malojaSettings.isEnabled();
         if (malojaToggle) malojaToggle.checked = isEnabled;
         if (malojaTokenSetting) malojaTokenSetting.style.display = isEnabled ? 'flex' : 'none';
@@ -518,7 +562,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (malojaToggle) {
         malojaToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = (e.target as HTMLInputElement).checked;
             malojaSettings.setEnabled(enabled);
             updateMalojaUI();
         });
@@ -526,41 +570,41 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (malojaTokenInput) {
         malojaTokenInput.addEventListener('change', (e) => {
-            malojaSettings.setToken(e.target.value.trim());
+            malojaSettings.setToken((e.target as HTMLInputElement).value.trim());
         });
     }
 
     if (malojaCustomUrlInput) {
         malojaCustomUrlInput.addEventListener('change', (e) => {
-            malojaSettings.setCustomUrl(e.target.value.trim());
+            malojaSettings.setCustomUrl((e.target as HTMLInputElement).value.trim());
         });
     }
 
     // ========================================
     // Libre.fm Settings
     // ========================================
-    const librefmConnectBtn = document.getElementById('librefm-connect-btn');
+    const librefmConnectBtn = document.getElementById('librefm-connect-btn') as HTMLButtonElement | null;
     const librefmStatus = document.getElementById('librefm-status');
-    const librefmToggle = document.getElementById('librefm-toggle');
+    const librefmToggle = document.getElementById('librefm-toggle') as HTMLInputElement | null;
     const librefmToggleSetting = document.getElementById('librefm-toggle-setting');
-    const librefmLoveToggle = document.getElementById('librefm-love-toggle');
+    const librefmLoveToggle = document.getElementById('librefm-love-toggle') as HTMLInputElement | null;
     const librefmLoveSetting = document.getElementById('librefm-love-setting');
 
-    function updateLibreFmUI() {
+    function updateLibreFmUI(): void {
         if (scrobbler.librefm.isAuthenticated()) {
-            librefmStatus.textContent = `Connected as ${scrobbler.librefm.username}`;
-            librefmConnectBtn.textContent = 'Disconnect';
-            librefmConnectBtn.classList.add('danger');
-            librefmToggleSetting.style.display = 'flex';
-            librefmLoveSetting.style.display = 'flex';
-            librefmToggle.checked = libreFmSettings.isEnabled();
-            librefmLoveToggle.checked = libreFmSettings.shouldLoveOnLike();
+            if (librefmStatus) librefmStatus.textContent = `Connected as ${scrobbler.librefm.username}`;
+            if (librefmConnectBtn) librefmConnectBtn.textContent = 'Disconnect';
+            if (librefmConnectBtn) librefmConnectBtn.classList.add('danger');
+            if (librefmToggleSetting) librefmToggleSetting.style.display = 'flex';
+            if (librefmLoveSetting) librefmLoveSetting.style.display = 'flex';
+            if (librefmToggle) librefmToggle.checked = libreFmSettings.isEnabled();
+            if (librefmLoveToggle) librefmLoveToggle.checked = libreFmSettings.shouldLoveOnLike();
         } else {
-            librefmStatus.textContent = 'Connect your Libre.fm account to scrobble tracks';
-            librefmConnectBtn.textContent = 'Connect Libre.fm';
-            librefmConnectBtn.classList.remove('danger');
-            librefmToggleSetting.style.display = 'none';
-            librefmLoveSetting.style.display = 'none';
+            if (librefmStatus) librefmStatus.textContent = 'Connect your Libre.fm account to scrobble tracks';
+            if (librefmConnectBtn) librefmConnectBtn.textContent = 'Connect Libre.fm';
+            if (librefmConnectBtn) librefmConnectBtn.classList.remove('danger');
+            if (librefmToggleSetting) librefmToggleSetting.style.display = 'none';
+            if (librefmLoveSetting) librefmLoveSetting.style.display = 'none';
         }
     }
 
@@ -576,12 +620,12 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 return;
             }
 
-            let authWindow = null;
+            let authWindow: Window | null = null;
             if (!window.Neutralino) {
                 authWindow = window.open('', '_blank');
             }
 
-            librefmConnectBtn.disabled = true;
+            (librefmConnectBtn as HTMLButtonElement).disabled = true;
             librefmConnectBtn.textContent = 'Opening Libre.fm...';
 
             try {
@@ -594,7 +638,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 } else {
                     alert('Popup blocked! Please allow popups.');
                     librefmConnectBtn.textContent = 'Connect Libre.fm';
-                    librefmConnectBtn.disabled = false;
+                    (librefmConnectBtn as HTMLButtonElement).disabled = false;
                     return;
                 }
 
@@ -609,7 +653,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                     if (attempts > maxAttempts) {
                         clearInterval(checkAuth);
                         librefmConnectBtn.textContent = 'Connect Libre.fm';
-                        librefmConnectBtn.disabled = false;
+                        (librefmConnectBtn as HTMLButtonElement).disabled = false;
                         if (authWindow && !authWindow.closed) authWindow.close();
                         alert('Authorization timed out. Please try again.');
                         return;
@@ -622,9 +666,9 @@ export function initializeSettings(scrobbler, player, api, ui) {
                             clearInterval(checkAuth);
                             if (authWindow && !authWindow.closed) authWindow.close();
                             libreFmSettings.setEnabled(true);
-                            librefmToggle.checked = true;
+                            if (librefmToggle) librefmToggle.checked = true;
                             updateLibreFmUI();
-                            librefmConnectBtn.disabled = false;
+                            (librefmConnectBtn as HTMLButtonElement).disabled = false;
                             alert(`Successfully connected to Libre.fm as ${result.username}!`);
                         }
                     } catch {
@@ -633,9 +677,9 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 }, 2000);
             } catch (error) {
                 console.error('Libre.fm connection failed:', error);
-                alert('Failed to connect to Libre.fm: ' + error.message);
+                alert('Failed to connect to Libre.fm: ' + (error instanceof Error ? error.message : String(error)));
                 librefmConnectBtn.textContent = 'Connect Libre.fm';
-                librefmConnectBtn.disabled = false;
+                (librefmConnectBtn as HTMLButtonElement).disabled = false;
                 if (authWindow && !authWindow.closed) authWindow.close();
             }
         });
@@ -643,13 +687,13 @@ export function initializeSettings(scrobbler, player, api, ui) {
         // Libre.fm Toggles
         if (librefmToggle) {
             librefmToggle.addEventListener('change', (e) => {
-                libreFmSettings.setEnabled(e.target.checked);
+                libreFmSettings.setEnabled((e.target as HTMLInputElement).checked);
             });
         }
 
         if (librefmLoveToggle) {
             librefmLoveToggle.addEventListener('change', (e) => {
-                libreFmSettings.setLoveOnLike(e.target.checked);
+                libreFmSettings.setLoveOnLike((e.target as HTMLInputElement).checked);
             });
         }
     }
@@ -658,37 +702,38 @@ export function initializeSettings(scrobbler, player, api, ui) {
     const themePicker = document.getElementById('theme-picker');
     const currentTheme = themeManager.getTheme();
 
-    themePicker.querySelectorAll('.theme-option').forEach((option) => {
-        if (option.dataset.theme === currentTheme) {
+    themePicker!.querySelectorAll('.theme-option').forEach((option) => {
+        const htmlOption = option as HTMLElement;
+        if (htmlOption.dataset.theme === currentTheme) {
             option.classList.add('active');
         }
 
         option.addEventListener('click', () => {
-            const theme = option.dataset.theme;
+            const theme = htmlOption.dataset.theme;
 
-            themePicker.querySelectorAll('.theme-option').forEach((opt) => opt.classList.remove('active'));
+            themePicker!.querySelectorAll('.theme-option').forEach((opt) => opt.classList.remove('active'));
             option.classList.add('active');
 
             if (theme === 'custom') {
-                document.getElementById('custom-theme-editor').classList.add('show');
+                document.getElementById('custom-theme-editor')?.classList.add('show');
                 renderCustomThemeEditor();
                 themeManager.setTheme('custom');
             } else {
-                document.getElementById('custom-theme-editor').classList.remove('show');
-                themeManager.setTheme(theme);
+                document.getElementById('custom-theme-editor')?.classList.remove('show');
+                themeManager.setTheme(theme ?? 'system');
             }
         });
     });
 
     const communityThemeContainer = document.getElementById('applied-community-theme-container');
-    const communityThemeBtn = document.getElementById('applied-community-theme-btn');
+    const communityThemeBtn = document.getElementById('applied-community-theme-btn') as HTMLButtonElement | null;
     const communityThemeDetails = document.getElementById('community-theme-details-panel');
-    const communityThemeUnapplyBtn = document.getElementById('ct-unapply-btn');
+    const communityThemeUnapplyBtn = document.getElementById('ct-unapply-btn') as HTMLButtonElement | null;
     const appliedThemeName = document.getElementById('applied-theme-name');
     const ctDetailsTitle = document.getElementById('ct-details-title');
     const ctDetailsAuthor = document.getElementById('ct-details-author');
 
-    function updateCommunityThemeUI() {
+    function updateCommunityThemeUI(): void {
         const metadataStr = localStorage.getItem('community-theme');
         if (metadataStr) {
             try {
@@ -711,8 +756,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     if (communityThemeBtn) {
         communityThemeBtn.addEventListener('click', () => {
-            const isVisible = communityThemeDetails.style.display === 'block';
-            communityThemeDetails.style.display = isVisible ? 'none' : 'block';
+            const isVisible = communityThemeDetails?.style.display === 'block';
+            if (communityThemeDetails) communityThemeDetails.style.display = isVisible ? 'none' : 'block';
         });
     }
 
@@ -725,17 +770,17 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 if (styleEl) styleEl.remove();
                 themeManager.setTheme('system');
 
-                const themePicker = document.getElementById('theme-picker');
-                if (themePicker) {
-                    themePicker.querySelectorAll('.theme-option').forEach((opt) => opt.classList.remove('active'));
-                    themePicker.querySelector('[data-theme="system"]')?.classList.add('active');
+                const themePickerInner = document.getElementById('theme-picker');
+                if (themePickerInner) {
+                    themePickerInner.querySelectorAll('.theme-option').forEach((opt) => opt.classList.remove('active'));
+                    themePickerInner.querySelector('[data-theme="system"]')?.classList.add('active');
                 }
-                document.getElementById('custom-theme-editor').classList.remove('show');
+                document.getElementById('custom-theme-editor')?.classList.remove('show');
             }
         });
     }
 
-    function renderCustomThemeEditor() {
+    function renderCustomThemeEditor(): void {
         const grid = document.getElementById('theme-color-grid');
         const customTheme = themeManager.getCustomTheme() || {
             background: '#000000',
@@ -747,7 +792,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             highlight: '#ffffff',
         };
 
-        grid.innerHTML = Object.entries(customTheme)
+        grid!.innerHTML = Object.entries(customTheme)
             .map(
                 ([key, value]) => `
             <div class="theme-color-input">
@@ -760,9 +805,9 @@ export function initializeSettings(scrobbler, player, api, ui) {
     }
 
     document.getElementById('apply-custom-theme')?.addEventListener('click', () => {
-        const colors = {};
+        const colors: Record<string, string> = {};
         document.querySelectorAll('#theme-color-grid input[type="color"]').forEach((input) => {
-            colors[input.dataset.color] = input.value;
+            colors[(input as HTMLInputElement).dataset.color!] = (input as HTMLInputElement).value;
         });
         themeManager.setCustomTheme(colors);
     });
@@ -772,123 +817,123 @@ export function initializeSettings(scrobbler, player, api, ui) {
     });
 
     // Music Provider setting
-    const musicProviderSetting = document.getElementById('music-provider-setting');
+    const musicProviderSetting = document.getElementById('music-provider-setting') as HTMLSelectElement | null;
     if (musicProviderSetting) {
         musicProviderSetting.value = musicProviderSettings.getProvider();
         musicProviderSetting.addEventListener('change', (e) => {
-            musicProviderSettings.setProvider(e.target.value);
+            musicProviderSettings.setProvider((e.target as HTMLInputElement).value);
             // Reload page to apply changes
             window.location.reload();
         });
     }
 
     // Streaming Quality setting
-    const streamingQualitySetting = document.getElementById('streaming-quality-setting');
+    const streamingQualitySetting = document.getElementById('streaming-quality-setting') as HTMLSelectElement | null;
     if (streamingQualitySetting) {
         const savedQuality = localStorage.getItem('playback-quality') || 'HI_RES_LOSSLESS';
         streamingQualitySetting.value = savedQuality;
         player.setQuality(savedQuality);
 
         streamingQualitySetting.addEventListener('change', (e) => {
-            const newQuality = e.target.value;
+            const newQuality = (e.target as HTMLInputElement).value;
             player.setQuality(newQuality);
             localStorage.setItem('playback-quality', newQuality);
         });
     }
 
     // Download Quality setting
-    const downloadQualitySetting = document.getElementById('download-quality-setting');
+    const downloadQualitySetting = document.getElementById('download-quality-setting') as HTMLSelectElement | null;
     if (downloadQualitySetting) {
         downloadQualitySetting.value = downloadQualitySettings.getQuality();
 
         downloadQualitySetting.addEventListener('change', (e) => {
-            downloadQualitySettings.setQuality(e.target.value);
+            downloadQualitySettings.setQuality((e.target as HTMLInputElement).value);
         });
     }
 
-    const losslessContainerSetting = document.getElementById('lossless-container-setting');
+    const losslessContainerSetting = document.getElementById('lossless-container-setting') as HTMLSelectElement | null;
     if (losslessContainerSetting) {
         losslessContainerSetting.value = losslessContainerSettings.getContainer();
 
         losslessContainerSetting.addEventListener('change', (e) => {
-            losslessContainerSettings.setContainer(e.target.value);
+            losslessContainerSettings.setContainer((e.target as HTMLInputElement).value);
         });
     }
 
     // Cover Art Size setting
-    const coverArtSizeSetting = document.getElementById('cover-art-size-setting');
+    const coverArtSizeSetting = document.getElementById('cover-art-size-setting') as HTMLSelectElement | null;
     if (coverArtSizeSetting) {
         coverArtSizeSetting.value = coverArtSizeSettings.getSize();
 
         coverArtSizeSetting.addEventListener('change', (e) => {
-            coverArtSizeSettings.setSize(e.target.value);
+            coverArtSizeSettings.setSize((e.target as HTMLInputElement).value);
         });
     }
 
     // Quality Badge Settings
-    const showQualityBadgesToggle = document.getElementById('show-quality-badges-toggle');
+    const showQualityBadgesToggle = document.getElementById('show-quality-badges-toggle') as HTMLInputElement | null;
     if (showQualityBadgesToggle) {
         showQualityBadgesToggle.checked = qualityBadgeSettings.isEnabled();
         showQualityBadgesToggle.addEventListener('change', (e) => {
-            qualityBadgeSettings.setEnabled(e.target.checked);
+            qualityBadgeSettings.setEnabled((e.target as HTMLInputElement).checked);
             // Re-render queue if available, but don't force navigation to library
-            if (window.renderQueueFunction) window.renderQueueFunction();
+            if (window.renderQueueFunction) (window.renderQueueFunction as () => void)();
         });
     }
 
     // Track Date Settings
-    const useAlbumReleaseYearToggle = document.getElementById('use-album-release-year-toggle');
+    const useAlbumReleaseYearToggle = document.getElementById('use-album-release-year-toggle') as HTMLInputElement | null;
     if (useAlbumReleaseYearToggle) {
         useAlbumReleaseYearToggle.checked = trackDateSettings.useAlbumYear();
         useAlbumReleaseYearToggle.addEventListener('change', (e) => {
-            trackDateSettings.setUseAlbumYear(e.target.checked);
+            trackDateSettings.setUseAlbumYear((e.target as HTMLInputElement).checked);
         });
     }
 
-    const zippedBulkDownloadsToggle = document.getElementById('zipped-bulk-downloads-toggle');
+    const zippedBulkDownloadsToggle = document.getElementById('zipped-bulk-downloads-toggle') as HTMLInputElement | null;
     if (zippedBulkDownloadsToggle) {
         zippedBulkDownloadsToggle.checked = !bulkDownloadSettings.shouldForceIndividual();
         zippedBulkDownloadsToggle.addEventListener('change', (e) => {
-            bulkDownloadSettings.setForceIndividual(!e.target.checked);
+            bulkDownloadSettings.setForceIndividual(!(e.target as HTMLInputElement).checked);
         });
     }
 
     // ReplayGain Settings
-    const replayGainMode = document.getElementById('replay-gain-mode');
+    const replayGainMode = document.getElementById('replay-gain-mode') as HTMLSelectElement | null;
     if (replayGainMode) {
         replayGainMode.value = replayGainSettings.getMode();
         replayGainMode.addEventListener('change', (e) => {
-            replayGainSettings.setMode(e.target.value);
+            replayGainSettings.setMode((e.target as HTMLInputElement).value);
             player.applyReplayGain();
         });
     }
 
-    const replayGainPreamp = document.getElementById('replay-gain-preamp');
+    const replayGainPreamp = document.getElementById('replay-gain-preamp') as HTMLInputElement | null;
     if (replayGainPreamp) {
-        replayGainPreamp.value = replayGainSettings.getPreamp();
+        replayGainPreamp.value = String(replayGainSettings.getPreamp());
         replayGainPreamp.addEventListener('change', (e) => {
-            replayGainSettings.setPreamp(parseFloat(e.target.value) || 3);
+            replayGainSettings.setPreamp(parseFloat((e.target as HTMLInputElement).value) || 3);
             player.applyReplayGain();
         });
     }
 
     // Mono Audio Toggle
-    const monoAudioToggle = document.getElementById('mono-audio-toggle');
+    const monoAudioToggle = document.getElementById('mono-audio-toggle') as HTMLInputElement | null;
     if (monoAudioToggle) {
         monoAudioToggle.checked = monoAudioSettings.isEnabled();
         monoAudioToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = (e.target as HTMLInputElement).checked;
             monoAudioSettings.setEnabled(enabled);
             audioContextManager.toggleMonoAudio(enabled);
         });
     }
 
     // Exponential Volume Toggle
-    const exponentialVolumeToggle = document.getElementById('exponential-volume-toggle');
+    const exponentialVolumeToggle = document.getElementById('exponential-volume-toggle') as HTMLInputElement | null;
     if (exponentialVolumeToggle) {
         exponentialVolumeToggle.checked = exponentialVolumeSettings.isEnabled();
         exponentialVolumeToggle.addEventListener('change', (e) => {
-            exponentialVolumeSettings.setEnabled(e.target.checked);
+            exponentialVolumeSettings.setEnabled((e.target as HTMLInputElement).checked);
             // Re-apply current volume to use new curve
             player.applyReplayGain();
         });
@@ -897,29 +942,29 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     // Audio Effects (Playback Speed)
     // ========================================
-    const playbackSpeedSlider = document.getElementById('playback-speed-slider');
-    const playbackSpeedInput = document.getElementById('playback-speed-input');
+    const playbackSpeedSlider = document.getElementById('playback-speed-slider') as HTMLInputElement | null;
+    const playbackSpeedInput = document.getElementById('playback-speed-input') as HTMLInputElement | null;
     if (playbackSpeedSlider && playbackSpeedInput) {
         const currentSpeed = audioEffectsSettings.getSpeed();
         // Clamp slider to its range (0.25-4), but show actual value in input
-        playbackSpeedSlider.value = Math.max(0.25, Math.min(4.0, currentSpeed));
-        playbackSpeedInput.value = currentSpeed;
+        playbackSpeedSlider.value = String(Math.max(0.25, Math.min(4.0, currentSpeed)));
+        playbackSpeedInput.value = String(currentSpeed);
 
         // Slider only controls 0.25-4 range
         playbackSpeedSlider.addEventListener('input', (e) => {
-            const speed = parseFloat(e.target.value) || 1.0;
-            playbackSpeedInput.value = speed;
+            const speed = parseFloat((e.target as HTMLInputElement).value) || 1.0;
+            playbackSpeedInput.value = String(speed);
             player.setPlaybackSpeed(speed);
         });
 
         // Input allows full 0.01-100 range
-        const handleInputChange = () => {
+        const handleInputChange = (): void => {
             const speed = parseFloat(playbackSpeedInput.value) || 1.0;
             const validSpeed = Math.max(0.01, Math.min(100, speed));
-            playbackSpeedInput.value = validSpeed;
+            playbackSpeedInput.value = String(validSpeed);
             // Only update slider if value is within slider range
             if (validSpeed >= 0.25 && validSpeed <= 4.0) {
-                playbackSpeedSlider.value = validSpeed;
+                playbackSpeedSlider.value = String(validSpeed);
             }
             player.setPlaybackSpeed(validSpeed);
         };
@@ -931,30 +976,30 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     // Parametric Equalizer Settings (3-32 bands with custom ranges)
     // ========================================
-    const eqToggle = document.getElementById('equalizer-enabled-toggle');
+    const eqToggle = document.getElementById('equalizer-enabled-toggle') as HTMLInputElement | null;
     const eqContainer = document.getElementById('equalizer-container');
-    const eqPresetSelect = document.getElementById('equalizer-preset-select');
-    const eqResetBtn = document.getElementById('equalizer-reset-btn');
+    const eqPresetSelect = document.getElementById('equalizer-preset-select') as HTMLSelectElement | null;
+    const eqResetBtn = document.getElementById('equalizer-reset-btn') as HTMLButtonElement | null;
     const eqBandsContainer = document.getElementById('equalizer-bands');
     const customPresetsOptgroup = document.getElementById('custom-presets-optgroup');
-    const customPresetNameInput = document.getElementById('custom-preset-name');
-    const saveCustomPresetBtn = document.getElementById('save-custom-preset-btn');
-    const deleteCustomPresetBtn = document.getElementById('delete-custom-preset-btn');
-    const eqBandCountInput = document.getElementById('eq-band-count');
-    const eqRangeMinInput = document.getElementById('eq-range-min');
-    const eqRangeMaxInput = document.getElementById('eq-range-max');
-    const applyEqRangeBtn = document.getElementById('apply-eq-range-btn');
-    const eqFreqMinInput = document.getElementById('eq-freq-min');
-    const eqFreqMaxInput = document.getElementById('eq-freq-max');
-    const applyEqFreqBtn = document.getElementById('apply-eq-freq-btn');
-    const resetEqFreqBtn = document.getElementById('reset-eq-freq-btn');
-    const resetEqRangeBtn = document.getElementById('reset-eq-range-btn');
+    const customPresetNameInput = document.getElementById('custom-preset-name') as HTMLInputElement | null;
+    const saveCustomPresetBtn = document.getElementById('save-custom-preset-btn') as HTMLButtonElement | null;
+    const deleteCustomPresetBtn = document.getElementById('delete-custom-preset-btn') as HTMLButtonElement | null;
+    const eqBandCountInput = document.getElementById('eq-band-count') as HTMLInputElement | null;
+    const eqRangeMinInput = document.getElementById('eq-range-min') as HTMLInputElement | null;
+    const eqRangeMaxInput = document.getElementById('eq-range-max') as HTMLInputElement | null;
+    const applyEqRangeBtn = document.getElementById('apply-eq-range-btn') as HTMLButtonElement | null;
+    const eqFreqMinInput = document.getElementById('eq-freq-min') as HTMLInputElement | null;
+    const eqFreqMaxInput = document.getElementById('eq-freq-max') as HTMLInputElement | null;
+    const applyEqFreqBtn = document.getElementById('apply-eq-freq-btn') as HTMLButtonElement | null;
+    const resetEqFreqBtn = document.getElementById('reset-eq-freq-btn') as HTMLButtonElement | null;
+    const resetEqRangeBtn = document.getElementById('reset-eq-range-btn') as HTMLButtonElement | null;
     const eqScaleContainer = document.querySelector('.equalizer-scale');
-    const eqPreampSlider = document.getElementById('eq-preamp-slider');
-    const eqPreampInput = document.getElementById('eq-preamp-input');
-    const eqExportBtn = document.getElementById('eq-export-btn');
-    const eqImportBtn = document.getElementById('eq-import-btn');
-    const eqImportFile = document.getElementById('eq-import-file');
+    const eqPreampSlider = document.getElementById('eq-preamp-slider') as HTMLInputElement | null;
+    const eqPreampInput = document.getElementById('eq-preamp-input') as HTMLInputElement | null;
+    const eqExportBtn = document.getElementById('eq-export-btn') as HTMLButtonElement | null;
+    const eqImportBtn = document.getElementById('eq-import-btn') as HTMLButtonElement | null;
+    const eqImportFile = document.getElementById('eq-import-file') as HTMLInputElement | null;
 
     // Current settings
     let currentBandCount = equalizerSettings.getBandCount();
@@ -965,7 +1010,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Generate frequency labels for given band count and frequency range
      */
-    const generateFreqLabels = (count, minFreq = currentFreqRange.min, maxFreq = currentFreqRange.max) => {
+    const generateFreqLabels = (count: number, minFreq: number = currentFreqRange.min, maxFreq: number = currentFreqRange.max): string[] => {
         const labels = [];
         const safeMin = Math.max(10, minFreq);
         const safeMax = Math.min(96000, maxFreq);
@@ -991,12 +1036,12 @@ export function initializeSettings(scrobbler, player, api, ui) {
      * Generate EQ bands HTML
      */
     const generateEQBands = (
-        count,
-        rangeMin = currentRange.min,
-        rangeMax = currentRange.max,
-        freqMin = currentFreqRange.min,
-        freqMax = currentFreqRange.max
-    ) => {
+        count: number,
+        rangeMin: number = currentRange.min,
+        rangeMax: number = currentRange.max,
+        freqMin: number = currentFreqRange.min,
+        freqMax: number = currentFreqRange.max
+    ): void => {
         if (!eqBandsContainer) return;
 
         const labels = generateFreqLabels(count, freqMin, freqMax);
@@ -1005,7 +1050,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         for (let i = 0; i < count; i++) {
             const bandEl = document.createElement('div');
             bandEl.className = 'eq-band';
-            bandEl.dataset.band = i;
+            bandEl.dataset.band = String(i);
 
             bandEl.innerHTML = `
                 <input
@@ -1031,7 +1076,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Update EQ scale display
      */
-    const updateEQScale = (min, max) => {
+    const updateEQScale = (min: number, max: number): void => {
         if (!eqScaleContainer) return;
         const spans = eqScaleContainer.querySelectorAll('span');
         if (spans.length >= 3) {
@@ -1044,7 +1089,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Update the visual display of a band value
      */
-    const updateBandValueDisplay = (bandEl, value) => {
+    const updateBandValueDisplay = (bandEl: Element, value: number): void => {
         const valueEl = bandEl.querySelector('.eq-value');
         if (!valueEl) return;
 
@@ -1063,14 +1108,14 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Update all band sliders and displays from an array of gains
      */
-    const updateAllBandUI = (gains) => {
+    const updateAllBandUI = (gains: number[]): void => {
         const eqBands = eqBandsContainer?.querySelectorAll('.eq-band');
         if (!eqBands) return;
 
         eqBands.forEach((bandEl, index) => {
-            const slider = bandEl.querySelector('.eq-slider');
+            const slider = bandEl.querySelector('.eq-slider') as HTMLInputElement | null;
             if (slider && gains[index] !== undefined) {
-                slider.value = gains[index];
+                slider.value = String(gains[index]);
                 updateBandValueDisplay(bandEl, gains[index]);
             }
         });
@@ -1082,7 +1127,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Toggle EQ container visibility
      */
-    const updateEQContainerVisibility = (enabled) => {
+    const updateEQContainerVisibility = (enabled: boolean): void => {
         if (eqContainer) {
             eqContainer.style.display = enabled ? 'block' : 'none';
             if (enabled) {
@@ -1095,7 +1140,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Populate custom presets in the dropdown
      */
-    const populateCustomPresets = () => {
+    const populateCustomPresets = (): void => {
         if (!customPresetsOptgroup) return;
 
         // Clear existing custom presets
@@ -1124,14 +1169,14 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Check if a preset ID is a custom preset
      */
-    const isCustomPreset = (presetId) => {
-        return presetId && presetId.startsWith('custom_');
+    const isCustomPreset = (presetId: string): boolean => {
+        return !!presetId && presetId.startsWith('custom_');
     };
 
     /**
      * Update delete button visibility based on selected preset
      */
-    const updateDeleteButtonVisibility = () => {
+    const updateDeleteButtonVisibility = (): void => {
         if (!deleteCustomPresetBtn || !eqPresetSelect) return;
         const isCustom = isCustomPreset(eqPresetSelect.value);
         deleteCustomPresetBtn.style.display = isCustom ? 'flex' : 'none';
@@ -1140,11 +1185,12 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Draw smooth EQ response curve on canvas
      */
-    const drawEQCurve = () => {
-        const canvas = document.getElementById('eq-response-canvas');
+    const drawEQCurve = (): void => {
+        const canvas = document.getElementById('eq-response-canvas') as HTMLCanvasElement | null;
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
+        if (!ctx) return;
         const dpr = window.devicePixelRatio || 1;
         const rect = canvas.getBoundingClientRect();
 
@@ -1173,14 +1219,14 @@ export function initializeSettings(scrobbler, player, api, ui) {
         const highlightColor = getComputedStyle(tempEl).color;
         document.body.removeChild(tempEl);
 
-        const gains = [];
-        const positions = [];
+        const gains: number[] = [];
+        const positions: number[] = [];
         const range = currentRange;
         const rangeTotal = range.max - range.min;
         const canvasRect = canvas.getBoundingClientRect();
 
         eqBands.forEach((bandEl) => {
-            const slider = bandEl.querySelector('.eq-slider');
+            const slider = bandEl.querySelector('.eq-slider') as HTMLInputElement | null;
             const gain = slider ? parseFloat(slider.value) : 0;
             gains.push(gain);
 
@@ -1197,7 +1243,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         const usableTrack = trackHeight - thumbSize;
         const trackOffset = thumbSize / 2;
 
-        const getY = (gain) => {
+        const getY = (gain: number): number => {
             const normalized = (gain - range.min) / rangeTotal;
             // Invert because canvas Y=0 is at top, slider max is at top
             return trackOffset + (1 - normalized) * usableTrack;
@@ -1218,7 +1264,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         const b = rgbMatch ? parseInt(rgbMatch[2]) : 128;
 
         // Calculate control points for smooth curve
-        const getControlPoints = (i) => {
+        const getControlPoints = (i: number): { cp1x: number; cp1y: number; cp2x: number; cp2y: number } => {
             const p0 = points[i === 0 ? i : i - 1];
             const p1 = points[i];
             const p2 = points[i + 1];
@@ -1286,7 +1332,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     /**
      * Initialize band slider event listeners
      */
-    const initializeBandSliders = () => {
+    const initializeBandSliders = (): void => {
         const eqBands = eqBandsContainer?.querySelectorAll('.eq-band');
         if (!eqBands || eqBands.length === 0) return;
 
@@ -1296,18 +1342,18 @@ export function initializeSettings(scrobbler, player, api, ui) {
         let isDragging = false;
 
         eqBands.forEach((bandEl) => {
-            const bandIndex = parseInt(bandEl.dataset.band, 10);
-            const slider = bandEl.querySelector('.eq-slider');
+            const bandIndex = parseInt((bandEl as HTMLElement).dataset.band ?? '0', 10);
+            const slider = bandEl.querySelector('.eq-slider') as HTMLInputElement | null;
 
             if (slider && !isNaN(bandIndex)) {
                 // Set initial value from saved settings
                 const initialGain = savedGains[bandIndex] ?? 0;
-                slider.value = initialGain;
+                slider.value = String(initialGain);
                 updateBandValueDisplay(bandEl, initialGain);
 
                 // Handle slider input
                 slider.addEventListener('input', (e) => {
-                    const gain = parseFloat(e.target.value);
+                    const gain = parseFloat((e.target as HTMLInputElement).value);
                     audioContextManager.setBandGain(bandIndex, gain);
                     updateBandValueDisplay(bandEl, gain);
                     drawEQCurve();
@@ -1316,7 +1362,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                     if (eqPresetSelect && eqPresetSelect.value !== 'flat') {
                         const currentGains = audioContextManager.getGains();
                         const builtInPresets = EQ_PRESETS;
-                        const currentPreset = builtInPresets[eqPresetSelect.value];
+                        const currentPreset = builtInPresets[eqPresetSelect.value as keyof typeof builtInPresets];
                         if (currentPreset) {
                             const matches = currentPreset.gains.every((g, i) => Math.abs(g - currentGains[i]) < 0.01);
                             if (!matches) {
@@ -1328,14 +1374,14 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
                 // Double-click to reset individual band to 0
                 slider.addEventListener('dblclick', () => {
-                    slider.value = 0;
+                    slider.value = "0";
                     audioContextManager.setBandGain(bandIndex, 0);
                     updateBandValueDisplay(bandEl, 0);
                     drawEQCurve();
                 });
 
                 // FL Studio-style absolute drag: mousedown starts drag mode
-                bandEl.addEventListener('mousedown', (e) => {
+                (bandEl as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
                     // Only handle left mouse button
                     if (e.button !== 0) return;
 
@@ -1355,7 +1401,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             const bandUnderCursor = elementUnderCursor?.closest('.eq-band');
 
             if (bandUnderCursor) {
-                const slider = bandUnderCursor.querySelector('.eq-slider');
+                const slider = bandUnderCursor.querySelector('.eq-slider') as HTMLInputElement | null;
 
                 if (slider) {
                     const rect = slider.getBoundingClientRect();
@@ -1375,8 +1421,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
                     // Only update if value changed
                     if (parseFloat(slider.value) !== newValue) {
-                        slider.value = newValue;
-                        const bandIndex = parseInt(bandUnderCursor.dataset.band, 10);
+                        slider.value = String(newValue);
+                        const bandIndex = parseInt((bandUnderCursor as HTMLElement).dataset.band ?? '0', 10);
                         audioContextManager.setBandGain(bandIndex, newValue);
                         updateBandValueDisplay(bandUnderCursor, newValue);
                         drawEQCurve();
@@ -1406,7 +1452,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         updateEQContainerVisibility(isEnabled);
 
         eqToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = (e.target as HTMLInputElement).checked;
             audioContextManager.toggleEQ(enabled);
             updateEQContainerVisibility(enabled);
 
@@ -1421,10 +1467,10 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     // Initialize band count input
     if (eqBandCountInput) {
-        eqBandCountInput.value = currentBandCount;
+        eqBandCountInput.value = String(currentBandCount);
 
         eqBandCountInput.addEventListener('change', (e) => {
-            const newCount = parseInt(e.target.value, 10);
+            const newCount = parseInt((e.target as HTMLInputElement).value, 10);
             if (newCount >= equalizerSettings.MIN_BANDS && newCount <= equalizerSettings.MAX_BANDS) {
                 currentBandCount = newCount;
 
@@ -1471,7 +1517,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         updateDeleteButtonVisibility();
 
         eqPresetSelect.addEventListener('change', (e) => {
-            const presetKey = e.target.value;
+            const presetKey = (e.target as HTMLInputElement).value;
 
             // Check if it's a custom preset
             if (isCustomPreset(presetKey)) {
@@ -1484,7 +1530,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                         // Update band count to match preset
                         currentBandCount = presetBands;
                         equalizerSettings.setBandCount(presetBands);
-                        if (eqBandCountInput) eqBandCountInput.value = presetBands;
+                        if (eqBandCountInput) eqBandCountInput.value = String(presetBands);
                         generateEQBands(
                             presetBands,
                             currentRange.min,
@@ -1500,7 +1546,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             } else {
                 // Built-in preset - use current band count
                 const presets = EQ_PRESETS;
-                const preset = presets[presetKey];
+                const preset = presets[presetKey as keyof typeof presets];
                 if (preset) {
                     audioContextManager.applyPreset(presetKey);
                     updateAllBandUI(preset.gains);
@@ -1591,10 +1637,10 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     // Initialize range inputs
     if (eqRangeMinInput) {
-        eqRangeMinInput.value = currentRange.min;
+        eqRangeMinInput.value = String(currentRange.min);
     }
     if (eqRangeMaxInput) {
-        eqRangeMaxInput.value = currentRange.max;
+        eqRangeMaxInput.value = String(currentRange.max);
     }
     updateEQScale(currentRange.min, currentRange.max);
 
@@ -1660,8 +1706,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
             const defaultMax = equalizerSettings.DEFAULT_RANGE_MAX;
 
             // Update inputs
-            if (eqRangeMinInput) eqRangeMinInput.value = defaultMin;
-            if (eqRangeMaxInput) eqRangeMaxInput.value = defaultMax;
+            if (eqRangeMinInput) eqRangeMinInput.value = String(defaultMin);
+            if (eqRangeMaxInput) eqRangeMaxInput.value = String(defaultMax);
 
             // Save new range
             equalizerSettings.setRange(defaultMin, defaultMax);
@@ -1695,10 +1741,10 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     // Initialize frequency range inputs
     if (eqFreqMinInput) {
-        eqFreqMinInput.value = currentFreqRange.min;
+        eqFreqMinInput.value = String(currentFreqRange.min);
     }
     if (eqFreqMaxInput) {
-        eqFreqMaxInput.value = currentFreqRange.max;
+        eqFreqMaxInput.value = String(currentFreqRange.max);
     }
 
     // Initialize apply frequency range button
@@ -1763,8 +1809,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
             const defaultMax = equalizerSettings.DEFAULT_FREQ_MAX;
 
             // Update inputs
-            if (eqFreqMinInput) eqFreqMinInput.value = defaultMin;
-            if (eqFreqMaxInput) eqFreqMaxInput.value = defaultMax;
+            if (eqFreqMinInput) eqFreqMinInput.value = String(defaultMin);
+            if (eqFreqMaxInput) eqFreqMaxInput.value = String(defaultMax);
 
             // Save new frequency range
             equalizerSettings.setFreqRange(defaultMin, defaultMax);
@@ -1797,31 +1843,31 @@ export function initializeSettings(scrobbler, player, api, ui) {
     }
 
     // Initialize preamp control
-    const updatePreampUI = (value) => {
+    const updatePreampUI = (value: number): void => {
         currentPreamp = value;
-        if (eqPreampSlider) eqPreampSlider.value = value;
-        if (eqPreampInput) eqPreampInput.value = value;
+        if (eqPreampSlider) eqPreampSlider.value = String(value);
+        if (eqPreampInput) eqPreampInput.value = String(value);
         audioContextManager.setPreamp?.(value);
     };
 
     if (eqPreampSlider) {
         // Set initial value
-        eqPreampSlider.value = currentPreamp;
+        eqPreampSlider.value = String(currentPreamp);
 
         // Handle slider input
         eqPreampSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
+            const value = parseFloat((e.target as HTMLInputElement).value);
             updatePreampUI(value);
         });
     }
 
     if (eqPreampInput) {
         // Set initial value
-        eqPreampInput.value = currentPreamp;
+        eqPreampInput.value = String(currentPreamp);
 
         // Handle text input
         eqPreampInput.addEventListener('change', (e) => {
-            let value = parseFloat(e.target.value);
+            let value = parseFloat((e.target as HTMLInputElement).value);
             // Clamp to valid range
             value = Math.max(-20, Math.min(20, value || 0));
             updatePreampUI(value);
@@ -1830,7 +1876,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         // Handle enter key
         eqPreampInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                e.target.blur();
+                (e.target as HTMLInputElement).blur();
             }
         });
     }
@@ -1870,12 +1916,12 @@ export function initializeSettings(scrobbler, player, api, ui) {
         });
 
         eqImportFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = (e.target as HTMLInputElement).files?.[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = (event) => {
-                const text = event.target.result;
+                const text = event.target?.result as string;
                 const success = audioContextManager.importEQFromText?.(text);
                 if (success) {
                     // Update UI
@@ -1884,7 +1930,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
                     // Update band count if changed
                     currentBandCount = equalizerSettings.getBandCount();
-                    if (eqBandCountInput) eqBandCountInput.value = currentBandCount;
+                    if (eqBandCountInput) eqBandCountInput.value = String(currentBandCount);
 
                     // Regenerate bands and update UI
                     generateEQBands(
@@ -1911,7 +1957,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             reader.readAsText(file);
 
             // Reset file input
-            e.target.value = '';
+            (e.target as HTMLInputElement).value = '';
         });
     }
 
@@ -1919,10 +1965,11 @@ export function initializeSettings(scrobbler, player, api, ui) {
     generateEQBands(currentBandCount, currentRange.min, currentRange.max, currentFreqRange.min, currentFreqRange.max);
 
     // Listen for band count changes from other sources
-    window.addEventListener('equalizer-band-count-changed', (e) => {
-        if (e.detail && e.detail.bandCount) {
-            currentBandCount = e.detail.bandCount;
-            if (eqBandCountInput) eqBandCountInput.value = currentBandCount;
+    window.addEventListener('equalizer-band-count-changed', (e: Event) => {
+        const detail = (e as CustomEvent<{ bandCount?: number }>).detail;
+        if (detail && detail.bandCount) {
+            currentBandCount = detail.bandCount;
+            if (eqBandCountInput) eqBandCountInput.value = String(currentBandCount);
             generateEQBands(
                 currentBandCount,
                 currentRange.min,
@@ -1934,11 +1981,12 @@ export function initializeSettings(scrobbler, player, api, ui) {
     });
 
     // Listen for frequency range changes from other sources
-    window.addEventListener('equalizer-freq-range-changed', (e) => {
-        if (e.detail && e.detail.min !== undefined && e.detail.max !== undefined) {
-            currentFreqRange = { min: e.detail.min, max: e.detail.max };
-            if (eqFreqMinInput) eqFreqMinInput.value = currentFreqRange.min;
-            if (eqFreqMaxInput) eqFreqMaxInput.value = currentFreqRange.max;
+    window.addEventListener('equalizer-freq-range-changed', (e: Event) => {
+        const detail = (e as CustomEvent<{ min?: number; max?: number }>).detail;
+        if (detail && detail.min !== undefined && detail.max !== undefined) {
+            currentFreqRange = { min: detail.min, max: detail.max };
+            if (eqFreqMinInput) eqFreqMinInput.value = String(currentFreqRange.min);
+            if (eqFreqMaxInput) eqFreqMaxInput.value = String(currentFreqRange.max);
             generateEQBands(
                 currentBandCount,
                 currentRange.min,
@@ -1966,84 +2014,84 @@ export function initializeSettings(scrobbler, player, api, ui) {
     }
 
     // Now Playing Mode
-    const nowPlayingMode = document.getElementById('now-playing-mode');
+    const nowPlayingMode = document.getElementById('now-playing-mode') as HTMLSelectElement | null;
     if (nowPlayingMode) {
         nowPlayingMode.value = nowPlayingSettings.getMode();
         nowPlayingMode.addEventListener('change', (e) => {
-            nowPlayingSettings.setMode(e.target.value);
+            nowPlayingSettings.setMode((e.target as HTMLInputElement).value);
         });
     }
 
     // Close Modals on Navigation Toggle
-    const closeModalsOnNavigationToggle = document.getElementById('close-modals-on-navigation-toggle');
+    const closeModalsOnNavigationToggle = document.getElementById('close-modals-on-navigation-toggle') as HTMLInputElement | null;
     if (closeModalsOnNavigationToggle) {
         closeModalsOnNavigationToggle.checked = modalSettings.shouldCloseOnNavigation();
         closeModalsOnNavigationToggle.addEventListener('change', (e) => {
-            modalSettings.setCloseOnNavigation(e.target.checked);
+            modalSettings.setCloseOnNavigation((e.target as HTMLInputElement).checked);
         });
     }
 
     // Intercept Back to Close Modals Toggle
-    const interceptBackToCloseToggle = document.getElementById('intercept-back-to-close-modals-toggle');
+    const interceptBackToCloseToggle = document.getElementById('intercept-back-to-close-modals-toggle') as HTMLInputElement | null;
     if (interceptBackToCloseToggle) {
         interceptBackToCloseToggle.checked = modalSettings.shouldInterceptBackToClose();
         interceptBackToCloseToggle.addEventListener('change', (e) => {
-            modalSettings.setInterceptBackToClose(e.target.checked);
+            modalSettings.setInterceptBackToClose((e.target as HTMLInputElement).checked);
         });
     }
 
     // Compact Artist Toggle
-    const compactArtistToggle = document.getElementById('compact-artist-toggle');
+    const compactArtistToggle = document.getElementById('compact-artist-toggle') as HTMLInputElement | null;
     if (compactArtistToggle) {
         compactArtistToggle.checked = cardSettings.isCompactArtist();
         compactArtistToggle.addEventListener('change', (e) => {
-            cardSettings.setCompactArtist(e.target.checked);
+            cardSettings.setCompactArtist((e.target as HTMLInputElement).checked);
         });
     }
 
     // Compact Album Toggle
-    const compactAlbumToggle = document.getElementById('compact-album-toggle');
+    const compactAlbumToggle = document.getElementById('compact-album-toggle') as HTMLInputElement | null;
     if (compactAlbumToggle) {
         compactAlbumToggle.checked = cardSettings.isCompactAlbum();
         compactAlbumToggle.addEventListener('change', (e) => {
-            cardSettings.setCompactAlbum(e.target.checked);
+            cardSettings.setCompactAlbum((e.target as HTMLInputElement).checked);
         });
     }
 
     // Download Lyrics Toggle
-    const downloadLyricsToggle = document.getElementById('download-lyrics-toggle');
+    const downloadLyricsToggle = document.getElementById('download-lyrics-toggle') as HTMLInputElement | null;
     if (downloadLyricsToggle) {
         downloadLyricsToggle.checked = lyricsSettings.shouldDownloadLyrics();
         downloadLyricsToggle.addEventListener('change', (e) => {
-            lyricsSettings.setDownloadLyrics(e.target.checked);
+            lyricsSettings.setDownloadLyrics((e.target as HTMLInputElement).checked);
         });
     }
 
     // Romaji Lyrics Toggle
-    const romajiLyricsToggle = document.getElementById('romaji-lyrics-toggle');
+    const romajiLyricsToggle = document.getElementById('romaji-lyrics-toggle') as HTMLInputElement | null;
     if (romajiLyricsToggle) {
         romajiLyricsToggle.checked = localStorage.getItem('lyricsRomajiMode') === 'true';
         romajiLyricsToggle.addEventListener('change', (e) => {
-            localStorage.setItem('lyricsRomajiMode', e.target.checked ? 'true' : 'false');
+            localStorage.setItem('lyricsRomajiMode', (e.target as HTMLInputElement).checked ? 'true' : 'false');
         });
     }
 
     // Album Background Toggle
-    const albumBackgroundToggle = document.getElementById('album-background-toggle');
+    const albumBackgroundToggle = document.getElementById('album-background-toggle') as HTMLInputElement | null;
     if (albumBackgroundToggle) {
         albumBackgroundToggle.checked = backgroundSettings.isEnabled();
         albumBackgroundToggle.addEventListener('change', (e) => {
-            backgroundSettings.setEnabled(e.target.checked);
+            backgroundSettings.setEnabled((e.target as HTMLInputElement).checked);
         });
     }
 
     // Dynamic Color Toggle
-    const dynamicColorToggle = document.getElementById('dynamic-color-toggle');
+    const dynamicColorToggle = document.getElementById('dynamic-color-toggle') as HTMLInputElement | null;
     if (dynamicColorToggle) {
         dynamicColorToggle.checked = dynamicColorSettings.isEnabled();
         dynamicColorToggle.addEventListener('change', (e) => {
-            dynamicColorSettings.setEnabled(e.target.checked);
-            if (!e.target.checked) {
+            dynamicColorSettings.setEnabled((e.target as HTMLInputElement).checked);
+            if (!(e.target as HTMLInputElement).checked) {
                 // Reset colors immediately when disabled
                 window.dispatchEvent(new CustomEvent('reset-dynamic-color'));
             }
@@ -2051,82 +2099,82 @@ export function initializeSettings(scrobbler, player, api, ui) {
     }
 
     // Waveform Toggle
-    const waveformToggle = document.getElementById('waveform-toggle');
+    const waveformToggle = document.getElementById('waveform-toggle') as HTMLInputElement | null;
     if (waveformToggle) {
         waveformToggle.checked = waveformSettings.isEnabled();
         waveformToggle.addEventListener('change', (e) => {
-            waveformSettings.setEnabled(e.target.checked);
+            waveformSettings.setEnabled((e.target as HTMLInputElement).checked);
 
-            window.dispatchEvent(new CustomEvent('waveform-toggle', { detail: { enabled: e.target.checked } }));
+            window.dispatchEvent(new CustomEvent('waveform-toggle', { detail: { enabled: (e.target as HTMLInputElement).checked } }));
         });
     }
 
     // Smooth Scrolling Toggle
-    const smoothScrollingToggle = document.getElementById('smooth-scrolling-toggle');
+    const smoothScrollingToggle = document.getElementById('smooth-scrolling-toggle') as HTMLInputElement | null;
     if (smoothScrollingToggle) {
         smoothScrollingToggle.checked = smoothScrollingSettings.isEnabled();
         smoothScrollingToggle.addEventListener('change', (e) => {
-            smoothScrollingSettings.setEnabled(e.target.checked);
+            smoothScrollingSettings.setEnabled((e.target as HTMLInputElement).checked);
 
-            window.dispatchEvent(new CustomEvent('smooth-scrolling-toggle', { detail: { enabled: e.target.checked } }));
+            window.dispatchEvent(new CustomEvent('smooth-scrolling-toggle', { detail: { enabled: (e.target as HTMLInputElement).checked } }));
         });
     }
 
     // Visualizer Sensitivity
-    const visualizerSensitivitySlider = document.getElementById('visualizer-sensitivity-slider');
+    const visualizerSensitivitySlider = document.getElementById('visualizer-sensitivity-slider') as HTMLInputElement | null;
     const visualizerSensitivityValue = document.getElementById('visualizer-sensitivity-value');
     if (visualizerSensitivitySlider && visualizerSensitivityValue) {
         const currentSensitivity = visualizerSettings.getSensitivity();
-        visualizerSensitivitySlider.value = currentSensitivity;
+        visualizerSensitivitySlider.value = String(currentSensitivity);
         visualizerSensitivityValue.textContent = `${(currentSensitivity * 100).toFixed(0)}%`;
 
         visualizerSensitivitySlider.addEventListener('input', (e) => {
-            const newSensitivity = parseFloat(e.target.value);
+            const newSensitivity = parseFloat((e.target as HTMLInputElement).value);
             visualizerSettings.setSensitivity(newSensitivity);
             visualizerSensitivityValue.textContent = `${(newSensitivity * 100).toFixed(0)}%`;
         });
     }
 
     // Visualizer Smart Intensity
-    const smartIntensityToggle = document.getElementById('smart-intensity-toggle');
+    const smartIntensityToggle = document.getElementById('smart-intensity-toggle') as HTMLInputElement | null;
     if (smartIntensityToggle) {
         const isSmart = visualizerSettings.isSmartIntensityEnabled();
         smartIntensityToggle.checked = isSmart;
 
-        const updateSliderState = (enabled) => {
+        const updateSliderState = (enabled: boolean): void => {
             if (visualizerSensitivitySlider) {
                 visualizerSensitivitySlider.disabled = enabled;
-                visualizerSensitivitySlider.parentElement.style.opacity = enabled ? '0.5' : '1';
-                visualizerSensitivitySlider.parentElement.style.pointerEvents = enabled ? 'none' : 'auto';
+                visualizerSensitivitySlider.parentElement!.style.opacity = enabled ? '0.5' : '1';
+                visualizerSensitivitySlider.parentElement!.style.pointerEvents = enabled ? 'none' : 'auto';
             }
         };
         updateSliderState(isSmart);
 
         smartIntensityToggle.addEventListener('change', (e) => {
-            visualizerSettings.setSmartIntensity(e.target.checked);
-            updateSliderState(e.target.checked);
+            visualizerSettings.setSmartIntensity((e.target as HTMLInputElement).checked);
+            updateSliderState((e.target as HTMLInputElement).checked);
         });
     }
 
     // Visualizer Enabled Toggle
-    const visualizerEnabledToggle = document.getElementById('visualizer-enabled-toggle');
+    const visualizerEnabledToggle = document.getElementById('visualizer-enabled-toggle') as HTMLInputElement | null;
     const visualizerModeSetting = document.getElementById('visualizer-mode-setting');
     const visualizerSmartIntensitySetting = document.getElementById('visualizer-smart-intensity-setting');
     const visualizerSensitivitySetting = document.getElementById('visualizer-sensitivity-setting');
     const visualizerPresetSetting = document.getElementById('visualizer-preset-setting');
-    const visualizerPresetSelect = document.getElementById('visualizer-preset-select');
+    const visualizerPresetSelect = document.getElementById('visualizer-preset-select') as HTMLSelectElement | null;
 
     // Butterchurn Settings Elements
     const butterchurnCycleSetting = document.getElementById('butterchurn-cycle-setting');
     const butterchurnDurationSetting = document.getElementById('butterchurn-duration-setting');
     const butterchurnRandomizeSetting = document.getElementById('butterchurn-randomize-setting');
     const butterchurnSpecificPresetSetting = document.getElementById('butterchurn-specific-preset-setting');
-    const butterchurnSpecificPresetSelect = document.getElementById('butterchurn-specific-preset-select');
-    const butterchurnCycleToggle = document.getElementById('butterchurn-cycle-toggle');
-    const butterchurnDurationInput = document.getElementById('butterchurn-duration-input');
-    const butterchurnRandomizeToggle = document.getElementById('butterchurn-randomize-toggle');
+    const butterchurnSpecificPresetSelect = document.getElementById('butterchurn-specific-preset-select') as HTMLSelectElement | null;
+    const butterchurnCycleToggle = document.getElementById('butterchurn-cycle-toggle') as HTMLInputElement | null;
+    const butterchurnDurationInput = document.getElementById('butterchurn-duration-input') as HTMLInputElement | null;
+    const butterchurnRandomizeToggle = document.getElementById('butterchurn-randomize-toggle') as HTMLInputElement | null;
 
-    const updateButterchurnSettingsVisibility = () => {
+    const updateButterchurnSettingsVisibility = (): void => {
         const isEnabled = visualizerEnabledToggle ? visualizerEnabledToggle.checked : false;
         const isButterchurn = visualizerPresetSelect ? visualizerPresetSelect.value === 'butterchurn' : false;
         const show = isEnabled && isButterchurn;
@@ -2146,7 +2194,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         const select = butterchurnSpecificPresetSelect;
 
         if (select && presetNames.length > 0) {
-            const currentNames = Array.from(select.options).map((opt) => opt.value);
+            const currentNames = Array.from((select as HTMLSelectElement).options).map((opt: HTMLOptionElement) => opt.value);
             // Check if dropdown only has "Loading..." or needs full update
             const hasOnlyLoadingOption = currentNames.length === 1 && currentNames[0] === '';
             const needsUpdate =
@@ -2177,7 +2225,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         }
     };
 
-    const updateVisualizerSettingsVisibility = (enabled) => {
+    const updateVisualizerSettingsVisibility = (enabled: boolean): void => {
         const display = enabled ? 'flex' : 'none';
         if (visualizerModeSetting) visualizerModeSetting.style.display = display;
         if (visualizerSmartIntensitySetting) visualizerSmartIntensitySetting.style.display = display;
@@ -2199,8 +2247,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
         updateVisualizerSettingsVisibility(visualizerEnabledToggle.checked);
 
         visualizerEnabledToggle.addEventListener('change', (e) => {
-            visualizerSettings.setEnabled(e.target.checked);
-            updateVisualizerSettingsVisibility(e.target.checked);
+            visualizerSettings.setEnabled((e.target as HTMLInputElement).checked);
+            updateVisualizerSettingsVisibility((e.target as HTMLInputElement).checked);
         });
     }
 
@@ -2208,7 +2256,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     if (visualizerPresetSelect) {
         // value set above
         visualizerPresetSelect.addEventListener('change', (e) => {
-            const val = e.target.value;
+            const val = (e.target as HTMLInputElement).value;
             visualizerSettings.setPreset(val);
             if (ui && ui.visualizer) {
                 ui.visualizer.setPreset(val);
@@ -2220,18 +2268,18 @@ export function initializeSettings(scrobbler, player, api, ui) {
     if (butterchurnCycleToggle) {
         butterchurnCycleToggle.checked = visualizerSettings.isButterchurnCycleEnabled();
         butterchurnCycleToggle.addEventListener('change', (e) => {
-            visualizerSettings.setButterchurnCycleEnabled(e.target.checked);
+            visualizerSettings.setButterchurnCycleEnabled((e.target as HTMLInputElement).checked);
             updateButterchurnSettingsVisibility();
         });
     }
 
     if (butterchurnDurationInput) {
-        butterchurnDurationInput.value = visualizerSettings.getButterchurnCycleDuration();
+        butterchurnDurationInput.value = String(visualizerSettings.getButterchurnCycleDuration());
         butterchurnDurationInput.addEventListener('change', (e) => {
-            let val = parseInt(e.target.value, 10);
+            let val = parseInt((e.target as HTMLInputElement).value, 10);
             if (isNaN(val) || val < 5) val = 5;
             if (val > 300) val = 300;
-            e.target.value = val;
+            (e.target as HTMLInputElement).value = String(val);
             visualizerSettings.setButterchurnCycleDuration(val);
         });
     }
@@ -2239,7 +2287,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     if (butterchurnRandomizeToggle) {
         butterchurnRandomizeToggle.checked = visualizerSettings.isButterchurnRandomizeEnabled();
         butterchurnRandomizeToggle.addEventListener('change', (e) => {
-            visualizerSettings.setButterchurnRandomizeEnabled(e.target.checked);
+            visualizerSettings.setButterchurnRandomizeEnabled((e.target as HTMLInputElement).checked);
         });
     }
 
@@ -2247,7 +2295,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
         butterchurnSpecificPresetSelect.addEventListener('change', (e) => {
             // Try to load via visualizer if active, otherwise just store the selection
             if (ui && ui.visualizer && ui.visualizer.presets['butterchurn']) {
-                ui.visualizer.presets['butterchurn'].loadPreset(e.target.value);
+                ui.visualizer.presets['butterchurn'].loadPreset((e.target as HTMLInputElement).value);
             }
         });
     }
@@ -2268,7 +2316,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
     // Watch for audio tab becoming active and refresh presets
     const audioTabContent = document.getElementById('settings-tab-audio');
     if (audioTabContent) {
-        const observer = new MutationObserver((mutations) => {
+        const observer = new MutationObserver((mutations: MutationRecord[]) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
                     if (audioTabContent.classList.contains('active')) {
@@ -2282,139 +2330,139 @@ export function initializeSettings(scrobbler, player, api, ui) {
     }
 
     // Visualizer Mode Select
-    const visualizerModeSelect = document.getElementById('visualizer-mode-select');
+    const visualizerModeSelect = document.getElementById('visualizer-mode-select') as HTMLSelectElement | null;
     if (visualizerModeSelect) {
         visualizerModeSelect.value = visualizerSettings.getMode();
         visualizerModeSelect.addEventListener('change', (e) => {
-            visualizerSettings.setMode(e.target.value);
+            visualizerSettings.setMode((e.target as HTMLInputElement).value);
         });
     }
 
     // Home Page Section Toggles
-    const showRecommendedSongsToggle = document.getElementById('show-recommended-songs-toggle');
+    const showRecommendedSongsToggle = document.getElementById('show-recommended-songs-toggle') as HTMLInputElement | null;
     if (showRecommendedSongsToggle) {
         showRecommendedSongsToggle.checked = homePageSettings.shouldShowRecommendedSongs();
         showRecommendedSongsToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowRecommendedSongs(e.target.checked);
+            homePageSettings.setShowRecommendedSongs((e.target as HTMLInputElement).checked);
         });
     }
 
-    const showRecommendedAlbumsToggle = document.getElementById('show-recommended-albums-toggle');
+    const showRecommendedAlbumsToggle = document.getElementById('show-recommended-albums-toggle') as HTMLInputElement | null;
     if (showRecommendedAlbumsToggle) {
         showRecommendedAlbumsToggle.checked = homePageSettings.shouldShowRecommendedAlbums();
         showRecommendedAlbumsToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowRecommendedAlbums(e.target.checked);
+            homePageSettings.setShowRecommendedAlbums((e.target as HTMLInputElement).checked);
         });
     }
 
-    const showRecommendedArtistsToggle = document.getElementById('show-recommended-artists-toggle');
+    const showRecommendedArtistsToggle = document.getElementById('show-recommended-artists-toggle') as HTMLInputElement | null;
     if (showRecommendedArtistsToggle) {
         showRecommendedArtistsToggle.checked = homePageSettings.shouldShowRecommendedArtists();
         showRecommendedArtistsToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowRecommendedArtists(e.target.checked);
+            homePageSettings.setShowRecommendedArtists((e.target as HTMLInputElement).checked);
         });
     }
 
-    const showJumpBackInToggle = document.getElementById('show-jump-back-in-toggle');
+    const showJumpBackInToggle = document.getElementById('show-jump-back-in-toggle') as HTMLInputElement | null;
     if (showJumpBackInToggle) {
         showJumpBackInToggle.checked = homePageSettings.shouldShowJumpBackIn();
         showJumpBackInToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowJumpBackIn(e.target.checked);
+            homePageSettings.setShowJumpBackIn((e.target as HTMLInputElement).checked);
         });
     }
 
-    const showEditorsPicksToggle = document.getElementById('show-editors-picks-toggle');
+    const showEditorsPicksToggle = document.getElementById('show-editors-picks-toggle') as HTMLInputElement | null;
     if (showEditorsPicksToggle) {
         showEditorsPicksToggle.checked = homePageSettings.shouldShowEditorsPicks();
         showEditorsPicksToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowEditorsPicks(e.target.checked);
+            homePageSettings.setShowEditorsPicks((e.target as HTMLInputElement).checked);
         });
     }
 
-    const shuffleEditorsPicksToggle = document.getElementById('shuffle-editors-picks-toggle');
+    const shuffleEditorsPicksToggle = document.getElementById('shuffle-editors-picks-toggle') as HTMLInputElement | null;
     if (shuffleEditorsPicksToggle) {
         shuffleEditorsPicksToggle.checked = homePageSettings.shouldShuffleEditorsPicks();
         shuffleEditorsPicksToggle.addEventListener('change', (e) => {
-            homePageSettings.setShuffleEditorsPicks(e.target.checked);
+            homePageSettings.setShuffleEditorsPicks((e.target as HTMLInputElement).checked);
         });
     }
 
     // Sidebar Section Toggles
-    const sidebarShowHomeToggle = document.getElementById('sidebar-show-home-toggle');
+    const sidebarShowHomeToggle = document.getElementById('sidebar-show-home-toggle') as HTMLInputElement | null;
     if (sidebarShowHomeToggle) {
         sidebarShowHomeToggle.checked = sidebarSectionSettings.shouldShowHome();
         sidebarShowHomeToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowHome(e.target.checked);
+            sidebarSectionSettings.setShowHome((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowLibraryToggle = document.getElementById('sidebar-show-library-toggle');
+    const sidebarShowLibraryToggle = document.getElementById('sidebar-show-library-toggle') as HTMLInputElement | null;
     if (sidebarShowLibraryToggle) {
         sidebarShowLibraryToggle.checked = sidebarSectionSettings.shouldShowLibrary();
         sidebarShowLibraryToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowLibrary(e.target.checked);
+            sidebarSectionSettings.setShowLibrary((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowRecentToggle = document.getElementById('sidebar-show-recent-toggle');
+    const sidebarShowRecentToggle = document.getElementById('sidebar-show-recent-toggle') as HTMLInputElement | null;
     if (sidebarShowRecentToggle) {
         sidebarShowRecentToggle.checked = sidebarSectionSettings.shouldShowRecent();
         sidebarShowRecentToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowRecent(e.target.checked);
+            sidebarSectionSettings.setShowRecent((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowUnreleasedToggle = document.getElementById('sidebar-show-unreleased-toggle');
+    const sidebarShowUnreleasedToggle = document.getElementById('sidebar-show-unreleased-toggle') as HTMLInputElement | null;
     if (sidebarShowUnreleasedToggle) {
         sidebarShowUnreleasedToggle.checked = sidebarSectionSettings.shouldShowUnreleased();
         sidebarShowUnreleasedToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowUnreleased(e.target.checked);
+            sidebarSectionSettings.setShowUnreleased((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowDonateToggle = document.getElementById('sidebar-show-donate-toggle');
+    const sidebarShowDonateToggle = document.getElementById('sidebar-show-donate-toggle') as HTMLInputElement | null;
     if (sidebarShowDonateToggle) {
         sidebarShowDonateToggle.checked = sidebarSectionSettings.shouldShowDonate();
         sidebarShowDonateToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowDonate(e.target.checked);
+            sidebarSectionSettings.setShowDonate((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowSettingsToggle = document.getElementById('sidebar-show-settings-toggle');
+    const sidebarShowSettingsToggle = document.getElementById('sidebar-show-settings-toggle') as HTMLInputElement | null;
     if (sidebarShowSettingsToggle) {
         sidebarShowSettingsToggle.checked = true;
         sidebarShowSettingsToggle.disabled = true;
         sidebarSectionSettings.setShowSettings(true);
     }
 
-    const sidebarShowAboutToggle = document.getElementById('sidebar-show-about-bottom-toggle');
+    const sidebarShowAboutToggle = document.getElementById('sidebar-show-about-bottom-toggle') as HTMLInputElement | null;
     if (sidebarShowAboutToggle) {
         sidebarShowAboutToggle.checked = sidebarSectionSettings.shouldShowAbout();
         sidebarShowAboutToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowAbout(e.target.checked);
+            sidebarSectionSettings.setShowAbout((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowDownloadToggle = document.getElementById('sidebar-show-download-bottom-toggle');
+    const sidebarShowDownloadToggle = document.getElementById('sidebar-show-download-bottom-toggle') as HTMLInputElement | null;
     if (sidebarShowDownloadToggle) {
         sidebarShowDownloadToggle.checked = sidebarSectionSettings.shouldShowDownload();
         sidebarShowDownloadToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowDownload(e.target.checked);
+            sidebarSectionSettings.setShowDownload((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
-    const sidebarShowDiscordToggle = document.getElementById('sidebar-show-discordbtn-toggle');
+    const sidebarShowDiscordToggle = document.getElementById('sidebar-show-discordbtn-toggle') as HTMLInputElement | null;
     if (sidebarShowDiscordToggle) {
         sidebarShowDiscordToggle.checked = sidebarSectionSettings.shouldShowDiscord();
         sidebarShowDiscordToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowDiscord(e.target.checked);
+            sidebarSectionSettings.setShowDiscord((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
@@ -2424,7 +2472,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
     const sidebarSettingsGroup = sidebarShowHomeToggle?.closest('.settings-group');
     if (sidebarSettingsGroup) {
-        const toggleIdFromSidebarId = (sidebarId) =>
+        const toggleIdFromSidebarId = (sidebarId: string): string =>
             sidebarId ? sidebarId.replace('sidebar-nav-', 'sidebar-show-') + '-toggle' : '';
 
         const sidebarOrderConfig = sidebarSectionSettings.DEFAULT_ORDER.map((sidebarId) => ({
@@ -2434,28 +2482,28 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
         sidebarOrderConfig.forEach(({ toggleId, sidebarId }) => {
             const toggle = document.getElementById(toggleId);
-            const item = toggle?.closest('.setting-item');
+            const item = toggle?.closest('.setting-item') as HTMLElement | null;
             if (!item) return;
             item.dataset.sidebarId = sidebarId;
             item.classList.add('sidebar-setting-item');
             item.draggable = true;
         });
 
-        const mainContainer = sidebarSettingsGroup.querySelector('.sidebar-settings-main');
-        const bottomContainer = sidebarSettingsGroup.querySelector('.sidebar-settings-bottom');
+        const mainContainer = sidebarSettingsGroup.querySelector('.sidebar-settings-main') as HTMLElement | null;
+        const bottomContainer = sidebarSettingsGroup.querySelector('.sidebar-settings-bottom') as HTMLElement | null;
 
-        const getSidebarItems = () => [
-            ...(mainContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []),
-            ...(bottomContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []),
+        const getSidebarItems = (): HTMLElement[] => [
+            ...Array.from(mainContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []) as HTMLElement[],
+            ...Array.from(bottomContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []) as HTMLElement[],
         ];
 
-        const applySidebarSettingsOrder = () => {
+        const applySidebarSettingsOrder = (): void => {
             const order = sidebarSectionSettings.getOrder();
             const bottomIds = sidebarSectionSettings.getBottomNavIds();
             const mainOrder = order.filter((id) => !bottomIds.includes(id));
             const bottomOrder = order.filter((id) => bottomIds.includes(id));
             const allItems = getSidebarItems();
-            const itemMap = new Map(allItems.map((item) => [item.dataset.sidebarId, item]));
+            const itemMap = new Map(allItems.map((item) => [(item as HTMLElement).dataset.sidebarId, item]));
 
             mainOrder.forEach((id) => {
                 const item = itemMap.get(id);
@@ -2469,35 +2517,35 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
         applySidebarSettingsOrder();
 
-        let draggedItem = null;
+        let draggedItem: HTMLElement | null = null;
 
-        const saveSidebarOrder = () => {
-            const order = getSidebarItems().map((item) => item.dataset.sidebarId);
+        const saveSidebarOrder = (): void => {
+            const order = getSidebarItems().map((item) => item.dataset.sidebarId).filter((id): id is string => !!id);
             sidebarSectionSettings.setOrder(order);
             sidebarSectionSettings.applySidebarVisibility();
         };
 
-        const handleDragStart = (e) => {
-            const item = e.target.closest('.sidebar-setting-item');
+        const handleDragStart = (e: DragEvent): void => {
+            const item = (e.target as HTMLElement)?.closest('.sidebar-setting-item') as HTMLElement | null;
             if (!item) return;
             draggedItem = item;
             draggedItem.classList.add('dragging');
             if (e.dataTransfer) {
                 e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', item.dataset.sidebarId || '');
+                e.dataTransfer.setData('text/plain', (item as HTMLElement).dataset.sidebarId || '');
             }
         };
 
-        const handleDragEnd = () => {
+        const handleDragEnd = (): void => {
             if (!draggedItem) return;
             draggedItem.classList.remove('dragging');
             draggedItem = null;
             saveSidebarOrder();
         };
 
-        const getDragAfterElement = (elements, y) => {
+        const getDragAfterElement = (elements: HTMLElement[], y: number): HTMLElement | undefined => {
             const draggableElements = elements.filter((el) => el !== draggedItem);
-            return draggableElements.reduce(
+            return draggableElements.reduce<{ offset: number; element?: HTMLElement }>(
                 (closest, child) => {
                     const box = child.getBoundingClientRect();
                     const offset = y - box.top - box.height / 2;
@@ -2510,14 +2558,15 @@ export function initializeSettings(scrobbler, player, api, ui) {
             ).element;
         };
 
-        const handleDragOver = (e) => {
+        const handleDragOver = (e: DragEvent): void => {
             e.preventDefault();
             if (!draggedItem) return;
             const container = draggedItem.parentElement;
+            if (!container) return;
             if (container !== mainContainer && container !== bottomContainer) return;
-            const sectionItems = Array.from(container.querySelectorAll('.sidebar-setting-item[data-sidebar-id]'));
+            const sectionItems = Array.from(container.querySelectorAll('.sidebar-setting-item[data-sidebar-id]')) as HTMLElement[];
             const afterElement = getDragAfterElement(sectionItems, e.clientY);
-            if (afterElement === draggedItem) return;
+            if (afterElement === (draggedItem as HTMLElement | null)) return;
             if (afterElement) {
                 container.insertBefore(draggedItem, afterElement);
             } else {
@@ -2525,90 +2574,91 @@ export function initializeSettings(scrobbler, player, api, ui) {
             }
         };
 
-        sidebarSettingsGroup.addEventListener('dragstart', handleDragStart);
-        sidebarSettingsGroup.addEventListener('dragend', handleDragEnd);
-        sidebarSettingsGroup.addEventListener('dragover', handleDragOver);
-        sidebarSettingsGroup.addEventListener('drop', (e) => e.preventDefault());
+        sidebarSettingsGroup.addEventListener('dragstart', handleDragStart as EventListener);
+        sidebarSettingsGroup.addEventListener('dragend', handleDragEnd as EventListener);
+        sidebarSettingsGroup.addEventListener('dragover', handleDragOver as EventListener);
+        sidebarSettingsGroup.addEventListener('drop', (e: Event) => e.preventDefault());
     }
 
     // Filename template setting
-    const filenameTemplate = document.getElementById('filename-template');
+    const filenameTemplate = document.getElementById('filename-template') as HTMLInputElement | null;
     if (filenameTemplate) {
         filenameTemplate.value = localStorage.getItem('filename-template') || '{trackNumber} - {artist} - {title}';
         filenameTemplate.addEventListener('change', (e) => {
-            localStorage.setItem('filename-template', e.target.value);
+            localStorage.setItem('filename-template', (e.target as HTMLInputElement).value);
         });
     }
 
     // ZIP folder template
-    const zipFolderTemplate = document.getElementById('zip-folder-template');
+    const zipFolderTemplate = document.getElementById('zip-folder-template') as HTMLInputElement | null;
     if (zipFolderTemplate) {
         zipFolderTemplate.value = localStorage.getItem('zip-folder-template') || '{albumTitle} - {albumArtist}';
         zipFolderTemplate.addEventListener('change', (e) => {
-            localStorage.setItem('zip-folder-template', e.target.value);
+            localStorage.setItem('zip-folder-template', (e.target as HTMLInputElement).value);
         });
     }
 
     // Playlist file generation settings
-    const generateM3UToggle = document.getElementById('generate-m3u-toggle');
+    const generateM3UToggle = document.getElementById('generate-m3u-toggle') as HTMLInputElement | null;
     if (generateM3UToggle) {
         generateM3UToggle.checked = playlistSettings.shouldGenerateM3U();
         generateM3UToggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateM3U(e.target.checked);
+            playlistSettings.setGenerateM3U((e.target as HTMLInputElement).checked);
         });
     }
 
-    const generateM3U8Toggle = document.getElementById('generate-m3u8-toggle');
+    const generateM3U8Toggle = document.getElementById('generate-m3u8-toggle') as HTMLInputElement | null;
     if (generateM3U8Toggle) {
         generateM3U8Toggle.checked = playlistSettings.shouldGenerateM3U8();
         generateM3U8Toggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateM3U8(e.target.checked);
+            playlistSettings.setGenerateM3U8((e.target as HTMLInputElement).checked);
         });
     }
 
-    const generateCUEtoggle = document.getElementById('generate-cue-toggle');
+    const generateCUEtoggle = document.getElementById('generate-cue-toggle') as HTMLInputElement | null;
     if (generateCUEtoggle) {
         generateCUEtoggle.checked = playlistSettings.shouldGenerateCUE();
         generateCUEtoggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateCUE(e.target.checked);
+            playlistSettings.setGenerateCUE((e.target as HTMLInputElement).checked);
         });
     }
 
-    const generateNFOtoggle = document.getElementById('generate-nfo-toggle');
+    const generateNFOtoggle = document.getElementById('generate-nfo-toggle') as HTMLInputElement | null;
     if (generateNFOtoggle) {
         generateNFOtoggle.checked = playlistSettings.shouldGenerateNFO();
         generateNFOtoggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateNFO(e.target.checked);
+            playlistSettings.setGenerateNFO((e.target as HTMLInputElement).checked);
         });
     }
 
-    const generateJSONtoggle = document.getElementById('generate-json-toggle');
+    const generateJSONtoggle = document.getElementById('generate-json-toggle') as HTMLInputElement | null;
     if (generateJSONtoggle) {
         generateJSONtoggle.checked = playlistSettings.shouldGenerateJSON();
         generateJSONtoggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateJSON(e.target.checked);
+            playlistSettings.setGenerateJSON((e.target as HTMLInputElement).checked);
         });
     }
 
-    const relativePathsToggle = document.getElementById('relative-paths-toggle');
+    const relativePathsToggle = document.getElementById('relative-paths-toggle') as HTMLInputElement | null;
     if (relativePathsToggle) {
         relativePathsToggle.checked = playlistSettings.shouldUseRelativePaths();
         relativePathsToggle.addEventListener('change', (e) => {
-            playlistSettings.setUseRelativePaths(e.target.checked);
+            playlistSettings.setUseRelativePaths((e.target as HTMLInputElement).checked);
         });
     }
 
-    const separateDiscsZipToggle = document.getElementById('separate-discs-zip-toggle');
+    const separateDiscsZipToggle = document.getElementById('separate-discs-zip-toggle') as HTMLInputElement | null;
     if (separateDiscsZipToggle) {
         separateDiscsZipToggle.checked = playlistSettings.shouldSeparateDiscsInZip();
         separateDiscsZipToggle.addEventListener('change', (e) => {
-            playlistSettings.setSeparateDiscsInZip(e.target.checked);
+            playlistSettings.setSeparateDiscsInZip((e.target as HTMLInputElement).checked);
         });
     }
 
     // API settings
     document.getElementById('refresh-speed-test-btn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('refresh-speed-test-btn');
+        const btn = document.getElementById('refresh-speed-test-btn') as HTMLButtonElement | null;
+        if (!btn) return;
         const originalText = btn.textContent;
         btn.textContent = 'Testing...';
         btn.disabled = true;
@@ -2632,12 +2682,12 @@ export function initializeSettings(scrobbler, player, api, ui) {
     });
 
     document.getElementById('api-instance-list')?.addEventListener('click', async (e) => {
-        const button = e.target.closest('button');
+        const button = (e.target as HTMLElement).closest('button');
         if (!button) return;
 
-        const li = button.closest('li');
-        const index = parseInt(li.dataset.index, 10);
-        const type = li.dataset.type || 'api'; // Default to api if not present
+        const li = button?.closest('li') as HTMLElement | null;
+        const index = parseInt(li?.dataset.index ?? '0', 10);
+        const type = li?.dataset.type || 'api'; // Default to api if not present
 
         const instances = await api.settings.getInstances(type);
 
@@ -2652,7 +2702,8 @@ export function initializeSettings(scrobbler, player, api, ui) {
     });
 
     document.getElementById('clear-cache-btn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('clear-cache-btn');
+        const btn = document.getElementById('clear-cache-btn') as HTMLButtonElement | null;
+        if (!btn) return;
         const originalText = btn.textContent;
         btn.textContent = 'Clearing...';
         btn.disabled = true;
@@ -2685,7 +2736,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                 authManager.signOut();
             } catch (error) {
                 console.error('Failed to clear cloud data:', error);
-                alert('Failed to clear cloud data: ' + error.message);
+                alert('Failed to clear cloud data: ' + (error instanceof Error ? error.message : String(error)));
             }
         }
     });
@@ -2704,19 +2755,19 @@ export function initializeSettings(scrobbler, player, api, ui) {
         URL.revokeObjectURL(url);
     });
 
-    const importInput = document.getElementById('import-library-input');
+    const importInput = document.getElementById('import-library-input') as HTMLInputElement | null;
     document.getElementById('import-library-btn')?.addEventListener('click', () => {
-        importInput.click();
+        importInput?.click();
     });
 
     importInput?.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+        const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                const data = JSON.parse(event.target.result);
+                const data = JSON.parse(event.target?.result as string);
                 await db.importData(data);
                 alert('Library imported successfully!');
                 window.location.reload(); // Simple way to refresh all state
@@ -2728,13 +2779,13 @@ export function initializeSettings(scrobbler, player, api, ui) {
         reader.readAsText(file);
     });
 
-    const customDbBtn = document.getElementById('custom-db-btn');
+    const customDbBtn = document.getElementById('custom-db-btn') as HTMLButtonElement | null;
     const customDbModal = document.getElementById('custom-db-modal');
-    const customPbUrlInput = document.getElementById('custom-pb-url');
-    const customFirebaseConfigInput = document.getElementById('custom-firebase-config');
-    const customDbSaveBtn = document.getElementById('custom-db-save');
-    const customDbResetBtn = document.getElementById('custom-db-reset');
-    const customDbCancelBtn = document.getElementById('custom-db-cancel');
+    const customPbUrlInput = document.getElementById('custom-pb-url') as HTMLInputElement | null;
+    const customFirebaseConfigInput = document.getElementById('custom-firebase-config') as HTMLTextAreaElement | null;
+    const customDbSaveBtn = document.getElementById('custom-db-save') as HTMLButtonElement | null;
+    const customDbResetBtn = document.getElementById('custom-db-reset') as HTMLButtonElement | null;
+    const customDbCancelBtn = document.getElementById('custom-db-cancel') as HTMLButtonElement | null;
 
     if (customDbBtn && customDbModal) {
         const fbFromEnv = !!window.__FIREBASE_CONFIG__;
@@ -2742,21 +2793,21 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
         // Hide entire setting if both are server-configured
         if (fbFromEnv && pbFromEnv) {
-            const settingItem = customDbBtn.closest('.setting-item');
+            const settingItem = customDbBtn.closest('.setting-item') as HTMLElement | null;
             if (settingItem) settingItem.style.display = 'none';
         }
 
         // Hide individual fields in the modal
-        if (pbFromEnv && customPbUrlInput) customPbUrlInput.closest('div[style]').style.display = 'none';
+        if (pbFromEnv && customPbUrlInput) (customPbUrlInput.closest('div[style]') as HTMLElement)!.style.display = 'none';
         if (fbFromEnv && customFirebaseConfigInput)
-            customFirebaseConfigInput.closest('div[style]').style.display = 'none';
+            (customFirebaseConfigInput.closest('div[style]') as HTMLElement)!.style.display = 'none';
 
         customDbBtn.addEventListener('click', () => {
             const pbUrl = localStorage.getItem('monochrome-pocketbase-url') || '';
             const fbConfig = localStorage.getItem('monochrome-firebase-config');
 
-            if (!pbFromEnv) customPbUrlInput.value = pbUrl;
-            if (!fbFromEnv) {
+            if (!pbFromEnv && customPbUrlInput) customPbUrlInput.value = pbUrl;
+            if (!fbFromEnv && customFirebaseConfigInput) {
                 if (fbConfig) {
                     try {
                         customFirebaseConfigInput.value = JSON.stringify(JSON.parse(fbConfig), null, 2);
@@ -2771,16 +2822,16 @@ export function initializeSettings(scrobbler, player, api, ui) {
             customDbModal.classList.add('active');
         });
 
-        const closeCustomDbModal = () => {
+        const closeCustomDbModal = (): void => {
             customDbModal.classList.remove('active');
         };
 
-        customDbCancelBtn.addEventListener('click', closeCustomDbModal);
-        customDbModal.querySelector('.modal-overlay').addEventListener('click', closeCustomDbModal);
+        customDbCancelBtn?.addEventListener('click', closeCustomDbModal);
+        customDbModal.querySelector('.modal-overlay')!.addEventListener('click', closeCustomDbModal);
 
-        customDbSaveBtn.addEventListener('click', () => {
-            const pbUrl = customPbUrlInput.value.trim();
-            const fbConfigStr = customFirebaseConfigInput.value.trim();
+        customDbSaveBtn?.addEventListener('click', () => {
+            const pbUrl = customPbUrlInput?.value.trim() ?? '';
+            const fbConfigStr = customFirebaseConfigInput?.value.trim() ?? '';
 
             if (pbUrl) {
                 localStorage.setItem('monochrome-pocketbase-url', pbUrl);
@@ -2804,7 +2855,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             window.location.reload();
         });
 
-        customDbResetBtn.addEventListener('click', () => {
+        customDbResetBtn?.addEventListener('click', () => {
             if (confirm('Reset custom database settings to default?')) {
                 localStorage.removeItem('monochrome-pocketbase-url');
                 clearFirebaseConfig();
@@ -2815,25 +2866,25 @@ export function initializeSettings(scrobbler, player, api, ui) {
     }
 
     // PWA Auto-Update Toggle
-    const pwaAutoUpdateToggle = document.getElementById('pwa-auto-update-toggle');
+    const pwaAutoUpdateToggle = document.getElementById('pwa-auto-update-toggle') as HTMLInputElement | null;
     if (pwaAutoUpdateToggle) {
         pwaAutoUpdateToggle.checked = pwaUpdateSettings.isAutoUpdateEnabled();
         pwaAutoUpdateToggle.addEventListener('change', (e) => {
-            pwaUpdateSettings.setAutoUpdateEnabled(e.target.checked);
+            pwaUpdateSettings.setAutoUpdateEnabled((e.target as HTMLInputElement).checked);
         });
     }
 
     // Analytics Toggle
-    const analyticsToggle = document.getElementById('analytics-toggle');
+    const analyticsToggle = document.getElementById('analytics-toggle') as HTMLInputElement | null;
     if (analyticsToggle) {
         analyticsToggle.checked = analyticsSettings.isEnabled();
         analyticsToggle.addEventListener('change', (e) => {
-            analyticsSettings.setEnabled(e.target.checked);
+            analyticsSettings.setEnabled((e.target as HTMLInputElement).checked);
         });
     }
 
     // Reset Local Data Button
-    const resetLocalDataBtn = document.getElementById('reset-local-data-btn');
+    const resetLocalDataBtn = document.getElementById('reset-local-data-btn') as HTMLButtonElement | null;
     if (resetLocalDataBtn) {
         resetLocalDataBtn.addEventListener('click', async () => {
             if (
@@ -2843,7 +2894,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
             ) {
                 try {
                     // Clear all localStorage
-                    const keysToPreserve = [];
+                    const keysToPreserve: string[] = [];
                     // Optionally preserve certain keys if needed
 
                     // Get all keys
@@ -2861,7 +2912,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                         const stores = ['tracks', 'albums', 'artists', 'playlists', 'settings', 'history'];
                         for (const storeName of stores) {
                             try {
-                                await db.performTransaction(storeName, 'readwrite', (store) => store.clear());
+                                await db.performTransaction(storeName, 'readwrite', (store: IDBObjectStore) => store.clear());
                             } catch {
                                 // Store might not exist, continue
                             }
@@ -2884,7 +2935,7 @@ export function initializeSettings(scrobbler, player, api, ui) {
                     window.location.reload();
                 } catch (error) {
                     console.error('Failed to reset local data:', error);
-                    alert('Failed to reset local data: ' + error.message);
+                    alert('Failed to reset local data: ' + (error instanceof Error ? error.message : String(error)));
                 }
             }
         });
@@ -2900,19 +2951,19 @@ export function initializeSettings(scrobbler, player, api, ui) {
     initializeBlockedContentManager();
 }
 
-function initializeFontSettings() {
-    const fontTypeSelect = document.getElementById('font-type-select');
+function initializeFontSettings(): void {
+    const fontTypeSelect = document.getElementById('font-type-select') as HTMLSelectElement | null;
     const fontPresetSection = document.getElementById('font-preset-section');
     const fontGoogleSection = document.getElementById('font-google-section');
     const fontUrlSection = document.getElementById('font-url-section');
     const fontUploadSection = document.getElementById('font-upload-section');
-    const fontPresetSelect = document.getElementById('font-preset-select');
-    const fontGoogleInput = document.getElementById('font-google-input');
-    const fontGoogleApply = document.getElementById('font-google-apply');
-    const fontUrlInput = document.getElementById('font-url-input');
-    const fontUrlName = document.getElementById('font-url-name');
-    const fontUrlApply = document.getElementById('font-url-apply');
-    const fontUploadInput = document.getElementById('font-upload-input');
+    const fontPresetSelect = document.getElementById('font-preset-select') as HTMLSelectElement | null;
+    const fontGoogleInput = document.getElementById('font-google-input') as HTMLInputElement | null;
+    const fontGoogleApply = document.getElementById('font-google-apply') as HTMLButtonElement | null;
+    const fontUrlInput = document.getElementById('font-url-input') as HTMLInputElement | null;
+    const fontUrlName = document.getElementById('font-url-name') as HTMLInputElement | null;
+    const fontUrlApply = document.getElementById('font-url-apply') as HTMLButtonElement | null;
+    const fontUploadInput = document.getElementById('font-upload-input') as HTMLInputElement | null;
     const uploadedFontsList = document.getElementById('uploaded-fonts-list');
 
     if (!fontTypeSelect) return;
@@ -2921,11 +2972,11 @@ function initializeFontSettings() {
     const config = fontSettings.getConfig();
 
     // Show correct section based on type
-    function showFontSection(type) {
-        fontPresetSection.style.display = type === 'preset' ? 'block' : 'none';
-        fontGoogleSection.style.display = type === 'google' ? 'flex' : 'none';
-        fontUrlSection.style.display = type === 'url' ? 'flex' : 'none';
-        fontUploadSection.style.display = type === 'upload' ? 'block' : 'none';
+    function showFontSection(type: string): void {
+        if (fontPresetSection) fontPresetSection.style.display = type === 'preset' ? 'block' : 'none';
+        if (fontGoogleSection) fontGoogleSection.style.display = type === 'google' ? 'flex' : 'none';
+        if (fontUrlSection) fontUrlSection.style.display = type === 'url' ? 'flex' : 'none';
+        if (fontUploadSection) fontUploadSection.style.display = type === 'upload' ? 'block' : 'none';
     }
 
     // Initialize UI state
@@ -2933,22 +2984,22 @@ function initializeFontSettings() {
     showFontSection(config.type);
 
     if (config.type === 'preset') {
-        fontPresetSelect.value = config.family;
+        if (fontPresetSelect) fontPresetSelect.value = config.family;
     } else if (config.type === 'google') {
-        fontGoogleInput.value = config.family || '';
+        if (fontGoogleInput) fontGoogleInput.value = config.family || '';
     } else if (config.type === 'url') {
-        fontUrlInput.value = config.url || '';
-        fontUrlName.value = config.family || '';
+        if (fontUrlInput) fontUrlInput.value = config.url || '';
+        if (fontUrlName) fontUrlName.value = config.family || '';
     }
 
     // Type selector change
     fontTypeSelect.addEventListener('change', (e) => {
-        showFontSection(e.target.value);
+        showFontSection((e.target as HTMLInputElement).value);
     });
 
     // Preset font change
-    fontPresetSelect.addEventListener('change', (e) => {
-        const value = e.target.value;
+    fontPresetSelect?.addEventListener('change', (e) => {
+        const value = (e.target as HTMLInputElement).value;
         if (value === 'System UI') {
             fontSettings.loadPresetFont(
                 "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue'",
@@ -2964,8 +3015,8 @@ function initializeFontSettings() {
     });
 
     // Google Fonts apply
-    fontGoogleApply.addEventListener('click', () => {
-        const input = fontGoogleInput.value.trim();
+    fontGoogleApply?.addEventListener('click', () => {
+        const input = fontGoogleInput?.value.trim() ?? '';
         if (!input) return;
 
         let fontName = input;
@@ -2987,24 +3038,24 @@ function initializeFontSettings() {
     });
 
     // URL font apply
-    fontUrlApply.addEventListener('click', () => {
-        const url = fontUrlInput.value.trim();
-        const name = fontUrlName.value.trim();
+    fontUrlApply?.addEventListener('click', () => {
+        const url = fontUrlInput?.value.trim() ?? '';
+        const name = fontUrlName?.value.trim() ?? '';
         if (!url) return;
 
         fontSettings.loadFontFromUrl(url, name || 'CustomFont');
     });
 
     // File upload
-    fontUploadInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+    fontUploadInput?.addEventListener('change', async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
 
         try {
-            const font = await fontSettings.saveUploadedFont(file);
+            const font = await fontSettings.saveUploadedFont(file) as { id: string };
             await fontSettings.loadUploadedFont(font.id);
             renderUploadedFontsList();
-            fontUploadInput.value = '';
+            if (fontUploadInput) fontUploadInput.value = '';
         } catch (err) {
             console.error('Failed to upload font:', err);
             alert('Failed to upload font');
@@ -3012,8 +3063,9 @@ function initializeFontSettings() {
     });
 
     // Render uploaded fonts list
-    function renderUploadedFontsList() {
+    function renderUploadedFontsList(): void {
         const fonts = fontSettings.getUploadedFontList();
+        if (!uploadedFontsList) return;
         uploadedFontsList.innerHTML = '';
 
         fonts.forEach((font) => {
@@ -3030,14 +3082,14 @@ function initializeFontSettings() {
         });
 
         // Add event listeners for buttons
-        uploadedFontsList.querySelectorAll('.btn-icon').forEach((btn) => {
+        uploadedFontsList!.querySelectorAll('.btn-icon').forEach((btn) => {
             btn.addEventListener('click', async (e) => {
-                const fontId = e.target.dataset.id;
-                const action = e.target.dataset.action;
+                const fontId = (e.target as HTMLElement).dataset.id;
+                const action = (e.target as HTMLElement).dataset.action;
 
                 if (action === 'use') {
                     await fontSettings.loadUploadedFont(fontId);
-                    fontTypeSelect.value = 'upload';
+                    if (fontTypeSelect) fontTypeSelect.value = 'upload';
                     showFontSection('upload');
                 } else if (action === 'delete') {
                     if (confirm('Delete this font?')) {
@@ -3052,15 +3104,15 @@ function initializeFontSettings() {
     renderUploadedFontsList();
 
     // Font Size Controls
-    const fontSizeSlider = document.getElementById('font-size-slider');
-    const fontSizeInput = document.getElementById('font-size-input');
-    const fontSizeReset = document.getElementById('font-size-reset');
+    const fontSizeSlider = document.getElementById('font-size-slider') as HTMLInputElement | null;
+    const fontSizeInput = document.getElementById('font-size-input') as HTMLInputElement | null;
+    const fontSizeReset = document.getElementById('font-size-reset') as HTMLButtonElement | null;
 
     // Helper function to update both controls
-    const updateFontSizeControls = (size) => {
-        const validSize = Math.max(50, Math.min(200, parseInt(size, 10) || 100));
-        if (fontSizeSlider) fontSizeSlider.value = validSize;
-        if (fontSizeInput) fontSizeInput.value = validSize;
+    const updateFontSizeControls = (size: number): number => {
+        const validSize = Math.max(50, Math.min(200, parseInt(String(size), 10) || 100));
+        if (fontSizeSlider) fontSizeSlider.value = String(validSize);
+        if (fontSizeInput) fontSizeInput.value = String(validSize);
         return validSize;
     };
 
@@ -3072,7 +3124,7 @@ function initializeFontSettings() {
     if (fontSizeSlider) {
         fontSizeSlider.addEventListener('input', () => {
             const size = parseInt(fontSizeSlider.value, 10);
-            if (fontSizeInput) fontSizeInput.value = size;
+            if (fontSizeInput) fontSizeInput.value = String(size);
             fontSettings.setFontSize(size);
         });
     }
@@ -3091,7 +3143,7 @@ function initializeFontSettings() {
         fontSizeInput.addEventListener('input', () => {
             let size = parseInt(fontSizeInput.value, 10);
             if (!isNaN(size) && size >= 50 && size <= 200) {
-                if (fontSizeSlider) fontSizeSlider.value = size;
+                if (fontSizeSlider) fontSizeSlider.value = String(size);
                 fontSettings.setFontSize(size);
             }
         });
@@ -3105,12 +3157,12 @@ function initializeFontSettings() {
     }
 }
 
-function setupSettingsSearch() {
-    const searchInput = document.getElementById('settings-search-input');
+function setupSettingsSearch(): void {
+    const searchInput = document.getElementById('settings-search-input') as HTMLInputElement | null;
     if (!searchInput) return;
 
     // Setup clear button
-    const clearBtn = searchInput.parentElement.querySelector('.search-clear-btn');
+    const clearBtn = searchInput.parentElement?.querySelector('.search-clear-btn') as HTMLElement | null;
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
             searchInput.value = '';
@@ -3120,7 +3172,7 @@ function setupSettingsSearch() {
     }
 
     // Show/hide clear button based on input
-    const updateClearButton = () => {
+    const updateClearButton = (): void => {
         if (clearBtn) {
             clearBtn.style.display = searchInput.value ? 'flex' : 'none';
         }
@@ -3134,7 +3186,7 @@ function setupSettingsSearch() {
     searchInput.addEventListener('focus', updateClearButton);
 }
 
-function filterSettings(query) {
+function filterSettings(query: string): void {
     const settingsPage = document.getElementById('page-settings');
     if (!settingsPage) return;
 
@@ -3166,8 +3218,8 @@ function filterSettings(query) {
         // Show all settings groups and items
         const allGroups = settingsPage.querySelectorAll('.settings-group');
         const allItems = settingsPage.querySelectorAll('.setting-item');
-        allGroups.forEach((group) => (group.style.display = ''));
-        allItems.forEach((item) => (item.style.display = ''));
+        allGroups.forEach((group) => ((group as HTMLElement).style.display = ''));
+        allItems.forEach((item) => ((item as HTMLElement).style.display = ''));
         return;
     }
 
@@ -3196,21 +3248,21 @@ function filterSettings(query) {
             const matches = labelText.includes(query) || descriptionText.includes(query);
 
             if (matches) {
-                item.style.display = '';
+                (item as HTMLElement).style.display = '';
                 hasMatch = true;
             } else {
-                item.style.display = 'none';
+                (item as HTMLElement).style.display = 'none';
             }
         });
 
         // Show/hide group based on whether it has any visible items
-        group.style.display = hasMatch ? '' : 'none';
+        (group as HTMLElement).style.display = hasMatch ? '' : 'none';
     });
 }
 
-function initializeBlockedContentManager() {
-    const manageBtn = document.getElementById('manage-blocked-btn');
-    const clearAllBtn = document.getElementById('clear-all-blocked-btn');
+function initializeBlockedContentManager(): void {
+    const manageBtn = document.getElementById('manage-blocked-btn') as HTMLButtonElement | null;
+    const clearAllBtn = document.getElementById('clear-all-blocked-btn') as HTMLButtonElement | null;
     const blockedListContainer = document.getElementById('blocked-content-list');
     const blockedArtistsList = document.getElementById('blocked-artists-list');
     const blockedAlbumsList = document.getElementById('blocked-albums-list');
@@ -3222,14 +3274,14 @@ function initializeBlockedContentManager() {
 
     if (!manageBtn || !blockedListContainer) return;
 
-    function renderBlockedLists() {
+    function renderBlockedLists(): void {
         const artists = contentBlockingSettings.getBlockedArtists();
         const albums = contentBlockingSettings.getBlockedAlbums();
         const tracks = contentBlockingSettings.getBlockedTracks();
         const totalCount = artists.length + albums.length + tracks.length;
 
         // Update manage button text
-        manageBtn.textContent = totalCount > 0 ? `Manage (${totalCount})` : 'Manage';
+        if (manageBtn) manageBtn.textContent = totalCount > 0 ? `Manage (${totalCount})` : 'Manage';
 
         // Show/hide clear all button
         if (clearAllBtn) {
@@ -3237,16 +3289,16 @@ function initializeBlockedContentManager() {
         }
 
         // Show/hide sections
-        blockedArtistsSection.style.display = artists.length > 0 ? 'block' : 'none';
-        blockedAlbumsSection.style.display = albums.length > 0 ? 'block' : 'none';
-        blockedTracksSection.style.display = tracks.length > 0 ? 'block' : 'none';
-        blockedEmptyMessage.style.display = totalCount === 0 ? 'block' : 'none';
+        if (blockedArtistsSection) blockedArtistsSection.style.display = artists.length > 0 ? 'block' : 'none';
+        if (blockedAlbumsSection) blockedAlbumsSection.style.display = albums.length > 0 ? 'block' : 'none';
+        if (blockedTracksSection) blockedTracksSection.style.display = tracks.length > 0 ? 'block' : 'none';
+        if (blockedEmptyMessage) blockedEmptyMessage.style.display = totalCount === 0 ? 'block' : 'none';
 
         // Render artists
         if (blockedArtistsList) {
             blockedArtistsList.innerHTML = artists
                 .map(
-                    (artist) => `
+                    (artist: { id: string; name: string; blockedAt: string }) => `
                 <li data-id="${artist.id}" data-type="artist">
                     <div class="item-info">
                         <div class="item-name">${escapeHtml(artist.name)}</div>
@@ -3263,7 +3315,7 @@ function initializeBlockedContentManager() {
         if (blockedAlbumsList) {
             blockedAlbumsList.innerHTML = albums
                 .map(
-                    (album) => `
+                    (album: { id: string; title: string; artist?: string; blockedAt: string }) => `
                 <li data-id="${album.id}" data-type="album">
                     <div class="item-info">
                         <div class="item-name">${escapeHtml(album.title)}</div>
@@ -3280,7 +3332,7 @@ function initializeBlockedContentManager() {
         if (blockedTracksList) {
             blockedTracksList.innerHTML = tracks
                 .map(
-                    (track) => `
+                    (track: { id: string; title: string; artist?: string; blockedAt: string }) => `
                 <li data-id="${track.id}" data-type="track">
                     <div class="item-info">
                         <div class="item-name">${escapeHtml(track.title)}</div>
@@ -3294,11 +3346,11 @@ function initializeBlockedContentManager() {
         }
 
         // Add unblock button handlers
-        blockedListContainer.querySelectorAll('.unblock-btn').forEach((btn) => {
+        blockedListContainer!.querySelectorAll('.unblock-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const id = btn.dataset.id;
-                const type = btn.dataset.type;
+                const id = (btn as HTMLElement).dataset.id;
+                const type = (btn as HTMLElement).dataset.type;
 
                 if (type === 'artist') {
                     contentBlockingSettings.unblockArtist(id);
@@ -3336,7 +3388,7 @@ function initializeBlockedContentManager() {
     renderBlockedLists();
 }
 
-function escapeHtml(text) {
+function escapeHtml(text: string): string {
     if (!text) return '';
     const div = document.createElement('div');
     div.textContent = text;
