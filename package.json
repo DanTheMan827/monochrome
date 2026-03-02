@@ -10,11 +10,12 @@
         "build": "vite build --mode neutralino && bun x neu build",
         "postbuild": "node -e \"const fs = require('fs'); const path = require('path'); const src = 'extensions'; const dest = path.join('dist', 'Monochrome', 'extensions'); if (fs.existsSync(src)) { fs.mkdirSync(dest, { recursive: true }); fs.cpSync(src, dest, { recursive: true }); console.log('Extensions manually copied to ' + dest); }\"",
         "preview": "vite preview",
-        "lint:js": "eslint .",
+        "lint:js": "eslint . --ext .ts",
         "lint:css": "stylelint \"**/*.css\"",
         "lint:html": "htmlhint \"**/*.html\" --ignore=\"dist/**,legacy/**,node_modules/**\"",
         "lint": "npm run lint:js && npm run lint:css && npm run lint:html",
         "format": "prettier --write .",
+        "typecheck": "tsc --noEmit",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "repository": {
@@ -30,6 +31,10 @@
     "homepage": "https://github.com/SamidyFR/monochrome#readme",
     "devDependencies": {
         "@neutralinojs/neu": "^11.7.0",
+        "@types/cookie-session": "^2.0.49",
+        "@types/node": "^25.3.3",
+        "@typescript-eslint/eslint-plugin": "^8.56.1",
+        "@typescript-eslint/parser": "^8.56.1",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
         "globals": "^17.0.0",
@@ -38,6 +43,8 @@
         "stylelint": "^16.26.1",
         "stylelint-config-standard": "^39.0.1",
         "stylelint-config-standard-scss": "^16.0.0",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.56.1",
         "vite": "^7.3.0",
         "vite-plugin-neutralino": "^1.0.3",
         "vite-plugin-pwa": "^1.2.0"
