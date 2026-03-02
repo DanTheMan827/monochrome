@@ -3086,6 +3086,7 @@ function initializeFontSettings(): void {
             btn.addEventListener('click', async (e) => {
                 const fontId = (e.target as HTMLElement).dataset.id;
                 const action = (e.target as HTMLElement).dataset.action;
+                if (!fontId) return;
 
                 if (action === 'use') {
                     await fontSettings.loadUploadedFont(fontId);
@@ -3298,7 +3299,7 @@ function initializeBlockedContentManager(): void {
         if (blockedArtistsList) {
             blockedArtistsList.innerHTML = artists
                 .map(
-                    (artist: { id: string; name: string; blockedAt: string }) => `
+                    (artist) => `
                 <li data-id="${artist.id}" data-type="artist">
                     <div class="item-info">
                         <div class="item-name">${escapeHtml(artist.name)}</div>
@@ -3315,7 +3316,7 @@ function initializeBlockedContentManager(): void {
         if (blockedAlbumsList) {
             blockedAlbumsList.innerHTML = albums
                 .map(
-                    (album: { id: string; title: string; artist?: string; blockedAt: string }) => `
+                    (album) => `
                 <li data-id="${album.id}" data-type="album">
                     <div class="item-info">
                         <div class="item-name">${escapeHtml(album.title)}</div>
@@ -3332,7 +3333,7 @@ function initializeBlockedContentManager(): void {
         if (blockedTracksList) {
             blockedTracksList.innerHTML = tracks
                 .map(
-                    (track: { id: string; title: string; artist?: string; blockedAt: string }) => `
+                    (track) => `
                 <li data-id="${track.id}" data-type="track">
                     <div class="item-info">
                         <div class="item-name">${escapeHtml(track.title)}</div>
@@ -3351,6 +3352,7 @@ function initializeBlockedContentManager(): void {
                 e.stopPropagation();
                 const id = (btn as HTMLElement).dataset.id;
                 const type = (btn as HTMLElement).dataset.type;
+                if (!id) return;
 
                 if (type === 'artist') {
                     contentBlockingSettings.unblockArtist(id);

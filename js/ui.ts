@@ -386,7 +386,7 @@ export class UIRenderer {
         `;
 
         const blockedTitle = isBlocked
-            ? `title="Blocked: ${contentBlockingSettings.isTrackBlocked(track.id) ? 'Track blocked' : contentBlockingSettings.isArtistBlocked(track.artist?.id) ? 'Artist blocked' : 'Album blocked'}"`
+            ? `title="Blocked: ${contentBlockingSettings.isTrackBlocked(track.id) ? 'Track blocked' : contentBlockingSettings.isArtistBlocked(track.artist?.id as string | number) ? 'Artist blocked' : 'Album blocked'}"`
             : '';
 
         const classList = [
@@ -1859,11 +1859,11 @@ export class UIRenderer {
                 const { contentBlockingSettings } = await import('./storage.ts');
                 items = items.filter((item: Record<string, unknown>) => {
                     if (item.type === 'track') {
-                        return !contentBlockingSettings.shouldHideTrack(item);
+                        return !contentBlockingSettings.shouldHideTrack(item as unknown as TrackData);
                     } else if (item.type === 'album') {
-                        return !contentBlockingSettings.shouldHideAlbum(item);
+                        return !contentBlockingSettings.shouldHideAlbum(item as unknown as TrackAlbum);
                     } else if (item.type === 'artist') {
-                        return !contentBlockingSettings.shouldHideArtist(item);
+                        return !contentBlockingSettings.shouldHideArtist(item as unknown as TrackArtist);
                     }
                     return true;
                 });
@@ -2114,11 +2114,11 @@ export class UIRenderer {
 
         // First filter out blocked content
         if (type === 'track') {
-            items = contentBlockingSettings.filterTracks(items);
+            items = contentBlockingSettings.filterTracks(items as TrackData[]);
         } else if (type === 'album') {
-            items = contentBlockingSettings.filterAlbums(items);
+            items = contentBlockingSettings.filterAlbums(items as TrackAlbum[]);
         } else if (type === 'artist') {
-            items = contentBlockingSettings.filterArtists(items);
+            items = contentBlockingSettings.filterArtists(items as TrackArtist[]);
         }
 
         const favorites = await db.getFavorites(type) as Record<string, unknown>[];
@@ -2937,7 +2937,7 @@ export class UIRenderer {
                 }
 
                 recentActivityManager.addPlaylist({
-                    id: playlistData!.id || playlistData!.uuid,
+                    id: (playlistData!.id || playlistData!.uuid) as string | number,
                     name: playlistData!.name || playlistData!.title,
                     title: playlistData!.title || playlistData!.name,
                     uuid: playlistData!.uuid || playlistData!.id,
