@@ -1,5 +1,20 @@
+interface FfmpegProgressEvent {
+    stage: string | undefined;
+    message: string | undefined;
+    progress: number | undefined;
+}
+
+interface FfmpegWorkerMessageData {
+    type: string;
+    blob?: Blob;
+    message?: string;
+    stage?: string;
+    progress?: number;
+}
+
 class FfmpegError extends Error {
-    constructor(message) {
+    code: string;
+    constructor(message: string) {
         super(message);
         this.name = 'FfmpegError';
         this.code = 'FFMPEG_FAILED';
@@ -7,20 +22,20 @@ class FfmpegError extends Error {
 }
 
 async function ffmpegWorker(
-    audioBlob,
-    args = {},
-    outputName = 'output',
-    outputMime = 'application/octet-stream',
-    onProgress = null,
-    signal = null
-) {
-    const audioData = await audioBlob.arrayBuffer();
+    audioBlob: Blob,
+    args: Record<string, unknown> = {},
+    outputName: string = 'output',
+    outputMime: string = 'application/octet-stream',
+    onProgress: ((event: FfmpegProgressEvent) => void) | null = null,
+    signal: AbortSignal | null = null
+): Promise<Blob> {
+    const audioData: ArrayBuffer = await audioBlob.arrayBuffer();
 
-    return new Promise((resolve, reject) => {
-        const worker = new Worker(new URL('./ffmpeg.worker.js', import.meta.url), { type: 'module' });
+    return new Promise<Blob>((resolve, reject) => {
+        const worker: Worker = new Worker(new URL('./ffmpeg.worker.js', import.meta.url), { type: 'module' });
 
         // Handle abort signal
-        const abortHandler = () => {
+        const abortHandler = (): void => {
             worker.terminate();
             reject(new FfmpegError('FFMPEG aborted'));
         };
@@ -33,17 +48,17 @@ async function ffmpegWorker(
             signal.addEventListener('abort', abortHandler);
         }
 
-        worker.onmessage = (e) => {
-            const { type, blob, message, stage, progress } = e.data;
+        worker.onmessage = (e: MessageEvent<FfmpegWorkerMessageData>): void => {
+            const { type, blob, message, stage, progress }: FfmpegWorkerMessageData = e.data;
 
             if (type === 'complete') {
                 if (signal) signal.removeEventListener('abort', abortHandler);
                 worker.terminate();
-                resolve(blob);
+                resolve(blob!);
             } else if (type === 'error') {
                 if (signal) signal.removeEventListener('abort', abortHandler);
                 worker.terminate();
-                reject(new FfmpegError(message));
+                reject(new FfmpegError(message!));
             } else if (type === 'progress' && onProgress) {
                 onProgress({ stage, message, progress });
             } else if (type === 'log') {
@@ -51,7 +66,7 @@ async function ffmpegWorker(
             }
         };
 
-        worker.onerror = (error) => {
+        worker.onerror = (error: ErrorEvent): void => {
             if (signal) signal.removeEventListener('abort', abortHandler);
             worker.terminate();
             reject(new FfmpegError('Worker failed: ' + error.message));
@@ -73,13 +88,13 @@ async function ffmpegWorker(
 }
 
 export async function ffmpeg(
-    audioBlob,
-    args = {},
-    outputName = 'output',
-    outputMime = 'application/octet-stream',
-    onProgress = null,
-    signal = null
-) {
+    audioBlob: Blob,
+    args: Record<string, unknown> = {},
+    outputName: string = 'output',
+    outputMime: string = 'application/octet-stream',
+    onProgress: ((event: FfmpegProgressEvent) => void) | null = null,
+    signal: AbortSignal | null = null
+): Promise<Blob> {
     try {
         // Use Web Worker for non-blocking FFmpeg encoding
         if (typeof Worker !== 'undefined') {
@@ -87,7 +102,7 @@ export async function ffmpeg(
         }
 
         throw new FfmpegError('Web Workers are required for FFMPEG');
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('FFMPEG failed:', error);
         throw error;
     }
