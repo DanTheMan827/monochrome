@@ -1,15 +1,24 @@
 import { trackCloseSidePanel, trackCloseQueue, trackCloseLyrics } from './analytics.ts';
 
+type SidePanelView = 'queue' | 'lyrics';
+type RenderCallback = (container: HTMLElement) => void;
+
 export class SidePanelManager {
+    private panel: HTMLElement;
+    private titleElement: HTMLElement;
+    private controlsElement: HTMLElement;
+    private contentElement: HTMLElement;
+    private currentView: SidePanelView | null;
+
     constructor() {
-        this.panel = document.getElementById('side-panel');
-        this.titleElement = document.getElementById('side-panel-title');
-        this.controlsElement = document.getElementById('side-panel-controls');
-        this.contentElement = document.getElementById('side-panel-content');
-        this.currentView = null; // 'queue' or 'lyrics'
+        this.panel = document.getElementById('side-panel')!;
+        this.titleElement = document.getElementById('side-panel-title')!;
+        this.controlsElement = document.getElementById('side-panel-controls')!;
+        this.contentElement = document.getElementById('side-panel-content')!;
+        this.currentView = null;
     }
 
-    open(view, title, renderControlsCallback, renderContentCallback, forceOpen = false) {
+    open(view: SidePanelView, title: string, renderControlsCallback: RenderCallback | null, renderContentCallback: RenderCallback | null, forceOpen: boolean = false): void {
         // If clicking the same view that is already open, close it
         if (!forceOpen && this.currentView === view && this.panel.classList.contains('active')) {
             this.close();
@@ -31,7 +40,7 @@ export class SidePanelManager {
         this.panel.classList.add('active');
     }
 
-    close() {
+    close(): void {
         // Track side panel close
         if (this.currentView) {
             trackCloseSidePanel();
@@ -39,7 +48,7 @@ export class SidePanelManager {
                 trackCloseQueue();
             } else if (this.currentView === 'lyrics') {
                 // Get current track from audio player context
-                const audioPlayer = document.getElementById('audio-player');
+                const audioPlayer = document.getElementById('audio-player') as HTMLElement & { _currentTrack?: TrackData } | null;
                 if (audioPlayer && audioPlayer._currentTrack) {
                     trackCloseLyrics(audioPlayer._currentTrack);
                 }
@@ -57,11 +66,11 @@ export class SidePanelManager {
         }, 300);
     }
 
-    isActive(view) {
+    isActive(view: SidePanelView): boolean {
         return this.currentView === view && this.panel.classList.contains('active');
     }
 
-    refresh(view, renderControlsCallback, renderContentCallback) {
+    refresh(view: SidePanelView, renderControlsCallback: RenderCallback | null, renderContentCallback: RenderCallback | null): void {
         if (this.isActive(view)) {
             if (renderControlsCallback) {
                 this.controlsElement.innerHTML = '';
@@ -74,7 +83,7 @@ export class SidePanelManager {
         }
     }
 
-    updateContent(view, renderContentCallback) {
+    updateContent(view: SidePanelView, renderContentCallback: RenderCallback): void {
         if (this.isActive(view)) {
             this.contentElement.innerHTML = '';
             renderContentCallback(this.contentElement);
