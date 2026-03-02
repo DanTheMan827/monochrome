@@ -1,8 +1,35 @@
-//router.js
+//router.ts
 import { getTrackArtists } from './utils.ts';
 import { loadProfile } from './profile.ts';
 
-export function navigate(path) {
+interface RouterUI {
+    renderSearchPage(query: string): Promise<void>;
+    renderAlbumPage(id: string, provider: string | null): Promise<void>;
+    renderArtistPage(id: string, provider: string | null): Promise<void>;
+    renderPlaylistPage(id: string, source: string, provider?: string | null): Promise<void>;
+    renderFolderPage(param: string): Promise<void>;
+    renderMixPage(id: string, provider: string | null): Promise<void>;
+    renderTrackerTrackPage(id: string): Promise<void>;
+    renderTrackPage(id: string, provider: string | null): Promise<void>;
+    renderLibraryPage(): Promise<void>;
+    renderRecentPage(): Promise<void>;
+    renderTrackerProjectPage(sheetId: string, projectName: string): Promise<void>;
+    renderTrackerArtistPage(sheetId: string): Promise<void>;
+    renderUnreleasedPage(): Promise<void>;
+    renderHomePage(): Promise<void>;
+    showPage(pageId: string): void;
+}
+
+interface RouterPlayer {
+    currentTrack: TrackData | null;
+}
+
+interface ProviderResult {
+    provider: string | null;
+    id: string;
+}
+
+export function navigate(path: string): void {
     if (path === window.location.pathname) {
         return;
     }
@@ -10,29 +37,29 @@ export function navigate(path) {
     window.dispatchEvent(new PopStateEvent('popstate'));
 }
 
-export function createRouter(ui) {
-    const router = async () => {
+export function createRouter(ui: RouterUI): () => Promise<void> {
+    const router = async (): Promise<void> => {
         if (window.location.hash && window.location.hash.length > 1) {
-            const hash = window.location.hash.substring(1);
+            const hash: string = window.location.hash.substring(1);
             if (hash.includes('/')) {
-                const newPath = hash.startsWith('/') ? hash : '/' + hash;
+                const newPath: string = hash.startsWith('/') ? hash : '/' + hash;
                 window.history.replaceState(null, '', newPath);
             }
         }
 
-        let path = window.location.pathname;
+        let path: string = window.location.pathname;
 
         if (path.startsWith('/')) path = path.substring(1);
         if (path.endsWith('/')) path = path.substring(0, path.length - 1);
         if (path === '' || path === 'index.html') path = 'home';
 
-        const parts = path.split('/');
-        const page = parts[0];
-        const param = parts.slice(1).join('/');
+        const parts: string[] = path.split('/');
+        const page: string = parts[0];
+        const param: string = parts.slice(1).join('/');
 
         // Helper to extract provider prefix and ID from params
         // Supports formats like: /track/t/123 (Tidal), /track/q/123 (Qobuz), /track/123 (default)
-        const extractProviderAndId = (p) => {
+        const extractProviderAndId = (p: string): ProviderResult => {
             if (p.startsWith('t/')) {
                 return { provider: 'tidal', id: p.slice(2) };
             }
@@ -89,9 +116,9 @@ export function createRouter(ui) {
                 break;
             case 'unreleased':
                 if (param) {
-                    const parts = param.split('/');
-                    const sheetId = parts[0];
-                    const projectName = parts[1] ? decodeURIComponent(parts[1]) : null;
+                    const unreleasedParts: string[] = param.split('/');
+                    const sheetId: string = unreleasedParts[0];
+                    const projectName: string | null = unreleasedParts[1] ? decodeURIComponent(unreleasedParts[1]) : null;
                     if (projectName) {
                         await ui.renderTrackerProjectPage(sheetId, projectName);
                     } else {
@@ -118,12 +145,12 @@ export function createRouter(ui) {
     return router;
 }
 
-export function updateTabTitle(player) {
+export function updateTabTitle(player: RouterPlayer): void {
     if (player.currentTrack) {
-        const track = player.currentTrack;
+        const track: TrackData = player.currentTrack;
         document.title = `${track.title} • ${getTrackArtists(track)}`;
     } else {
-        const path = window.location.pathname;
+        const path: string = window.location.pathname;
         if (path.startsWith('/album/') || path.startsWith('/playlist/') || path.startsWith('/track/')) {
             return;
         }
