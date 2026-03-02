@@ -2,6 +2,12 @@ import { malojaSettings } from './storage.ts';
 import { lastFMStorage } from './storage.ts';
 
 export class MalojaScrobbler {
+    private currentTrack: TrackData | null;
+    private scrobbleTimer: ReturnType<typeof setTimeout> | null;
+    private scrobbleThreshold: number;
+    private hasScrobbled: boolean;
+    private isScrobbling: boolean;
+
     constructor() {
         this.currentTrack = null;
         this.scrobbleTimer = null;
@@ -10,21 +16,21 @@ export class MalojaScrobbler {
         this.isScrobbling = false;
     }
 
-    getApiUrl() {
+    getApiUrl(): string {
         const customUrl = malojaSettings.getCustomUrl();
         // Remove trailing slash if present
         return customUrl ? customUrl.replace(/\/$/, '') : '';
     }
 
-    isEnabled() {
+    isEnabled(): boolean {
         return malojaSettings.isEnabled() && !!malojaSettings.getToken() && !!this.getApiUrl();
     }
 
-    getApiKey() {
+    getApiKey(): string {
         return malojaSettings.getToken();
     }
 
-    _getScrobbleArtist(track) {
+    _getScrobbleArtist(track: TrackData | null): string {
         if (!track) return 'Unknown Artist';
 
         let artistName = 'Unknown Artist';
@@ -47,7 +53,7 @@ export class MalojaScrobbler {
         return artistName || 'Unknown Artist';
     }
 
-    async submitScrobble(track, timestamp = null) {
+    async submitScrobble(track: TrackData, timestamp: number | null = null): Promise<void> {
         if (!this.isEnabled()) return;
 
         const apiUrl = this.getApiUrl();
@@ -55,11 +61,11 @@ export class MalojaScrobbler {
 
         if (!apiUrl || !apiKey) return;
 
-        const artist = this._getScrobbleArtist(track);
-        const title = track.cleanTitle || track.title;
+        const artist: string = this._getScrobbleArtist(track);
+        const title: string = typeof track.cleanTitle === 'string' ? track.cleanTitle : track.title;
 
         // Build the scrobble data
-        const scrobbleData = {
+        const scrobbleData: Record<string, string> = {
             artist: artist,
             title: title,
             key: apiKey,
@@ -70,15 +76,15 @@ export class MalojaScrobbler {
         }
 
         if (track.duration) {
-            scrobbleData.duration = Math.floor(track.duration);
+            scrobbleData.duration = String(Math.floor(track.duration));
         }
 
         if (track.trackNumber) {
-            scrobbleData.track_number = track.trackNumber;
+            scrobbleData.track_number = String(track.trackNumber);
         }
 
         if (timestamp) {
-            scrobbleData.time = timestamp;
+            scrobbleData.time = String(timestamp);
         }
 
         try {
@@ -113,7 +119,7 @@ export class MalojaScrobbler {
         }
     }
 
-    async updateNowPlaying(track) {
+    async updateNowPlaying(track: TrackData): Promise<void> {
         if (!this.isEnabled()) return;
 
         this.currentTrack = track;
@@ -133,21 +139,21 @@ export class MalojaScrobbler {
         this.scheduleScrobble(this.scrobbleThreshold * 1000);
     }
 
-    scheduleScrobble(delay) {
+    scheduleScrobble(delay: number): void {
         this.clearScrobbleTimer();
         this.scrobbleTimer = setTimeout(() => {
             this.scrobbleCurrentTrack();
         }, delay);
     }
 
-    clearScrobbleTimer() {
+    clearScrobbleTimer(): void {
         if (this.scrobbleTimer) {
             clearTimeout(this.scrobbleTimer);
             this.scrobbleTimer = null;
         }
     }
 
-    async scrobbleCurrentTrack() {
+    async scrobbleCurrentTrack(): Promise<void> {
         if (!this.isEnabled() || !this.currentTrack || this.hasScrobbled) return;
 
         this.isScrobbling = true;
@@ -161,15 +167,15 @@ export class MalojaScrobbler {
         }
     }
 
-    onTrackChange(track) {
+    onTrackChange(track: TrackData): void {
         this.updateNowPlaying(track);
     }
 
-    onPlaybackStop() {
+    onPlaybackStop(): void {
         this.clearScrobbleTimer();
     }
 
-    disconnect() {
+    disconnect(): void {
         this.clearScrobbleTimer();
         this.currentTrack = null;
     }
