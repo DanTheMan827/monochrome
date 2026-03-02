@@ -1,23 +1,32 @@
+interface ColorCandidate {
+    r: number;
+    g: number;
+    b: number;
+    h: number;
+    s: number;
+    l: number;
+}
+
 /**
  * Converts an RGB color value to HSL.
  * Assumes r, g, and b are contained in the set [0, 255] and
  * returns h, s, and l in the set [0, 1].
  */
-function rgbToHsl(r, g, b) {
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
     r /= 255;
     g /= 255;
     b /= 255;
 
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h,
-        s,
-        l = (max + min) / 2;
+    const max: number = Math.max(r, g, b);
+    const min: number = Math.min(r, g, b);
+    let h: number = 0;
+    let s: number = 0;
+    const l: number = (max + min) / 2;
 
     if (max === min) {
         h = s = 0; // achromatic
     } else {
-        const d = max - min;
+        const d: number = max - min;
         s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
 
         switch (max) {
@@ -40,13 +49,13 @@ function rgbToHsl(r, g, b) {
 /**
  * Converts an HSL color value to RGB hex string.
  */
-function hslToHex(h, s, l) {
-    let r, g, b;
+function hslToHex(h: number, s: number, l: number): string {
+    let r: number, g: number, b: number;
 
     if (s === 0) {
         r = g = b = l; // achromatic
     } else {
-        const hue2rgb = (p, q, t) => {
+        const hue2rgb = (p: number, q: number, t: number): number => {
             if (t < 0) t += 1;
             if (t > 1) t -= 1;
             if (t < 1 / 6) return p + (q - p) * 6 * t;
@@ -55,32 +64,32 @@ function hslToHex(h, s, l) {
             return p;
         };
 
-        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-        const p = 2 * l - q;
+        const q: number = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p: number = 2 * l - q;
         r = hue2rgb(p, q, h + 1 / 3);
         g = hue2rgb(p, q, h);
         b = hue2rgb(p, q, h - 1 / 3);
     }
 
-    const toHex = (x) => {
-        const hex = Math.round(x * 255).toString(16);
+    const toHex = (x: number): string => {
+        const hex: string = Math.round(x * 255).toString(16);
         return hex.length === 1 ? '0' + hex : hex;
     };
 
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
-export function getVibrantColorFromImage(imgElement) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+export function getVibrantColorFromImage(imgElement: HTMLImageElement): string | null {
+    const canvas: HTMLCanvasElement = document.createElement('canvas');
+    const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
     if (!ctx) return null;
 
-    const maxDimension = 64;
-    let w = imgElement.naturalWidth || imgElement.width;
-    let h = imgElement.naturalHeight || imgElement.height;
+    const maxDimension: number = 64;
+    let w: number = imgElement.naturalWidth || imgElement.width;
+    let h: number = imgElement.naturalHeight || imgElement.height;
 
     if (w > maxDimension || h > maxDimension) {
-        const scale = Math.min(maxDimension / w, maxDimension / h);
+        const scale: number = Math.min(maxDimension / w, maxDimension / h);
         w = Math.floor(w * scale);
         h = Math.floor(h * scale);
     }
@@ -93,40 +102,40 @@ export function getVibrantColorFromImage(imgElement) {
     // direct browser downscaling is sufficient and much faster/lighter.
     ctx.drawImage(imgElement, 0, 0, w, h);
 
-    const imageData = ctx.getImageData(0, 0, w, h);
-    const pixels = imageData.data;
-    const candidates = [];
+    const imageData: ImageData = ctx.getImageData(0, 0, w, h);
+    const pixels: Uint8ClampedArray = imageData.data;
+    const candidates: ColorCandidate[] = [];
 
     // Iterate through pixels
-    for (let i = 0; i < pixels.length; i += 4) {
-        const r = pixels[i];
-        const g = pixels[i + 1];
-        const b = pixels[i + 2];
-        const a = pixels[i + 3];
+    for (let i: number = 0; i < pixels.length; i += 4) {
+        const r: number = pixels[i];
+        const g: number = pixels[i + 1];
+        const b: number = pixels[i + 2];
+        const a: number = pixels[i + 3];
 
         if (a < 125) continue; // Skip transparent
 
-        const [h, s, l] = rgbToHsl(r, g, b);
+        const [hVal, sVal, lVal]: [number, number, number] = rgbToHsl(r, g, b);
 
         // Filter out very dark, very bright, or very desaturated pixels for the "vibrant" candidate list
         // Vibrant: High saturation (s > 0.3), Moderate lightness (0.3 < l < 0.8)
-        if (s >= 0.3 && l >= 0.3 && l <= 0.8) {
-            candidates.push({ r, g, b, h, s, l });
+        if (sVal >= 0.3 && lVal >= 0.3 && lVal <= 0.8) {
+            candidates.push({ r, g, b, h: hVal, s: sVal, l: lVal });
         }
     }
 
     // If no candidates found with strict criteria, relax criteria
     if (candidates.length === 0) {
-        for (let i = 0; i < pixels.length; i += 4) {
-            const r = pixels[i];
-            const g = pixels[i + 1];
-            const b = pixels[i + 2];
-            const a = pixels[i + 3];
+        for (let i: number = 0; i < pixels.length; i += 4) {
+            const r: number = pixels[i];
+            const g: number = pixels[i + 1];
+            const b: number = pixels[i + 2];
+            const a: number = pixels[i + 3];
             if (a < 125) continue;
-            const [h, s, l] = rgbToHsl(r, g, b);
+            const [hVal, sVal, lVal]: [number, number, number] = rgbToHsl(r, g, b);
             // Allow anything not practically black or white
-            if (l > 0.1 && l < 0.95) {
-                candidates.push({ r, g, b, h, s, l });
+            if (lVal > 0.1 && lVal < 0.95) {
+                candidates.push({ r, g, b, h: hVal, s: sVal, l: lVal });
             }
         }
     }
@@ -135,13 +144,13 @@ export function getVibrantColorFromImage(imgElement) {
     if (candidates.length === 0) return null;
 
     // Sort by saturation (descending) then lightness (proximity to 0.5)
-    candidates.sort((c1, c2) => {
+    candidates.sort((c1: ColorCandidate, c2: ColorCandidate): number => {
         return c2.s - c1.s || 0.5 - Math.abs(c1.l - 0.5) - (0.5 - Math.abs(c2.l - 0.5));
     });
 
     // Pick the top candidate (most vibrant)
     // Optionally averaging top N could be done, but simplified "best single pixel" is usually sufficient for "Vibrant"
-    const best = candidates[0];
+    const best: ColorCandidate = candidates[0];
 
     return hslToHex(best.h, best.s, best.l);
 }
