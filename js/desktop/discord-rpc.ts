@@ -1,19 +1,36 @@
-// js/desktop/discord-rpc.js
+// js/desktop/discord-rpc.ts
 import { getTrackTitle, getTrackArtists } from '../utils.ts';
 
-export function initializeDiscordRPC(player) {
-    const EXTENSION_ID = 'js.neutralino.discordrpc';
+interface DiscordRPCData {
+    details: string;
+    state: string;
+    largeImageKey: string;
+    largeImageText: string;
+    smallImageKey: string;
+    smallImageText: string;
+    instance?: boolean;
+    startTimestamp?: number;
+    endTimestamp?: number;
+}
 
-    function sendUpdate(track, isPaused = false) {
+interface DiscordRPCPlayer {
+    audio: HTMLAudioElement;
+    currentTrack: TrackData | null;
+}
+
+export function initializeDiscordRPC(player: DiscordRPCPlayer): void {
+    const EXTENSION_ID: string = 'js.neutralino.discordrpc';
+
+    function sendUpdate(track: TrackData | null, isPaused: boolean = false): void {
         if (!track) return;
 
-        let coverUrl = 'monochrome';
+        let coverUrl: string = 'monochrome';
         if (track.album?.cover) {
-            const coverId = track.album.cover.replace(/-/g, '/');
+            const coverId: string = track.album.cover.replace(/-/g, '/');
             coverUrl = `https://resources.tidal.com/images/${coverId}/320x320.jpg`;
         }
 
-        const data = {
+        const data: DiscordRPCData = {
             details: getTrackTitle(track),
             state: getTrackArtists(track),
             largeImageKey: coverUrl,
@@ -24,29 +41,29 @@ export function initializeDiscordRPC(player) {
         };
 
         if (!isPaused && track.duration) {
-            const now = Date.now();
-            const elapsed = player.audio.currentTime * 1000;
-            const remaining = (track.duration - player.audio.currentTime) * 1000;
+            const now: number = Date.now();
+            const elapsed: number = player.audio.currentTime * 1000;
+            const remaining: number = (track.duration - player.audio.currentTime) * 1000;
 
             data.startTimestamp = Math.floor((now - elapsed) / 1000);
             data.endTimestamp = Math.floor((now + remaining) / 1000);
         }
 
-        Neutralino.events.broadcast('discord:update', data).catch((e) => console.error('Broadcast failed', e));
+        Neutralino.events.broadcast('discord:update', data).catch((e: unknown) => console.error('Broadcast failed', e));
         Neutralino.extensions
             .dispatch(EXTENSION_ID, 'discord:update', data)
-            .catch((e) => console.error('Dispatch failed', e));
+            .catch((e: unknown) => console.error('Dispatch failed', e));
     }
 
-    player.audio.addEventListener('play', () => {
+    player.audio.addEventListener('play', (): void => {
         sendUpdate(player.currentTrack);
     });
 
-    player.audio.addEventListener('pause', () => {
+    player.audio.addEventListener('pause', (): void => {
         sendUpdate(player.currentTrack, true);
     });
 
-    player.audio.addEventListener('loadedmetadata', () => {
+    player.audio.addEventListener('loadedmetadata', (): void => {
         if (!player.audio.paused) {
             sendUpdate(player.currentTrack);
         }

@@ -143,7 +143,10 @@ declare namespace Neutralino {
     namespace events {
         function on(event: string, handler: (ev: { detail: string }) => void): void;
         function off(event: string, handler: (ev: { detail: string }) => void): void;
-        function broadcast(event: string, data?: string): void;
+        function broadcast(event: string, data?: unknown): Promise<void>;
+    }
+    namespace extensions {
+        function dispatch(extensionId: string, event: string, data?: unknown): Promise<void>;
     }
     namespace filesystem {
         interface DirectoryEntry {
