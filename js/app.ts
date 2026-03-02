@@ -466,7 +466,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load settings module and initialize
     // Settings module uses narrower local interfaces; cast needed for structural compatibility
     const { initializeSettings } = await loadSettingsModule();
-    initializeSettings(scrobbler as never, player as never, api, ui as never);
+    initializeSettings(scrobbler as never, player as never, api as never, ui as never);
 
     // Track sidebar navigation clicks
     document.querySelectorAll('.sidebar-nav a').forEach((link) => {
@@ -841,14 +841,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!albumId) return;
 
             try {
-                const { tracks } = await api.getAlbum(albumId);
+                const { tracks } = await api.getAlbum(albumId) as { tracks: TrackData[] };
                 if (tracks && tracks.length > 0) {
                     // Sort tracks by disc and track number for consistent playback
                     const sortedTracks = [...tracks].sort((a, b) => {
                         const discA = a.volumeNumber ?? (a as TrackData & { discNumber?: number }).discNumber ?? 1;
                         const discB = b.volumeNumber ?? (b as TrackData & { discNumber?: number }).discNumber ?? 1;
                         if (discA !== discB) return discA - discB;
-                        return a.trackNumber - b.trackNumber;
+                        return (a.trackNumber ?? 0) - (b.trackNumber ?? 0);
                     });
 
                     player.setQueue(sortedTracks, 0);
@@ -879,7 +879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!albumId) return;
 
             try {
-                const { tracks } = await api.getAlbum(albumId);
+                const { tracks } = await api.getAlbum(albumId) as { tracks: TrackData[] };
                 if (tracks && tracks.length > 0) {
                     const shuffledTracks = [...tracks].sort(() => Math.random() - 0.5);
                     player.setQueue(shuffledTracks, 0);
@@ -910,7 +910,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Shuffling...</span>';
 
             try {
-                const artist = await api.getArtist(artistId);
+                const artist = await api.getArtist(artistId) as ArtistData & { eps?: TrackAlbum[] };
                 const allReleases = [...(artist.albums || []), ...(artist.eps || [])];
                 const trackSet = new Set<string | number>();
                 const allTracks: TrackData[] = [];
@@ -922,7 +922,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await Promise.all(
                         chunk.map(async (album: TrackAlbum) => {
                             try {
-                                const { tracks } = await api.getAlbum(album.id);
+                                const { tracks } = await api.getAlbum(album.id) as { tracks: TrackData[] };
                                 tracks.forEach((track: TrackData) => {
                                     if (!trackSet.has(track.id)) {
                                         trackSet.add(track.id);
@@ -983,7 +983,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Downloading...</span>';
 
             try {
-                const { mix, tracks } = await api.getMix(mixId);
+                const { mix, tracks } = await api.getMix(mixId) as { mix: MixData; tracks: TrackData[] };
                 const { downloadPlaylistAsZip } = await loadDownloadsModule();
                 await downloadPlaylistAsZip(mix, tracks, api, downloadQualitySettings.getQuality(), lyricsManager as never);
             } catch (error) {
@@ -1023,7 +1023,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     playlist = { ...(userPlaylist as PlaylistData), title: (userPlaylist as PlaylistData & { name?: string }).name || (userPlaylist as PlaylistData).title } as PlaylistData;
                     tracks = ((userPlaylist as PlaylistData).tracks || []) as TrackData[];
                 } else {
-                    const data = await api.getPlaylist(playlistId);
+                    const data = await api.getPlaylist(playlistId) as { playlist: PlaylistData; tracks: TrackData[] };
                     playlist = data.playlist;
                     tracks = data.tracks;
                 }
@@ -1150,7 +1150,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                     } else {
                         try {
-                            await syncManager.unpublishPlaylist(playlist.id);
+                            await syncManager.unpublishPlaylist(String(playlist.id));
                         } catch {
                             // Ignore error if it wasn't public
                         }
@@ -1837,7 +1837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (trackId) {
                     const updatedPlaylist = await db.removeTrackFromPlaylist(playlistId, trackId);
-                    syncManager.syncUserPlaylist(updatedPlaylist, 'update');
+                    syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                     const scrollTop = (document.querySelector('.main-content') as HTMLElement).scrollTop;
                     await ui.renderPlaylistPage(playlistId, 'user');
                     (document.querySelector('.main-content') as HTMLElement).scrollTop = scrollTop;
@@ -1860,12 +1860,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     // Try API, if fail, try Public Pocketbase
                     try {
-                        const { tracks: apiTracks } = await api.getPlaylist(playlistId);
+                        const { tracks: apiTracks } = await api.getPlaylist(playlistId) as { tracks: TrackData[] };
                         tracks = apiTracks;
                     } catch (e) {
                         const publicPlaylist = await syncManager.getPublicPlaylist(playlistId);
                         if (publicPlaylist) {
-                            tracks = (publicPlaylist as PlaylistData & { tracks: TrackData[] }).tracks;
+                            tracks = (publicPlaylist as unknown as PlaylistData & { tracks: TrackData[] }).tracks;
                         } else {
                             throw e;
                         }
@@ -1895,7 +1895,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Downloading...</span>';
 
             try {
-                const { album, tracks } = await api.getAlbum(albumId);
+                const { album, tracks } = await api.getAlbum(albumId) as { album: TrackAlbum; tracks: TrackData[] };
                 const { downloadAlbumAsZip } = await loadDownloadsModule();
                 await downloadAlbumAsZip(album, tracks, api, downloadQualitySettings.getQuality(), lyricsManager as never);
             } catch (error) {
@@ -1915,7 +1915,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!albumId) return;
 
             try {
-                const { tracks } = await api.getAlbum(albumId);
+                const { tracks } = await api.getAlbum(albumId) as { tracks: TrackData[] };
 
                 if (!tracks || tracks.length === 0) {
                     const { showNotification } = await loadDownloadsModule();
@@ -1977,7 +1977,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     try {
                         await db.addTracksToPlaylist(playlistId, tracks);
                         const updatedPlaylist = await db.getPlaylist(playlistId);
-                        await syncManager.syncUserPlaylist(updatedPlaylist, 'update');
+                        await syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                         const { showNotification } = await loadDownloadsModule();
                         showNotification(`Added ${tracks.length} tracks to playlist.`);
                         closeModal();
@@ -2019,7 +2019,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Loading...</span>';
 
             try {
-                const artist = await api.getArtist(artistId);
+                const artist = await api.getArtist(artistId) as ArtistData & { eps?: TrackAlbum[] };
 
                 const allReleases = [...(artist.albums || []), ...(artist.eps || [])];
                 if (allReleases.length === 0) {
@@ -2041,7 +2041,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await Promise.all(
                         chunk.map(async (album) => {
                             try {
-                                const { tracks } = await api.getAlbum(album.id);
+                                const { tracks } = await api.getAlbum(album.id) as { tracks: TrackData[] };
                                 tracks.forEach((track: TrackData) => {
                                     if (!trackSet.has(track.id)) {
                                         trackSet.add(track.id);
@@ -2132,7 +2132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!artistId) return;
 
             try {
-                const artist = await api.getArtist(artistId);
+                const artist = await api.getArtist(artistId) as ArtistData & { eps?: TrackAlbum[] };
                 showDiscographyDownloadModal(artist, api, downloadQualitySettings.getQuality(), lyricsManager, btn);
             } catch (error) {
                 console.error('Failed to load artist for discography download:', error);
@@ -2268,11 +2268,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup clear button for search bar
     ui.setupSearchClearButton(searchInput);
 
-    const performSearch = debounce((query: string) => {
+    const performSearch = debounce(((query: string) => {
         if (query) {
             navigate(`/search/${encodeURIComponent(query)}`);
         }
-    }, 300);
+    }) as (...args: unknown[]) => void, 300);
 
     searchInput.addEventListener('input', (e) => {
         const query = (e.target as HTMLInputElement).value.trim();
