@@ -1,6 +1,31 @@
-//js/cache.js
+//js/cache.ts
+
+interface CacheEntry {
+    key: string;
+    data: unknown;
+    timestamp: number;
+}
+
+interface CacheOptions {
+    maxSize?: number;
+    ttl?: number;
+}
+
+interface CacheStats {
+    memoryEntries: number;
+    maxSize: number;
+    ttl: number;
+}
+
 export class APICache {
-    constructor(options = {}) {
+    private memoryCache: Map<string, CacheEntry>;
+    private maxSize: number;
+    private ttl: number;
+    private dbName: string;
+    private dbVersion: number;
+    private db: IDBDatabase | null;
+
+    constructor(options: CacheOptions = {}) {
         this.memoryCache = new Map();
         this.maxSize = options.maxSize || 200;
         this.ttl = options.ttl || 1000 * 60 * 30;
@@ -10,11 +35,11 @@ export class APICache {
         this.initDB();
     }
 
-    async initDB() {
+    async initDB(): Promise<IDBDatabase | void> {
         if (typeof indexedDB === 'undefined') return;
 
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, this.dbVersion);
+        return new Promise<IDBDatabase>((resolve, reject) => {
+            const request: IDBOpenDBRequest = indexedDB.open(this.dbName, this.dbVersion);
 
             request.onerror = () => reject(request.error);
             request.onsuccess = () => {
@@ -22,28 +47,28 @@ export class APICache {
                 resolve(this.db);
             };
 
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
+            request.onupgradeneeded = (event: IDBVersionChangeEvent) => {
+                const db: IDBDatabase = (event.target as IDBOpenDBRequest).result;
 
                 if (!db.objectStoreNames.contains('responses')) {
-                    const store = db.createObjectStore('responses', { keyPath: 'key' });
+                    const store: IDBObjectStore = db.createObjectStore('responses', { keyPath: 'key' });
                     store.createIndex('timestamp', 'timestamp', { unique: false });
                 }
             };
         });
     }
 
-    generateKey(type, params) {
-        const paramString = typeof params === 'object' ? JSON.stringify(params) : String(params);
+    generateKey(type: string, params: unknown): string {
+        const paramString: string = typeof params === 'object' ? JSON.stringify(params) : String(params);
         return `${type}:${paramString}`;
     }
 
-    async get(type, params) {
-        const key = this.generateKey(type, params);
+    async get(type: string, params: unknown): Promise<unknown | null> {
+        const key: string = this.generateKey(type, params);
 
         if (this.memoryCache.has(key)) {
-            const cached = this.memoryCache.get(key);
-            if (Date.now() - cached.timestamp < this.ttl) {
+            const cached: CacheEntry | undefined = this.memoryCache.get(key);
+            if (cached && Date.now() - cached.timestamp < this.ttl) {
                 return cached.data;
             }
             this.memoryCache.delete(key);
@@ -51,7 +76,7 @@ export class APICache {
 
         if (this.db) {
             try {
-                const cached = await this.getFromIndexedDB(key);
+                const cached: CacheEntry | null = await this.getFromIndexedDB(key);
                 if (cached && Date.now() - cached.timestamp < this.ttl) {
                     this.memoryCache.set(key, cached);
                     return cached.data;
@@ -64,9 +89,9 @@ export class APICache {
         return null;
     }
 
-    async set(type, params, data) {
-        const key = this.generateKey(type, params);
-        const entry = {
+    async set(type: string, params: unknown, data: unknown): Promise<void> {
+        const key: string = this.generateKey(type, params);
+        const entry: CacheEntry = {
             key,
             data,
             timestamp: Date.now(),
@@ -75,8 +100,10 @@ export class APICache {
         this.memoryCache.set(key, entry);
 
         if (this.memoryCache.size > this.maxSize) {
-            const firstKey = this.memoryCache.keys().next().value;
-            this.memoryCache.delete(firstKey);
+            const firstKey: string | undefined = this.memoryCache.keys().next().value;
+            if (firstKey !== undefined) {
+                this.memoryCache.delete(firstKey);
+            }
         }
 
         if (this.db) {
@@ -88,46 +115,46 @@ export class APICache {
         }
     }
 
-    getFromIndexedDB(key) {
-        return new Promise((resolve, reject) => {
+    getFromIndexedDB(key: string): Promise<CacheEntry | null> {
+        return new Promise<CacheEntry | null>((resolve, reject) => {
             if (!this.db) {
                 resolve(null);
                 return;
             }
 
-            const transaction = this.db.transaction(['responses'], 'readonly');
-            const store = transaction.objectStore('responses');
-            const request = store.get(key);
+            const transaction: IDBTransaction = this.db.transaction(['responses'], 'readonly');
+            const store: IDBObjectStore = transaction.objectStore('responses');
+            const request: IDBRequest = store.get(key);
 
-            request.onsuccess = () => resolve(request.result || null);
+            request.onsuccess = () => resolve((request.result as CacheEntry) || null);
             request.onerror = () => reject(request.error);
         });
     }
 
-    setInIndexedDB(entry) {
-        return new Promise((resolve, reject) => {
+    setInIndexedDB(entry: CacheEntry): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
             if (!this.db) {
                 resolve();
                 return;
             }
 
-            const transaction = this.db.transaction(['responses'], 'readwrite');
-            const store = transaction.objectStore('responses');
-            const request = store.put(entry);
+            const transaction: IDBTransaction = this.db.transaction(['responses'], 'readwrite');
+            const store: IDBObjectStore = transaction.objectStore('responses');
+            const request: IDBRequest = store.put(entry);
 
             request.onsuccess = () => resolve();
             request.onerror = () => reject(request.error);
         });
     }
 
-    async clear() {
+    async clear(): Promise<void> {
         this.memoryCache.clear();
 
         if (this.db) {
-            return new Promise((resolve, reject) => {
-                const transaction = this.db.transaction(['responses'], 'readwrite');
-                const store = transaction.objectStore('responses');
-                const request = store.clear();
+            return new Promise<void>((resolve, reject) => {
+                const transaction: IDBTransaction = this.db!.transaction(['responses'], 'readwrite');
+                const store: IDBObjectStore = transaction.objectStore('responses');
+                const request: IDBRequest = store.clear();
 
                 request.onsuccess = () => resolve();
                 request.onerror = () => reject(request.error);
@@ -135,9 +162,9 @@ export class APICache {
         }
     }
 
-    async clearExpired() {
-        const now = Date.now();
-        const expired = [];
+    async clearExpired(): Promise<void> {
+        const now: number = Date.now();
+        const expired: string[] = [];
 
         for (const [key, entry] of this.memoryCache.entries()) {
             if (now - entry.timestamp >= this.ttl) {
@@ -145,18 +172,18 @@ export class APICache {
             }
         }
 
-        expired.forEach((key) => this.memoryCache.delete(key));
+        expired.forEach((key: string) => this.memoryCache.delete(key));
 
         if (this.db) {
             try {
-                const transaction = this.db.transaction(['responses'], 'readwrite');
-                const store = transaction.objectStore('responses');
-                const index = store.index('timestamp');
-                const range = IDBKeyRange.upperBound(now - this.ttl);
-                const request = index.openCursor(range);
+                const transaction: IDBTransaction = this.db.transaction(['responses'], 'readwrite');
+                const store: IDBObjectStore = transaction.objectStore('responses');
+                const index: IDBIndex = store.index('timestamp');
+                const range: IDBKeyRange = IDBKeyRange.upperBound(now - this.ttl);
+                const request: IDBRequest = index.openCursor(range);
 
-                request.onsuccess = (event) => {
-                    const cursor = event.target.result;
+                request.onsuccess = (event: Event) => {
+                    const cursor: IDBCursorWithValue | null = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
                     if (cursor) {
                         cursor.delete();
                         cursor.continue();
@@ -168,7 +195,7 @@ export class APICache {
         }
     }
 
-    getCacheStats() {
+    getCacheStats(): CacheStats {
         return {
             memoryEntries: this.memoryCache.size,
             maxSize: this.maxSize,
