@@ -1,24 +1,44 @@
+interface Particle {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    baseSize: number;
+}
+
+interface DrawParams {
+    kick: number;
+    intensity: number;
+    primaryColor: string;
+    mode: string;
+    sensitivity?: number;
+}
+
 export class ParticlesPreset {
+    name: string;
+    particles: Particle[];
+    particleCount: number;
+
     constructor() {
         this.name = 'Particles';
         this.particles = [];
         this.particleCount = 180;
     }
 
-    resize(_width, _height) {
+    resize(_width: number, _height: number): void {
         // Particles don't need explicit resize logic unless we want to respawn them,
         // but current logic handles boundaries in draw loop.
     }
 
-    destroy() {
+    destroy(): void {
         // No cleanup needed
     }
 
-    draw(ctx, canvas, analyser, dataArray, params) {
+    draw(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, _analyser: AnalyserNode, _dataArray: Uint8Array, params: DrawParams): void {
         const { width, height } = canvas;
         const { kick, intensity, primaryColor, mode } = params;
-        const sensitivity = params.sensitivity || 1.0;
-        const isDark = document.documentElement.getAttribute('data-theme') !== 'white';
+        const sensitivity: number = params.sensitivity || 1.0;
+        const isDark: boolean = document.documentElement.getAttribute('data-theme') !== 'white';
 
         // Clear background
         ctx.clearRect(0, 0, width, height);
@@ -31,7 +51,7 @@ export class ParticlesPreset {
         // Manage particle count
         if (this.particles.length !== this.particleCount) {
             this.particles = [];
-            for (let i = 0; i < this.particleCount; i++) {
+            for (let i: number = 0; i < this.particleCount; i++) {
                 this.particles.push({
                     x: Math.random() * width,
                     y: Math.random() * height,
@@ -45,10 +65,10 @@ export class ParticlesPreset {
         ctx.save();
 
         // Shake
-        let shakeX = 0;
-        let shakeY = 0;
+        let shakeX: number = 0;
+        let shakeY: number = 0;
         if (kick > 0.1) {
-            const shakeAmt = kick * 8 * sensitivity;
+            const shakeAmt: number = kick * 8 * sensitivity;
             shakeX = (Math.random() - 0.5) * shakeAmt;
             shakeY = (Math.random() - 0.5) * shakeAmt;
         }
@@ -57,13 +77,13 @@ export class ParticlesPreset {
         ctx.fillStyle = primaryColor;
         ctx.strokeStyle = primaryColor;
 
-        const maxDist = 150 + intensity * 50 + kick * 50 * sensitivity;
-        const maxDistSq = maxDist * maxDist;
+        const maxDist: number = 150 + intensity * 50 + kick * 50 * sensitivity;
+        const maxDistSq: number = maxDist * maxDist;
 
-        for (let i = 0; i < this.particles.length; i++) {
-            let p = this.particles[i];
+        for (let i: number = 0; i < this.particles.length; i++) {
+            const p: Particle = this.particles[i];
 
-            const speedMult = 1 + intensity * 2 + kick * 8 * sensitivity;
+            const speedMult: number = 1 + intensity * 2 + kick * 8 * sensitivity;
             p.x += p.vx * speedMult;
             p.y += p.vy * speedMult;
 
@@ -77,23 +97,23 @@ export class ParticlesPreset {
             if (p.y < 0) p.y = height;
             if (p.y > height) p.y = 0;
 
-            const size = p.baseSize * (1 + intensity * 0.5 + kick * 0.8 * sensitivity);
+            const size: number = p.baseSize * (1 + intensity * 0.5 + kick * 0.8 * sensitivity);
             ctx.globalAlpha = 0.4 + intensity * 0.2 + kick * 0.15 * sensitivity;
             ctx.beginPath();
             ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
             ctx.fill();
 
-            for (let j = i + 1; j < this.particles.length; j++) {
-                const p2 = this.particles[j];
-                const dx = p.x - p2.x;
-                const dy = p.y - p2.y;
+            for (let j: number = i + 1; j < this.particles.length; j++) {
+                const p2: Particle = this.particles[j];
+                const dx: number = p.x - p2.x;
+                const dy: number = p.y - p2.y;
 
                 if (Math.abs(dx) > maxDist) continue;
 
-                const distSq = dx * dx + dy * dy;
+                const distSq: number = dx * dx + dy * dy;
 
                 if (distSq < maxDistSq) {
-                    const dist = Math.sqrt(distSq);
+                    const dist: number = Math.sqrt(distSq);
                     ctx.beginPath();
                     ctx.lineWidth = (1 - dist / maxDist) * (1 + kick * 1.5 * sensitivity);
                     ctx.globalAlpha = (1 - dist / maxDist) * (0.3 + intensity * 0.2 + kick * 0.3 * sensitivity);
