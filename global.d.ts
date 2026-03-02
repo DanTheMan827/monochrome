@@ -372,5 +372,8 @@ interface ScrobbleData {
 interface CFContext {
     request: Request;
     params: Record<string, string>;
-    env?: Record<string, string>;
+    env: {
+        ASSETS: { fetch(request: Request): Promise<Response> };
+        [key: string]: unknown;
+    };
 }

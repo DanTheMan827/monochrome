@@ -1,6 +1,35 @@
-// functions/album/[id].js
+// functions/album/[id].ts
+
+interface UptimeApiItem {
+    url?: string;
+}
+
+interface UptimeResponse {
+    api?: UptimeApiItem[];
+}
+
+interface AlbumResponseData {
+    title?: string;
+    name?: string;
+    artist?: { name?: string };
+    releaseDate?: string;
+    numberOfTracks?: number;
+    items?: unknown[];
+    cover?: string;
+    [key: string]: unknown;
+}
+
+interface AlbumApiResponse {
+    data?: AlbumResponseData;
+    album?: AlbumResponseData;
+    tracks?: unknown[];
+    [key: string]: unknown;
+}
 
 class ServerAPI {
+    private readonly INSTANCES_URLS: string[];
+    private apiInstances: string[] | null;
+
     constructor() {
         this.INSTANCES_URLS = [
             'https://tidal-uptime.jiffy-puffs-1j.workers.dev/',
@@ -9,28 +38,29 @@ class ServerAPI {
         this.apiInstances = null;
     }
 
-    async getInstances() {
+    async getInstances(): Promise<string[]> {
         if (this.apiInstances) return this.apiInstances;
 
-        let data = null;
-        const urls = [...this.INSTANCES_URLS].sort(() => Math.random() - 0.5);
+        let data: UptimeResponse | null = null;
+        const urls: string[] = [...this.INSTANCES_URLS].sort((): number => Math.random() - 0.5);
 
         for (const url of urls) {
             try {
-                const response = await fetch(url);
+                const response: Response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                data = await response.json();
+                data = (await response.json()) as UptimeResponse;
                 break;
-            } catch (error) {
+            } catch (error: unknown) {
                 console.warn(`Failed to fetch from ${url}:`, error);
             }
         }
 
         if (data) {
-            this.apiInstances = (data.api || [])
-                .map((item) => item.url || item)
-                .filter((url) => !url.includes('spotisaver.net'));
-            return this.apiInstances;
+            const instances: string[] = (data.api || [])
+                .map((item: UptimeApiItem): string => item.url ?? '')
+                .filter((url: string): boolean => url !== '' && !url.includes('spotisaver.net'));
+            this.apiInstances = instances;
+            return instances;
         }
 
         console.error('Failed to load instances from all uptime APIs');
@@ -50,73 +80,73 @@ class ServerAPI {
         ];
     }
 
-    async fetchWithRetry(relativePath) {
-        const instances = await this.getInstances();
+    async fetchWithRetry(relativePath: string): Promise<Response> {
+        const instances: string[] = await this.getInstances();
         if (instances.length === 0) {
             throw new Error('No API instances configured.');
         }
 
-        let lastError = null;
+        let lastError: unknown = null;
         for (const baseUrl of instances) {
-            const url = baseUrl.endsWith('/') ? `${baseUrl}${relativePath.substring(1)}` : `${baseUrl}${relativePath}`;
+            const url: string = baseUrl.endsWith('/') ? `${baseUrl}${relativePath.substring(1)}` : `${baseUrl}${relativePath}`;
             try {
-                const response = await fetch(url);
+                const response: Response = await fetch(url);
                 if (response.ok) {
                     return response;
                 }
                 lastError = new Error(`Request failed with status ${response.status}`);
-            } catch (error) {
+            } catch (error: unknown) {
                 lastError = error;
             }
         }
         throw lastError || new Error(`All API instances failed for: ${relativePath}`);
     }
 
-    async getAlbumMetadata(id) {
+    async getAlbumMetadata(id: string): Promise<AlbumApiResponse> {
         try {
-            const response = await this.fetchWithRetry(`/album/${id}`);
-            return await response.json();
+            const response: Response = await this.fetchWithRetry(`/album/${id}`);
+            return (await response.json()) as AlbumApiResponse;
         } catch {
-            const response = await this.fetchWithRetry(`/album?id=${id}`);
-            return await response.json();
+            const response: Response = await this.fetchWithRetry(`/album?id=${id}`);
+            return (await response.json()) as AlbumApiResponse;
         }
     }
 
-    getCoverUrl(id, size = '1280') {
+    getCoverUrl(id: string, size: string = '1280'): string {
         if (!id) return '';
-        const formattedId = id.replace(/-/g, '/');
+        const formattedId: string = id.replace(/-/g, '/');
         return `https://resources.tidal.com/images/${formattedId}/${size}x${size}.jpg`;
     }
 }
 
-export async function onRequest(context) {
+export async function onRequest(context: CFContext): Promise<Response> {
     const { request, params, env } = context;
-    const userAgent = request.headers.get('User-Agent') || '';
-    const isBot = /discordbot|twitterbot|facebookexternalhit|bingbot|googlebot|slurp|whatsapp|pinterest|slackbot/i.test(
+    const userAgent: string = request.headers.get('User-Agent') || '';
+    const isBot: boolean = /discordbot|twitterbot|facebookexternalhit|bingbot|googlebot|slurp|whatsapp|pinterest|slackbot/i.test(
         userAgent
     );
-    const albumId = params.id;
+    const albumId: string = params.id;
 
     if (isBot && albumId) {
         try {
-            const api = new ServerAPI();
-            const data = await api.getAlbumMetadata(albumId);
-            const album = data.data || data.album || data;
-            const tracks = album.items || data.tracks || [];
+            const api: ServerAPI = new ServerAPI();
+            const data: AlbumApiResponse = await api.getAlbumMetadata(albumId);
+            const album: AlbumResponseData = (data.data || data.album || data) as AlbumResponseData;
+            const tracks: unknown[] = album.items || data.tracks || [];
 
             if (album && (album.title || album.name)) {
-                const title = album.title || album.name;
-                const artist = album.artist?.name || 'Unknown Artist';
-                const year = album.releaseDate ? new Date(album.releaseDate).getFullYear() : '';
-                const trackCount = album.numberOfTracks || tracks.length;
+                const title: string = album.title || album.name || '';
+                const artist: string = album.artist?.name || 'Unknown Artist';
+                const year: number | string = album.releaseDate ? new Date(album.releaseDate).getFullYear() : '';
+                const trackCount: number = album.numberOfTracks || tracks.length;
 
-                const description = `Album by ${artist} • ${year} • ${trackCount} Tracks\nListen on Monochrome`;
-                const imageUrl = album.cover
+                const description: string = `Album by ${artist} • ${year} • ${trackCount} Tracks\nListen on Monochrome`;
+                const imageUrl: string = album.cover
                     ? api.getCoverUrl(album.cover, '1280')
                     : 'https://monochrome.samidy.com/assets/appicon.png';
-                const pageUrl = new URL(request.url).href;
+                const pageUrl: string = new URL(request.url).href;
 
-                const metaHtml = `
+                const metaHtml: string = `
                     <!DOCTYPE html>
                     <html lang="en">
                     <head>
@@ -149,12 +179,12 @@ export async function onRequest(context) {
 
                 return new Response(metaHtml, { headers: { 'content-type': 'text/html;charset=UTF-8' } });
             }
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(`Error for album ${albumId}:`, error);
         }
     }
 
-    const url = new URL(request.url);
+    const url: URL = new URL(request.url);
     url.pathname = '/';
     return env.ASSETS.fetch(new Request(url, request));
 }

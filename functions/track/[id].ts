@@ -1,18 +1,69 @@
-// functions/track/[id].js
+// functions/track/[id].ts
 
-function getTrackTitle(track, { fallback = 'Unknown Title' } = {}) {
+interface UptimeApiItem {
+    url?: string;
+}
+
+interface UptimeResponse {
+    api?: UptimeApiItem[];
+}
+
+interface TrackInfoItem {
+    id?: string | number;
+    item?: TrackInfoItem;
+    title?: string;
+    version?: string;
+    artists?: Array<{ name?: string }>;
+    album?: { title?: string; cover?: string };
+    duration?: number;
+    previewUrl?: string;
+    previewURL?: string;
+    [key: string]: unknown;
+}
+
+interface TrackInfoResponse {
+    data?: TrackInfoItem | TrackInfoItem[];
+    [key: string]: unknown;
+}
+
+interface TrackMetadata {
+    title?: string;
+    version?: string;
+    artists?: Array<{ name?: string }>;
+    album: { title: string; cover: string };
+    duration: number;
+    previewUrl?: string;
+    previewURL?: string;
+    [key: string]: unknown;
+}
+
+interface StreamResponse {
+    url?: string;
+    streamUrl?: string;
+}
+
+function getTrackTitle(
+    track: { title?: string; version?: string },
+    { fallback = 'Unknown Title' }: { fallback?: string } = {}
+): string {
     if (!track?.title) return fallback;
     return track?.version ? `${track.title} (${track.version})` : track.title;
 }
 
-function getTrackArtists(track = {}, { fallback = 'Unknown Artist' } = {}) {
+function getTrackArtists(
+    track: { artists?: Array<{ name?: string }> } = {},
+    { fallback = 'Unknown Artist' }: { fallback?: string } = {}
+): string {
     if (track?.artists?.length) {
-        return track.artists.map((artist) => artist?.name).join(', ');
+        return track.artists.map((artist: { name?: string }) => artist?.name).join(', ');
     }
     return fallback;
 }
 
 class ServerAPI {
+    private readonly INSTANCES_URLS: string[];
+    private apiInstances: string[] | null;
+
     constructor() {
         this.INSTANCES_URLS = [
             'https://tidal-uptime.jiffy-puffs-1j.workers.dev/',
@@ -21,28 +72,29 @@ class ServerAPI {
         this.apiInstances = null;
     }
 
-    async getInstances() {
+    async getInstances(): Promise<string[]> {
         if (this.apiInstances) return this.apiInstances;
 
-        let data = null;
-        const urls = [...this.INSTANCES_URLS].sort(() => Math.random() - 0.5);
+        let data: UptimeResponse | null = null;
+        const urls: string[] = [...this.INSTANCES_URLS].sort((): number => Math.random() - 0.5);
 
         for (const url of urls) {
             try {
-                const response = await fetch(url);
+                const response: Response = await fetch(url);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                data = await response.json();
+                data = (await response.json()) as UptimeResponse;
                 break;
-            } catch (error) {
+            } catch (error: unknown) {
                 console.warn(`Failed to fetch from ${url}:`, error);
             }
         }
 
         if (data) {
-            this.apiInstances = (data.api || [])
-                .map((item) => item.url || item)
-                .filter((url) => !url.includes('spotisaver.net'));
-            return this.apiInstances;
+            const instances: string[] = (data.api || [])
+                .map((item: UptimeApiItem): string => item.url ?? '')
+                .filter((url: string): boolean => url !== '' && !url.includes('spotisaver.net'));
+            this.apiInstances = instances;
+            return instances;
         }
 
         console.error('Failed to load instances from all uptime APIs');
@@ -62,84 +114,86 @@ class ServerAPI {
         ];
     }
 
-    async fetchWithRetry(relativePath) {
-        const instances = await this.getInstances();
+    async fetchWithRetry(relativePath: string): Promise<Response> {
+        const instances: string[] = await this.getInstances();
         if (instances.length === 0) {
             throw new Error('No API instances configured.');
         }
 
-        let lastError = null;
+        let lastError: unknown = null;
         for (const baseUrl of instances) {
-            const url = baseUrl.endsWith('/') ? `${baseUrl}${relativePath.substring(1)}` : `${baseUrl}${relativePath}`;
+            const url: string = baseUrl.endsWith('/') ? `${baseUrl}${relativePath.substring(1)}` : `${baseUrl}${relativePath}`;
             try {
-                const response = await fetch(url);
+                const response: Response = await fetch(url);
                 if (response.ok) {
                     return response;
                 }
                 lastError = new Error(`Request failed with status ${response.status}`);
-            } catch (error) {
+            } catch (error: unknown) {
                 lastError = error;
             }
         }
         throw lastError || new Error(`All API instances failed for: ${relativePath}`);
     }
 
-    async getTrackMetadata(id) {
-        const response = await this.fetchWithRetry(`/info/?id=${id}`);
-        const json = await response.json();
-        const data = json.data || json;
-        const items = Array.isArray(data) ? data : [data];
-        const found = items.find((i) => i.id == id || (i.item && i.item.id == id));
+    async getTrackMetadata(id: string): Promise<TrackMetadata> {
+        const response: Response = await this.fetchWithRetry(`/info/?id=${id}`);
+        const json = (await response.json()) as TrackInfoResponse;
+        const data: TrackInfoItem | TrackInfoItem[] = (json.data || json) as TrackInfoItem | TrackInfoItem[];
+        const items: TrackInfoItem[] = Array.isArray(data) ? data : [data];
+        const found: TrackInfoItem | undefined = items.find(
+            (i: TrackInfoItem) => i.id == id || (i.item && i.item.id == id)
+        );
         if (found) {
-            return found.item || found;
+            return (found.item || found) as TrackMetadata;
         }
         throw new Error('Track metadata not found');
     }
 
-    getCoverUrl(id, size = '1280') {
+    getCoverUrl(id: string, size: string = '1280'): string {
         if (!id) return '';
-        const formattedId = id.replace(/-/g, '/');
+        const formattedId: string = id.replace(/-/g, '/');
         return `https://resources.tidal.com/images/${formattedId}/${size}x${size}.jpg`;
     }
 
-    async getStreamUrl(id) {
-        const response = await this.fetchWithRetry(`/stream?id=${id}&quality=LOW`);
-        const data = await response.json();
+    async getStreamUrl(id: string): Promise<string | undefined> {
+        const response: Response = await this.fetchWithRetry(`/stream?id=${id}&quality=LOW`);
+        const data = (await response.json()) as StreamResponse;
         return data.url || data.streamUrl;
     }
 }
 
-export async function onRequest(context) {
+export async function onRequest(context: CFContext): Promise<Response> {
     const { request, params, env } = context;
-    const userAgent = request.headers.get('User-Agent') || '';
-    const isBot = /discordbot|twitterbot|facebookexternalhit|bingbot|googlebot|slurp|whatsapp|pinterest|slackbot/i.test(
+    const userAgent: string = request.headers.get('User-Agent') || '';
+    const isBot: boolean = /discordbot|twitterbot|facebookexternalhit|bingbot|googlebot|slurp|whatsapp|pinterest|slackbot/i.test(
         userAgent
     );
-    const trackId = params.id;
+    const trackId: string = params.id;
 
     if (isBot && trackId) {
         try {
-            const api = new ServerAPI();
-            const track = await api.getTrackMetadata(trackId);
+            const api: ServerAPI = new ServerAPI();
+            const track: TrackMetadata = await api.getTrackMetadata(trackId);
 
             if (track) {
-                const title = getTrackTitle(track);
-                const artist = getTrackArtists(track);
-                const description = `${artist} - ${track.album.title}`;
-                const imageUrl = api.getCoverUrl(track.album.cover, '1280');
-                const trackUrl = new URL(request.url).href;
+                const title: string = getTrackTitle(track);
+                const artist: string = getTrackArtists(track);
+                const description: string = `${artist} - ${track.album.title}`;
+                const imageUrl: string = api.getCoverUrl(track.album.cover, '1280');
+                const trackUrl: string = new URL(request.url).href;
 
-                let audioUrl = track.previewUrl || track.previewURL;
+                let audioUrl: string | undefined = track.previewUrl || track.previewURL;
 
                 if (!audioUrl) {
                     try {
                         audioUrl = await api.getStreamUrl(trackId);
-                    } catch (e) {
+                    } catch (e: unknown) {
                         console.error('Failed to fetch stream fallback:', e);
                     }
                 }
                 // this prob wont work im js winging it
-                const audioMeta = audioUrl
+                const audioMeta: string = audioUrl
                     ? `
                     <meta property="og:audio" content="${audioUrl}">
                     <meta property="og:audio:type" content="audio/mp4">
@@ -148,7 +202,7 @@ export async function onRequest(context) {
                 `
                     : '';
 
-                const metaHtml = `
+                const metaHtml: string = `
                     <!DOCTYPE html>
                     <html lang="en">
                     <head>
@@ -185,12 +239,12 @@ export async function onRequest(context) {
                     headers: { 'content-type': 'text/html;charset=UTF-8' },
                 });
             }
-        } catch (error) {
+        } catch (error: unknown) {
             console.error(`Error generating meta tags for track ${trackId}:`, error);
         }
     }
 
-    const url = new URL(request.url);
+    const url: URL = new URL(request.url);
     url.pathname = '/';
     return env.ASSETS.fetch(new Request(url, request));
 }
