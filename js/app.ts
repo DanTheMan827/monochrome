@@ -391,7 +391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.monochromePlayer = player;
 
     // Initialize tracker
-    initTracker(player);
+    initTracker(player as never);
 
     // Linux Media Keys Fix
     if (window.NL_MODE) {
@@ -482,9 +482,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializePlayerEvents(player as never, audioPlayer, scrobbler as never, ui);
     initializeTrackInteractions(
         player as never,
-        api,
-        document.querySelector('.main-content'),
-        document.getElementById('context-menu'),
+        api as never,
+        document.querySelector('.main-content') as HTMLElement,
+        document.getElementById('context-menu') as never,
         lyricsManager,
         ui,
         scrobbler as never
@@ -781,7 +781,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('download-current-btn')?.addEventListener('click', () => {
         if (player.currentTrack) {
-            handleTrackAction('download', player.currentTrack, player as never, api, lyricsManager, 'track', ui as never);
+            handleTrackAction('download', player.currentTrack, player as never, api as never, lyricsManager, 'track', ui as never);
         }
     });
 

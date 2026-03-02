@@ -3567,7 +3567,7 @@ export class UIRenderer {
                                                 if (songs && songs.length) trackCount += songs.length;
                                             });
                                         }
-                                        return createProjectCardHTML(e as Record<string, unknown>, trackerArtistData, sheetId, trackCount);
+                                        return createProjectCardHTML(e as never, trackerArtistData as never, sheetId, trackCount);
                                     })
                                     .join('');
 
@@ -3591,7 +3591,7 @@ export class UIRenderer {
                                                         songs.forEach((song: Record<string, unknown>) => {
                                                             const track = createTrackFromSong(
                                                                 song,
-                                                                era,
+                                                                era as never,
                                                                 (trackerArtistData as Record<string, unknown>).name as string,
                                                                 eraTracks.length,
                                                                 sheetId
