@@ -59,14 +59,14 @@ export const SVG_BIN =
 export const SVG_MIX =
     '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
 
-export const formatTime = (seconds) => {
+export const formatTime = (seconds: number): string => {
     if (isNaN(seconds)) return '0:00';
     const m = Math.floor(seconds / 60);
     const s = Math.floor(seconds % 60);
     return `${m}:${String(s).padStart(2, '0')}`;
 };
 
-export const getTrackYearDisplay = (track) => {
+export const getTrackYearDisplay = (track: TrackData): string => {
     const useAlbumYear = trackDateSettings.useAlbumYear();
     const releaseDate = useAlbumYear
         ? track?.album?.releaseDate || track?.streamStartDate
@@ -76,13 +76,13 @@ export const getTrackYearDisplay = (track) => {
     return isNaN(date.getTime()) ? '' : ` • ${date.getFullYear()}`;
 };
 
-export const createPlaceholder = (text, isLoading = false) => {
+export const createPlaceholder = (text: string, isLoading: boolean = false): string => {
     return `<div class="placeholder-text ${isLoading ? 'loading' : ''}">${text}</div>`;
 };
 
-export const trackDataStore = new WeakMap();
+export const trackDataStore = new WeakMap<object, TrackData>();
 
-export const sanitizeForFilename = (value) => {
+export const sanitizeForFilename = (value: string | null | undefined): string => {
     if (!value) return 'Unknown';
     return value
         .replace(/[\\/:*?"<>|]/g, '_')
@@ -96,7 +96,7 @@ export const sanitizeForFilename = (value) => {
  * @param {string} mimeType - MIME type from blob
  * @returns {string|null} - Format: 'flac', 'mp4', 'mp3', or null
  */
-export const detectAudioFormat = (view, mimeType = '') => {
+export const detectAudioFormat = (view: DataView, mimeType: string = ''): string | null => {
     // Check for FLAC signature: "fLaC" (0x66 0x4C 0x61 0x43)
     if (
         view.byteLength >= 4 &&
@@ -147,7 +147,7 @@ export const detectAudioFormat = (view, mimeType = '') => {
  * @param {Blob} blob - Audio blob to analyze
  * @returns {Promise<string>} - Extension: 'flac', 'm4a', 'mp3', or fallback based on mime
  */
-export const getExtensionFromBlob = async (blob) => {
+export const getExtensionFromBlob = async (blob: Blob): Promise<string> => {
     const buffer = await blob.slice(0, 12).arrayBuffer();
     const view = new DataView(buffer);
 
@@ -160,7 +160,7 @@ export const getExtensionFromBlob = async (blob) => {
     return 'flac';
 };
 
-export const getExtensionForQuality = (quality) => {
+export const getExtensionForQuality = (quality: string): string => {
     switch (quality) {
         case 'LOW':
         case 'HIGH':
@@ -172,7 +172,7 @@ export const getExtensionForQuality = (quality) => {
     }
 };
 
-export const buildTrackFilename = (track, quality, extension = null) => {
+export const buildTrackFilename = (track: TrackData, quality: string, extension: string | null = null): string => {
     const template = localStorage.getItem('filename-template') || '{trackNumber} - {artist} - {title}';
     const ext = extension || getExtensionForQuality(quality);
 
@@ -188,7 +188,7 @@ export const buildTrackFilename = (track, quality, extension = null) => {
     return formatTemplate(template, data) + '.' + ext;
 };
 
-const sanitizeToken = (value) => {
+const sanitizeToken = (value: string | null | undefined): string => {
     if (!value) return '';
     return value
         .trim()
@@ -196,7 +196,7 @@ const sanitizeToken = (value) => {
         .replace(/[^A-Z0-9]+/g, '_');
 };
 
-export const normalizeQualityToken = (value) => {
+export const normalizeQualityToken = (value: string | null | undefined): string | null => {
     if (!value) return null;
 
     const token = sanitizeToken(value);
@@ -209,7 +209,7 @@ export const normalizeQualityToken = (value) => {
     return null;
 };
 
-export const createQualityBadgeHTML = (track) => {
+export const createQualityBadgeHTML = (track: TrackData): string => {
     if (!qualityBadgeSettings.isEnabled()) return '';
 
     const quality = deriveTrackQuality(track);
@@ -219,10 +219,10 @@ export const createQualityBadgeHTML = (track) => {
     return '';
 };
 
-export const deriveQualityFromTags = (rawTags) => {
+export const deriveQualityFromTags = (rawTags: unknown[] | undefined): string | null => {
     if (!Array.isArray(rawTags)) return null;
 
-    const candidates = [];
+    const candidates: string[] = [];
     for (const tag of rawTags) {
         if (typeof tag !== 'string') continue;
         const normalized = normalizeQualityToken(tag);
@@ -234,7 +234,7 @@ export const deriveQualityFromTags = (rawTags) => {
     return pickBestQuality(candidates);
 };
 
-export const pickBestQuality = (candidates) => {
+export const pickBestQuality = (candidates: (string | null)[]): string | null => {
     let best = null;
     let bestRank = Infinity;
 
@@ -252,7 +252,7 @@ export const pickBestQuality = (candidates) => {
     return best;
 };
 
-export const deriveTrackQuality = (track) => {
+export const deriveTrackQuality = (track: TrackData | null): string | null => {
     if (!track) return null;
 
     const candidates = [
@@ -264,13 +264,13 @@ export const deriveTrackQuality = (track) => {
     return pickBestQuality(candidates);
 };
 
-export const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-export const hasExplicitContent = (item) => {
+export const hasExplicitContent = (item: TrackData | null | undefined): boolean => {
     return item?.explicit === true || item?.explicitLyrics === true;
 };
 
-export const isTrackUnavailable = (track) => {
+export const isTrackUnavailable = (track: TrackData | null | undefined): boolean => {
     if (!track) return true;
     if (track.isLocal) return false;
     // AllowStreaming false or StreamReady false usually mean unavailable
@@ -278,10 +278,10 @@ export const isTrackUnavailable = (track) => {
     return track.allowStreaming === false || track.streamReady === false || track.title === 'Unavailable';
 };
 
-export const debounce = (func, wait) => {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
+export const debounce = (func: (...args: unknown[]) => void, wait: number): ((...args: unknown[]) => void) => {
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    return function executedFunction(...args: unknown[]): void {
+        const later = (): void => {
             clearTimeout(timeout);
             func(...args);
         };
@@ -290,8 +290,8 @@ export const debounce = (func, wait) => {
     };
 };
 
-export const escapeHtml = (unsafe) => {
-    if (typeof unsafe !== 'string') return unsafe;
+export const escapeHtml = (unsafe: unknown): string => {
+    if (typeof unsafe !== 'string') return unsafe as string;
     return unsafe
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -300,12 +300,12 @@ export const escapeHtml = (unsafe) => {
         .replace(/'/g, '&#039;');
 };
 
-export const getTrackTitle = (track, { fallback = 'Unknown Title' } = {}) => {
+export const getTrackTitle = (track: TrackData | null | undefined, { fallback = 'Unknown Title' }: { fallback?: string } = {}): string => {
     if (!track?.title) return fallback;
     return track?.version ? `${track.title} (${track.version})` : track.title;
 };
 
-export const getTrackArtists = (track = {}, { fallback = 'Unknown Artist' } = {}) => {
+export const getTrackArtists = (track: Partial<TrackData> = {}, { fallback = 'Unknown Artist' }: { fallback?: string } = {}): string => {
     if (track?.artists?.length) {
         return track.artists.map((artist) => artist?.name).join(', ');
     }
@@ -313,7 +313,7 @@ export const getTrackArtists = (track = {}, { fallback = 'Unknown Artist' } = {}
     return fallback;
 };
 
-export const getTrackArtistsHTML = (track = {}, { fallback = 'Unknown Artist' } = {}) => {
+export const getTrackArtistsHTML = (track: Partial<TrackData> = {}, { fallback = 'Unknown Artist' }: { fallback?: string } = {}): string => {
     if (track?.artists?.length) {
         return track.artists
             .map((artist) => {
@@ -335,7 +335,17 @@ export const getTrackArtistsHTML = (track = {}, { fallback = 'Unknown Artist' } 
     return fallback;
 };
 
-export const formatTemplate = (template, data) => {
+interface TemplateData {
+    trackNumber?: number;
+    artist?: string;
+    title?: string;
+    album?: string;
+    albumArtist?: string;
+    albumTitle?: string;
+    year?: string;
+}
+
+export const formatTemplate = (template: string, data: TemplateData): string => {
     let result = template;
     result = result.replace(/\{trackNumber\}/g, data.trackNumber ? String(data.trackNumber).padStart(2, '0') : '00');
     result = result.replace(/\{artist\}/g, sanitizeForFilename(data.artist || 'Unknown Artist'));
@@ -347,12 +357,12 @@ export const formatTemplate = (template, data) => {
     return result;
 };
 
-export const calculateTotalDuration = (tracks) => {
+export const calculateTotalDuration = (tracks: TrackData[]): number => {
     if (!Array.isArray(tracks) || tracks.length === 0) return 0;
     return tracks.reduce((total, track) => total + (track.duration || 0), 0);
 };
 
-export const formatDuration = (seconds) => {
+export const formatDuration = (seconds: number): string => {
     if (!seconds || isNaN(seconds)) return '0 min';
 
     const hours = Math.floor(seconds / 3600);
@@ -364,10 +374,10 @@ export const formatDuration = (seconds) => {
     return `${minutes} min`;
 };
 
-const coverCache = new Map();
+const coverCache = new Map<string, Blob>();
 
-function resizeImageBlob(blob, size) {
-    return new Promise((resolve, reject) => {
+function resizeImageBlob(blob: Blob, size: number): Promise<Blob> {
+    return new Promise<Blob>((resolve, reject) => {
         const img = new Image();
         const url = URL.createObjectURL(blob);
         img.onload = () => {
@@ -376,6 +386,7 @@ function resizeImageBlob(blob, size) {
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
+            if (!ctx) { reject(new Error('Canvas 2D context unavailable')); return; }
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, size, size);
@@ -396,10 +407,14 @@ function resizeImageBlob(blob, size) {
     });
 }
 
+interface CoverApi {
+    getCoverUrl(coverId: string, size: string): string;
+}
+
 /**
  * Fetches and caches cover art as a Blob
  */
-export async function getCoverBlob(api, coverId) {
+export async function getCoverBlob(api: CoverApi, coverId: string | null | undefined): Promise<Blob | null> {
     if (!coverId) return null;
 
     let sizeStr = coverArtSizeSettings.getSize();
@@ -412,7 +427,10 @@ export async function getCoverBlob(api, coverId) {
     if (isNaN(requestedSize) || requestedSize <= 0) requestedSize = 1280;
 
     const cacheKey = `${coverId}-${requestedSize}`;
-    if (coverCache.has(cacheKey)) return coverCache.get(cacheKey);
+    if (coverCache.has(cacheKey)) {
+        const cached = coverCache.get(cacheKey);
+        if (cached) return cached;
+    }
 
     // Tidal seems to only support these soooo
     const supportedSizes = [80, 160, 320, 640, 1280];
@@ -423,7 +441,7 @@ export async function getCoverBlob(api, coverId) {
         fetchSize = bestSize;
     }
 
-    const fetchWithProxy = async (url) => {
+    const fetchWithProxy = async (url: string): Promise<Blob | null> => {
         try {
             const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
             const response = await fetch(proxyUrl);
@@ -473,7 +491,7 @@ export async function getCoverBlob(api, coverId) {
  * @param {number} y - Y coordinate (clientY)
  * @param {DOMRect} [anchorRect] - Optional anchor element rectangle
  */
-export function positionMenu(menu, x, y, anchorRect = null) {
+export function positionMenu(menu: HTMLElement, x: number, y: number, anchorRect: DOMRect | null = null): void {
     // Temporarily show to measure dimensions
     menu.style.visibility = 'hidden';
     menu.style.display = 'block';
@@ -525,7 +543,7 @@ export function positionMenu(menu, x, y, anchorRect = null) {
     menu.style.visibility = 'visible';
 }
 
-export const getShareUrl = (path) => {
+export const getShareUrl = (path: string): string => {
     const baseUrl = window.NL_MODE ? 'https://monochrome.tf' : window.location.origin;
     const safePath = path.startsWith('/') ? path : `/${path}`;
     return `${baseUrl}${safePath}`;
