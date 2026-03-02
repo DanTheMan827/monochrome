@@ -1,5 +1,6 @@
 //js/player.js
 import { MediaPlayer } from 'dashjs';
+import type { MediaPlayerClass } from 'dashjs';
 import {
     REPEAT_MODE,
     formatTime,
@@ -18,9 +19,50 @@ import {
     audioEffectsSettings,
 } from './storage.ts';
 import { audioContextManager } from './audio-context.ts';
+import type { MusicAPI } from './music-api.ts';
+
+interface ReplayGainValues {
+    trackReplayGain: number | undefined;
+    trackPeakAmplitude: number | undefined;
+    albumReplayGain: number | undefined;
+    albumPeakAmplitude: number | undefined;
+}
+
+interface SavedQueueState {
+    queue: TrackData[];
+    shuffledQueue: TrackData[];
+    originalQueueBeforeShuffle: TrackData[];
+    currentQueueIndex: number;
+    shuffleActive: boolean;
+    repeatMode: number;
+}
 
 export class Player {
-    constructor(audioElement, api, quality = 'HI_RES_LOSSLESS') {
+    audio: HTMLAudioElement;
+    api: MusicAPI;
+    quality: string;
+    queue: TrackData[];
+    shuffledQueue: TrackData[];
+    originalQueueBeforeShuffle: TrackData[];
+    currentQueueIndex: number;
+    shuffleActive: boolean;
+    repeatMode: number;
+    preloadCache: Map<string | number, string>;
+    preloadAbortController: AbortController | null;
+    currentTrack: TrackData | null;
+    currentRgValues: ReplayGainValues | null;
+    userVolume: number;
+    isFallbackRetry: boolean;
+    autoplayBlocked: boolean;
+    isIOS: boolean;
+    isPwa: boolean;
+    sleepTimer: ReturnType<typeof setTimeout> | null;
+    sleepTimerEndTime: number | null;
+    sleepTimerInterval: ReturnType<typeof setInterval> | null;
+    dashPlayer: MediaPlayerClass;
+    dashInitialized: boolean;
+
+    constructor(audioElement: HTMLAudioElement, api: MusicAPI, quality: string = 'HI_RES_LOSSLESS') {
         this.audio = audioElement;
         this.api = api;
         this.quality = quality;
@@ -40,7 +82,8 @@ export class Player {
         this.isIOS = typeof window !== 'undefined' && window.__IS_IOS__ === true;
         this.isPwa =
             typeof window !== 'undefined' &&
-            (window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator?.standalone === true);
+            (window.matchMedia?.('(display-mode: standalone)')?.matches ||
+                (window.navigator as Navigator & { standalone?: boolean })?.standalone === true);
 
         // Sleep timer properties
         this.sleepTimer = null;
@@ -81,13 +124,17 @@ export class Player {
         });
     }
 
-    setVolume(value) {
+    private getVideoCoverUrl(videoCoverId: string): string {
+        return (this.api as MusicAPI & { tidalAPI: { getVideoCoverUrl(id: string): string } }).tidalAPI.getVideoCoverUrl(videoCoverId);
+    }
+
+    setVolume(value: number): void {
         this.userVolume = Math.max(0, Math.min(1, value));
-        localStorage.setItem('volume', this.userVolume);
+        localStorage.setItem('volume', String(this.userVolume));
         this.applyReplayGain();
     }
 
-    applyReplayGain() {
+    applyReplayGain(): void {
         const mode = replayGainSettings.getMode(); // 'off', 'track', 'album'
         let gainDb = 0;
         let peak = 1.0;
@@ -134,21 +181,21 @@ export class Player {
         }
     }
 
-    applyAudioEffects() {
+    applyAudioEffects(): void {
         const speed = audioEffectsSettings.getSpeed();
         if (this.audio.playbackRate !== speed) {
             this.audio.playbackRate = speed;
         }
     }
 
-    setPlaybackSpeed(speed) {
-        const validSpeed = Math.max(0.01, Math.min(100, parseFloat(speed) || 1.0));
+    setPlaybackSpeed(speed: number): void {
+        const validSpeed = Math.max(0.01, Math.min(100, parseFloat(String(speed)) || 1.0));
         audioEffectsSettings.setSpeed(validSpeed);
         this.applyAudioEffects();
     }
 
-    loadQueueState() {
-        const savedState = queueManager.getQueue();
+    loadQueueState(): void {
+        const savedState = queueManager.getQueue() as SavedQueueState | null;
         if (savedState) {
             this.queue = savedState.queue || [];
             this.shuffledQueue = savedState.shuffledQueue || [];
@@ -168,14 +215,14 @@ export class Player {
                 const trackArtistsHTML = getTrackArtistsHTML(track);
                 const yearDisplay = getTrackYearDisplay(track);
 
-                const coverEl = document.querySelector('.now-playing-bar .cover');
-                const titleEl = document.querySelector('.now-playing-bar .title');
-                const albumEl = document.querySelector('.now-playing-bar .album');
-                const artistEl = document.querySelector('.now-playing-bar .artist');
+                const coverEl = document.querySelector('.now-playing-bar .cover') as HTMLElement | null;
+                const titleEl = document.querySelector('.now-playing-bar .title') as HTMLElement | null;
+                const albumEl = document.querySelector('.now-playing-bar .album') as HTMLElement | null;
+                const artistEl = document.querySelector('.now-playing-bar .artist') as HTMLElement | null;
 
                 if (coverEl) {
                     const videoCoverUrl = track.album?.videoCover
-                        ? this.api.tidalAPI.getVideoCoverUrl(track.album.videoCover)
+                        ? this.getVideoCoverUrl(track.album.videoCover as string)
                         : null;
                     const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover);
 
@@ -199,7 +246,7 @@ export class Player {
                             img.id = coverEl.id;
                             coverEl.replaceWith(img);
                         } else {
-                            coverEl.src = coverUrl;
+                            (coverEl as HTMLImageElement).src = coverUrl;
                         }
                     }
                 }
@@ -211,10 +258,10 @@ export class Player {
                     const albumTitle = track.album?.title || '';
                     if (albumTitle && albumTitle !== trackTitle) {
                         albumEl.textContent = albumTitle;
-                        albumEl.style.display = 'block';
+                        (albumEl as HTMLElement).style.display = 'block';
                     } else {
                         albumEl.textContent = '';
-                        albumEl.style.display = 'none';
+                        (albumEl as HTMLElement).style.display = 'none';
                     }
                 }
                 if (artistEl) artistEl.innerHTML = trackArtistsHTML + yearDisplay;
@@ -224,7 +271,7 @@ export class Player {
                     this.loadAlbumYear(track, trackArtistsHTML, artistEl);
                 }
 
-                const mixBtn = document.getElementById('now-playing-mix-btn');
+                const mixBtn = document.getElementById('now-playing-mix-btn') as HTMLElement | null;
                 if (mixBtn) {
                     mixBtn.style.display = track.mixes && track.mixes.TRACK_MIX ? 'flex' : 'none';
                 }
@@ -238,7 +285,7 @@ export class Player {
         }
     }
 
-    saveQueueState() {
+    saveQueueState(): void {
         queueManager.saveQueue({
             queue: this.queue,
             shuffledQueue: this.shuffledQueue,
@@ -249,11 +296,11 @@ export class Player {
         });
 
         if (window.renderQueueFunction) {
-            window.renderQueueFunction();
+            (window.renderQueueFunction as () => void)();
         }
     }
 
-    setupMediaSession() {
+    setupMediaSession(): void {
         if (!('mediaSession' in navigator)) return;
 
         navigator.mediaSession.setActionHandler('play', async () => {
@@ -322,18 +369,18 @@ export class Player {
         });
     }
 
-    setQuality(quality) {
+    setQuality(quality: string): void {
         this.quality = quality;
     }
 
-    async preloadNextTracks() {
+    async preloadNextTracks(): Promise<void> {
         if (this.preloadAbortController) {
             this.preloadAbortController.abort();
         }
 
         this.preloadAbortController = new AbortController();
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
-        const tracksToPreload = [];
+        const tracksToPreload: { track: TrackData; index: number }[] = [];
 
         for (let i = 1; i <= 2; i++) {
             const nextIndex = this.currentQueueIndex + i;
@@ -357,15 +404,15 @@ export class Player {
                 if (!streamUrl.startsWith('blob:')) {
                     fetch(streamUrl, { method: 'HEAD', signal: this.preloadAbortController.signal }).catch(() => {});
                 }
-            } catch (error) {
-                if (error.name !== 'AbortError') {
+            } catch (error: unknown) {
+                if (error instanceof Error && error.name !== 'AbortError') {
                     // console.debug('Failed to get stream URL for preload:', trackTitle);
                 }
             }
         }
     }
 
-    async playTrackFromQueue(startTime = 0, recursiveCount = 0) {
+    async playTrackFromQueue(startTime: number = 0, recursiveCount: number = 0): Promise<void> {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
         if (this.currentQueueIndex < 0 || this.currentQueueIndex >= currentQueue.length) {
             return;
@@ -394,10 +441,10 @@ export class Player {
         const trackArtistsHTML = getTrackArtistsHTML(track);
         const yearDisplay = getTrackYearDisplay(track);
 
-        const coverEl = document.querySelector('.now-playing-bar .cover');
+        const coverEl = document.querySelector('.now-playing-bar .cover') as HTMLElement | null;
         if (coverEl) {
             const videoCoverUrl = track.album?.videoCover
-                ? this.api.tidalAPI.getVideoCoverUrl(track.album.videoCover)
+                ? this.getVideoCoverUrl(track.album.videoCover as string)
                 : null;
             const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover);
 
@@ -421,13 +468,13 @@ export class Player {
                     img.id = coverEl.id;
                     coverEl.replaceWith(img);
                 } else {
-                    coverEl.src = coverUrl;
+                    (coverEl as HTMLImageElement).src = coverUrl;
                 }
             }
         }
-        document.querySelector('.now-playing-bar .title').innerHTML =
+        document.querySelector('.now-playing-bar .title')!.innerHTML =
             `${escapeHtml(trackTitle)} ${createQualityBadgeHTML(track)}`;
-        const albumEl = document.querySelector('.now-playing-bar .album');
+        const albumEl = document.querySelector('.now-playing-bar .album') as HTMLElement | null;
         if (albumEl) {
             const albumTitle = track.album?.title || '';
             if (albumTitle && albumTitle !== trackTitle) {
@@ -438,8 +485,8 @@ export class Player {
                 albumEl.style.display = 'none';
             }
         }
-        const artistEl = document.querySelector('.now-playing-bar .artist');
-        artistEl.innerHTML = trackArtistsHTML + yearDisplay;
+        const artistEl = document.querySelector('.now-playing-bar .artist') as HTMLElement | null;
+        if (artistEl) artistEl.innerHTML = trackArtistsHTML + yearDisplay;
 
         // Fetch album release date in background if missing
         if (!yearDisplay && track.album?.id) {
@@ -458,7 +505,7 @@ export class Player {
         this.updateNativeWindow(track);
 
         try {
-            let streamUrl;
+            let streamUrl: string | undefined;
 
             const isTracker = track.isTracker || (track.id && String(track.id).startsWith('tracker-'));
 
@@ -515,7 +562,7 @@ export class Player {
                     this.dashPlayer.reset(); // Ensure dash is off
                     this.dashInitialized = false;
                 }
-                streamUrl = URL.createObjectURL(track.file);
+                streamUrl = URL.createObjectURL(track.file as Blob);
                 this.currentRgValues = null; // No replaygain for local files yet
                 this.applyReplayGain();
 
@@ -590,7 +637,7 @@ export class Player {
                         this.dashPlayer.reset();
                         this.dashInitialized = false;
                     }
-                    this.audio.src = streamUrl;
+                    this.audio.src = streamUrl!;
                     this.applyAudioEffects();
 
                     // Wait for audio to be ready before playing
@@ -606,8 +653,8 @@ export class Player {
             }
 
             this.preloadNextTracks();
-        } catch (error) {
-            if (error && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
+        } catch (error: unknown) {
+            if (error instanceof Error && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
                 this.autoplayBlocked = true;
                 return;
             }
@@ -619,7 +666,7 @@ export class Player {
         }
     }
 
-    playAtIndex(index) {
+    playAtIndex(index: number): void {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
         if (index >= 0 && index < currentQueue.length) {
             this.currentQueueIndex = index;
@@ -627,7 +674,7 @@ export class Player {
         }
     }
 
-    playNext(recursiveCount = 0) {
+    playNext(recursiveCount: number = 0): void {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
         const isLastTrack = this.currentQueueIndex >= currentQueue.length - 1;
 
@@ -670,7 +717,7 @@ export class Player {
         });
     }
 
-    playPrev(recursiveCount = 0) {
+    playPrev(recursiveCount: number = 0): void {
         if (this.audio.currentTime > 3) {
             this.audio.currentTime = 0;
             this.updateMediaSessionPositionState();
@@ -695,7 +742,7 @@ export class Player {
         }
     }
 
-    handlePlayPause() {
+    handlePlayPause(): void {
         if (!this.audio.src || this.audio.error) {
             if (this.currentTrack) {
                 this.playTrackFromQueue(0, 0);
@@ -704,8 +751,8 @@ export class Player {
         }
 
         if (this.audio.paused) {
-            this.safePlay().catch((e) => {
-                if (e.name === 'NotAllowedError' || e.name === 'AbortError') return;
+            this.safePlay().catch((e: unknown) => {
+                if (e instanceof Error && (e.name === 'NotAllowedError' || e.name === 'AbortError')) return;
                 console.error('Play failed, reloading track:', e);
                 if (this.currentTrack) {
                     this.playTrackFromQueue(0, 0);
@@ -717,20 +764,20 @@ export class Player {
         }
     }
 
-    seekBackward(seconds = 10) {
+    seekBackward(seconds: number = 10): void {
         const newTime = Math.max(0, this.audio.currentTime - seconds);
         this.audio.currentTime = newTime;
         this.updateMediaSessionPositionState();
     }
 
-    seekForward(seconds = 10) {
+    seekForward(seconds: number = 10): void {
         const duration = this.audio.duration || 0;
         const newTime = Math.min(duration, this.audio.currentTime + seconds);
         this.audio.currentTime = newTime;
         this.updateMediaSessionPositionState();
     }
 
-    toggleShuffle() {
+    toggleShuffle(): void {
         this.shuffleActive = !this.shuffleActive;
 
         if (this.shuffleActive) {
@@ -765,13 +812,13 @@ export class Player {
         this.saveQueueState();
     }
 
-    toggleRepeat() {
+    toggleRepeat(): number {
         this.repeatMode = (this.repeatMode + 1) % 3;
         this.saveQueueState();
         return this.repeatMode;
     }
 
-    setQueue(tracks, startIndex = 0) {
+    setQueue(tracks: TrackData[], startIndex: number = 0): void {
         this.queue = tracks;
         this.currentQueueIndex = startIndex;
         this.shuffleActive = false;
@@ -779,7 +826,7 @@ export class Player {
         this.saveQueueState();
     }
 
-    addToQueue(trackOrTracks) {
+    addToQueue(trackOrTracks: TrackData | TrackData[]): void {
         const tracks = Array.isArray(trackOrTracks) ? trackOrTracks : [trackOrTracks];
         this.queue.push(...tracks);
 
@@ -795,7 +842,7 @@ export class Player {
         this.saveQueueState();
     }
 
-    addNextToQueue(trackOrTracks) {
+    addNextToQueue(trackOrTracks: TrackData | TrackData[]): void {
         const tracks = Array.isArray(trackOrTracks) ? trackOrTracks : [trackOrTracks];
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
         const insertIndex = this.currentQueueIndex + 1;
@@ -813,7 +860,7 @@ export class Player {
         this.preloadNextTracks(); // Update preload since next track changed
     }
 
-    removeFromQueue(index) {
+    removeFromQueue(index: number): void {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
 
         // If removing current track
@@ -841,7 +888,7 @@ export class Player {
         this.preloadNextTracks();
     }
 
-    clearQueue() {
+    clearQueue(): void {
         if (this.currentTrack) {
             this.queue = [this.currentTrack];
 
@@ -864,7 +911,7 @@ export class Player {
         this.saveQueueState();
     }
 
-    moveInQueue(fromIndex, toIndex) {
+    moveInQueue(fromIndex: number, toIndex: number): void {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
 
         if (fromIndex < 0 || fromIndex >= currentQueue.length) return;
@@ -883,11 +930,11 @@ export class Player {
         this.saveQueueState();
     }
 
-    getCurrentQueue() {
+    getCurrentQueue(): TrackData[] {
         return this.shuffleActive ? this.shuffledQueue : this.queue;
     }
 
-    getNextTrack() {
+    getNextTrack(): TrackData | null {
         const currentQueue = this.getCurrentQueue();
         if (this.currentQueueIndex === -1 || currentQueue.length === 0) return null;
 
@@ -900,14 +947,14 @@ export class Player {
         return null;
     }
 
-    loadAlbumYear(track, trackArtistsHTML, artistEl) {
+    loadAlbumYear(track: TrackData, trackArtistsHTML: string, artistEl: HTMLElement | null): void {
         if (!trackDateSettings.useAlbumYear()) return;
 
         this.api
-            .getAlbum(track.album.id)
-            .then(({ album }) => {
+            .getAlbum(track.album!.id)
+            .then(({ album }: { album?: TrackAlbum }) => {
                 if (album?.releaseDate && this.currentTrack?.id === track.id) {
-                    track.album.releaseDate = album.releaseDate;
+                    track.album!.releaseDate = album.releaseDate;
                     const year = new Date(album.releaseDate).getFullYear();
                     if (!isNaN(year) && artistEl) {
                         artistEl.innerHTML = `${trackArtistsHTML} • ${year}`;
@@ -917,26 +964,28 @@ export class Player {
             .catch(() => {});
     }
 
-    updatePlayingTrackIndicator() {
+    updatePlayingTrackIndicator(): void {
         const currentTrack = this.getCurrentQueue()[this.currentQueueIndex];
         document.querySelectorAll('.track-item').forEach((item) => {
-            item.classList.toggle('playing', currentTrack && item.dataset.trackId == currentTrack.id);
+            const el = item as HTMLElement;
+            item.classList.toggle('playing', currentTrack != null && el.dataset.trackId === String(currentTrack.id));
         });
 
         document.querySelectorAll('.queue-track-item').forEach((item) => {
-            const index = parseInt(item.dataset.queueIndex);
+            const el = item as HTMLElement;
+            const index = parseInt(el.dataset.queueIndex || '', 10);
             item.classList.toggle('playing', index === this.currentQueueIndex);
         });
     }
 
-    updateMediaSession(track) {
+    updateMediaSession(track: TrackData): void {
         if (!('mediaSession' in navigator)) return;
 
         // Force a refresh for picky Bluetooth systems by clearing metadata first
         navigator.mediaSession.metadata = null;
 
-        const artwork = [];
-        const sizes = ['320'];
+        const artwork: MediaImage[] = [];
+        const sizes: string[] = ['320'];
         const coverId = track.album?.cover;
         const trackTitle = getTrackTitle(track);
 
@@ -961,12 +1010,12 @@ export class Player {
         this.updateMediaSessionPositionState();
     }
 
-    updateMediaSessionPlaybackState() {
+    updateMediaSessionPlaybackState(): void {
         if (!('mediaSession' in navigator)) return;
         navigator.mediaSession.playbackState = this.audio.paused ? 'paused' : 'playing';
     }
 
-    updateMediaSessionPositionState() {
+    updateMediaSessionPositionState(): void {
         if (!('mediaSession' in navigator)) return;
         if (!('setPositionState' in navigator.mediaSession)) return;
 
@@ -987,13 +1036,13 @@ export class Player {
         }
     }
 
-    async safePlay() {
+    async safePlay(): Promise<boolean> {
         try {
             await this.audio.play();
             this.autoplayBlocked = false;
             return true;
-        } catch (error) {
-            if (error && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
+        } catch (error: unknown) {
+            if (error instanceof Error && (error.name === 'NotAllowedError' || error.name === 'AbortError')) {
                 this.autoplayBlocked = true;
                 return false;
             }
@@ -1001,7 +1050,7 @@ export class Player {
         }
     }
 
-    async waitForCanPlayOrTimeout(timeoutMs = 10000) {
+    async waitForCanPlayOrTimeout(timeoutMs: number = 10000): Promise<boolean> {
         if (this.audio.readyState >= 2) {
             return true;
         }
@@ -1012,7 +1061,7 @@ export class Player {
                 this.audio.removeEventListener('error', onError);
                 resolve(true);
             };
-            const onError = (e) => {
+            const onError = (e: Event) => {
                 this.audio.removeEventListener('canplay', onCanPlay);
                 this.audio.removeEventListener('error', onError);
                 reject(e);
@@ -1035,7 +1084,7 @@ export class Player {
     }
 
     // Sleep Timer Methods
-    setSleepTimer(minutes) {
+    setSleepTimer(minutes: number): void {
         this.clearSleepTimer(); // Clear any existing timer
 
         this.sleepTimerEndTime = Date.now() + minutes * 60 * 1000;
@@ -1057,7 +1106,7 @@ export class Player {
         this.updateSleepTimerUI();
     }
 
-    clearSleepTimer() {
+    clearSleepTimer(): void {
         if (this.sleepTimer) {
             clearTimeout(this.sleepTimer);
             this.sleepTimer = null;
@@ -1070,25 +1119,25 @@ export class Player {
         this.updateSleepTimerUI();
     }
 
-    getSleepTimerRemaining() {
+    getSleepTimerRemaining(): number | null {
         if (!this.sleepTimerEndTime) return null;
         const remaining = Math.max(0, this.sleepTimerEndTime - Date.now());
         return Math.ceil(remaining / 1000); // Return seconds remaining
     }
 
-    isSleepTimerActive() {
+    isSleepTimerActive(): boolean {
         return this.sleepTimer !== null;
     }
 
-    updateSleepTimerUI() {
+    updateSleepTimerUI(): void {
         const timerBtn = document.getElementById('sleep-timer-btn');
         const timerBtnDesktop = document.getElementById('sleep-timer-btn-desktop');
 
-        const updateBtn = (btn) => {
+        const updateBtn = (btn: HTMLElement | null): void => {
             if (!btn) return;
             if (this.isSleepTimerActive()) {
                 const remaining = this.getSleepTimerRemaining();
-                if (remaining > 0) {
+                if (remaining !== null && remaining > 0) {
                     const minutes = Math.floor(remaining / 60);
                     const seconds = remaining % 60;
                     btn.innerHTML = `<span style="font-size: 12px; font-weight: bold;">${minutes}:${seconds.toString().padStart(2, '0')}</span>`;
@@ -1123,7 +1172,7 @@ export class Player {
         updateBtn(timerBtnDesktop);
     }
 
-    async updateNativeWindow(track) {
+    async updateNativeWindow(track: TrackData): Promise<void> {
         if (!window.Neutralino) return;
 
         const trackTitle = getTrackTitle(track);
