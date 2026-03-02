@@ -17,38 +17,38 @@
  * See http://pajhome.org.uk/crypt/md5 for more info.
  */
 
-function md5(string, key, raw) {
-    function safeAdd(x, y) {
+function md5(string: string, key?: string, raw?: boolean): string {
+    function safeAdd(x: number, y: number): number {
         var lsw = (x & 0xffff) + (y & 0xffff);
         var msw = (x >> 16) + (y >> 16) + (lsw >> 16);
         return (msw << 16) | (lsw & 0xffff);
     }
 
-    function bitRotateLeft(num, cnt) {
+    function bitRotateLeft(num: number, cnt: number): number {
         return (num << cnt) | (num >>> (32 - cnt));
     }
 
-    function md5cmn(q, a, b, x, s, t) {
+    function md5cmn(q: number, a: number, b: number, x: number, s: number, t: number): number {
         return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b);
     }
 
-    function md5ff(a, b, c, d, x, s, t) {
+    function md5ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
         return md5cmn((b & c) | (~b & d), a, b, x, s, t);
     }
 
-    function md5gg(a, b, c, d, x, s, t) {
+    function md5gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
         return md5cmn((b & d) | (c & ~d), a, b, x, s, t);
     }
 
-    function md5hh(a, b, c, d, x, s, t) {
+    function md5hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
         return md5cmn(b ^ c ^ d, a, b, x, s, t);
     }
 
-    function md5ii(a, b, c, d, x, s, t) {
+    function md5ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
         return md5cmn(c ^ (b | ~d), a, b, x, s, t);
     }
 
-    function binlMD5(x, len) {
+    function binlMD5(x: number[], len: number): number[] {
         x[len >> 5] |= 0x80 << (len % 32);
         x[(((len + 64) >>> 9) << 4) + 14] = len;
         var i;
@@ -143,7 +143,7 @@ function md5(string, key, raw) {
         return [a, b, c, d];
     }
 
-    function binl2rstr(input) {
+    function binl2rstr(input: number[]): string {
         var i;
         var output = '';
         var length32 = input.length * 32;
@@ -153,7 +153,7 @@ function md5(string, key, raw) {
         return output;
     }
 
-    function rstr2binl(input) {
+    function rstr2binl(input: string): number[] {
         var i;
         var output = Array(input.length >> 2);
         for (i = 0; i < output.length; i += 1) {
@@ -166,11 +166,11 @@ function md5(string, key, raw) {
         return output;
     }
 
-    function rstrMD5(s) {
+    function rstrMD5(s: string): string {
         return binl2rstr(binlMD5(rstr2binl(s), s.length * 8));
     }
 
-    function rstrHMACMD5(key, data) {
+    function rstrHMACMD5(key: string, data: string): string {
         var i;
         var bkey = rstr2binl(key);
         if (bkey.length > 16) {
@@ -186,7 +186,7 @@ function md5(string, key, raw) {
         return binl2rstr(binlMD5(opad.concat(hash), 512 + 128));
     }
 
-    function rstr2hex(input) {
+    function rstr2hex(input: string): string {
         try {
             var hexTab = '0123456789abcdef';
             var output = '';
@@ -202,7 +202,7 @@ function md5(string, key, raw) {
         }
     }
 
-    function str2rstrUTF8(input) {
+    function str2rstrUTF8(input: string): string {
         var output = '';
         var i = -1;
         var x;
@@ -232,23 +232,23 @@ function md5(string, key, raw) {
         return output;
     }
 
-    function rawMD5(s) {
+    function rawMD5(s: string): string {
         return rstrMD5(str2rstrUTF8(s));
     }
 
-    function hexMD5(s) {
+    function hexMD5(s: string): string {
         return rstr2hex(rawMD5(s));
     }
 
-    function rawHMACMD5(k, d) {
+    function rawHMACMD5(k: string, d: string): string {
         return rstrHMACMD5(str2rstrUTF8(k), str2rstrUTF8(d));
     }
 
-    function hexHMACMD5(k, d) {
+    function hexHMACMD5(k: string, d: string): string {
         return rstr2hex(rawHMACMD5(k, d));
     }
 
-    function md5(string, key, raw) {
+    function md5(string: string, key?: string, raw?: boolean): string {
         if (!key) {
             if (!raw) {
                 return hexMD5(string);
