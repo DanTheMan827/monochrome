@@ -1,13 +1,81 @@
 //storage.js
+
+interface InstanceEntry {
+    url: string;
+    version: string;
+}
+
+interface InstancesData {
+    api: InstanceEntry[];
+    streaming: InstanceEntry[];
+}
+
+interface RecentItem {
+    id: string | number;
+    [key: string]: unknown;
+}
+
+interface RecentActivityStore {
+    artists: RecentItem[];
+    albums: RecentItem[];
+    playlists: RecentItem[];
+    mixes: RecentItem[];
+}
+
+interface BlockedArtistEntry {
+    id: string | number;
+    name: string;
+    blockedAt: number;
+}
+
+interface BlockedTrackEntry {
+    id: string | number;
+    title: string;
+    artist: string;
+    blockedAt: number;
+}
+
+interface BlockedAlbumEntry {
+    id: string | number;
+    title: string;
+    artist: string;
+    blockedAt: number;
+}
+
+interface FontConfigData {
+    type: string;
+    family: string;
+    fallback: string;
+    weights: number[];
+    url?: string;
+    fontId?: string;
+}
+
+interface CustomFontData {
+    name: string;
+    base64: string;
+    format: string;
+    size: number;
+    uploadedAt: number;
+}
+
+interface CustomEqPreset {
+    name: string;
+    gains: number[];
+    bandCount: number;
+    createdAt: number;
+    updatedAt?: number;
+}
+
 export const apiSettings = {
     STORAGE_KEY: 'monochrome-api-instances-v9',
     INSTANCES_URLS: [
         'https://tidal-uptime.jiffy-puffs-1j.workers.dev/',
         'https://tidal-uptime.props-76styles.workers.dev/',
     ],
-    defaultInstances: { api: [], streaming: [] },
+    defaultInstances: { api: [] as InstanceEntry[], streaming: [] as InstanceEntry[] } as InstancesData,
     instancesLoaded: false,
-    _loadPromise: null,
+    _loadPromise: null as Promise<InstancesData> | null,
 
     async loadInstancesFromGitHub() {
         if (this.instancesLoaded) {
@@ -86,15 +154,15 @@ export const apiSettings = {
                 return this.defaultInstances;
             }
 
-            let groupedInstances = { api: [], streaming: [] };
+            let groupedInstances: InstancesData = { api: [], streaming: [] };
 
             if (data.api && Array.isArray(data.api)) {
-                groupedInstances.api = data.api.filter((instance) => !instance.url.includes('spotisaver.net'));
+                groupedInstances.api = data.api.filter((instance: InstanceEntry) => !instance.url.includes('spotisaver.net'));
             }
 
             if (data.streaming && Array.isArray(data.streaming)) {
                 groupedInstances.streaming = data.streaming.filter(
-                    (instance) => !instance.url.includes('spotisaver.net')
+                    (instance: InstanceEntry) => !instance.url.includes('spotisaver.net')
                 );
             } else if (groupedInstances.api.length > 0) {
                 groupedInstances.streaming = [...groupedInstances.api];
@@ -122,12 +190,12 @@ export const apiSettings = {
         return this._loadPromise;
     },
 
-    async getInstances(type = 'api', _sortBySpeed = false) {
-        let instancesObj;
+    async getInstances(type: string = 'api', _sortBySpeed: boolean = false): Promise<InstanceEntry[]> {
+        let instancesObj: InstancesData;
 
         instancesObj = await this.loadInstancesFromGitHub();
 
-        const targetUrls = instancesObj[type] || instancesObj.api || [];
+        const targetUrls = instancesObj[type as keyof InstancesData] || instancesObj.api || [];
         if (targetUrls.length === 0) return [];
 
         return targetUrls;
@@ -136,7 +204,7 @@ export const apiSettings = {
     async refreshInstances() {
         const instances = await this.loadInstancesFromGitHub();
 
-        const shuffle = (array) => {
+        const shuffle = (array: InstanceEntry[]): InstanceEntry[] => {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [array[i], array[j]] = [array[j], array[i]];
@@ -157,7 +225,7 @@ export const apiSettings = {
         // Return API instances for the UI to render (default view)
         return this.getInstances('api');
     },
-    saveInstances(instances, type) {
+    saveInstances(instances: InstancesData | InstanceEntry[], type?: string) {
         if (type) {
             try {
                 const stored = localStorage.getItem(this.STORAGE_KEY);
@@ -188,7 +256,7 @@ export const recentActivityManager = {
         }
     },
 
-    _save(data) {
+    _save(data: RecentActivityStore) {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     },
 
@@ -196,9 +264,9 @@ export const recentActivityManager = {
         return this._get();
     },
 
-    _add(type, item) {
+    _add(type: keyof RecentActivityStore, item: RecentItem) {
         const data = this._get();
-        data[type] = data[type].filter((i) => i.id !== item.id);
+        data[type] = data[type].filter((i: RecentItem) => i.id !== item.id);
         data[type].unshift(item);
         data[type] = data[type].slice(0, this.LIMIT);
         this._save(data);
@@ -208,19 +276,19 @@ export const recentActivityManager = {
         this._save({ artists: [], albums: [], playlists: [], mixes: [] });
     },
 
-    addArtist(artist) {
+    addArtist(artist: RecentItem) {
         this._add('artists', artist);
     },
 
-    addAlbum(album) {
+    addAlbum(album: RecentItem) {
         this._add('albums', album);
     },
 
-    addPlaylist(playlist) {
+    addPlaylist(playlist: RecentItem) {
         this._add('playlists', playlist);
     },
 
-    addMix(mix) {
+    addMix(mix: RecentItem) {
         this._add('mixes', mix);
     },
 };
@@ -250,7 +318,7 @@ export const themeManager = {
         }
     },
 
-    setTheme(theme) {
+    setTheme(theme: string) {
         localStorage.setItem(this.STORAGE_KEY, theme);
 
         if (theme === 'system') {
@@ -284,28 +352,28 @@ export const themeManager = {
         }
     },
 
-    setCustomTheme(colors) {
+    setCustomTheme(colors: Record<string, string>) {
         localStorage.setItem(this.CUSTOM_THEME_KEY, JSON.stringify(colors));
         this.applyCustomTheme(colors);
         this.setTheme('custom');
     },
 
-    applyCustomTheme(colors) {
+    applyCustomTheme(colors: Record<string, string>) {
         const root = document.documentElement;
         for (const [key, value] of Object.entries(colors)) {
-            root.style.setProperty(`--${key}`, value);
+            root.style.setProperty(`--${key}`, value as string);
         }
     },
 };
 
 // Simple obfuscation to avoid clear-text storage of sensitive data
-function encodeSensitiveData(text) {
+function encodeSensitiveData(text: string): string {
     if (!text) return '';
     const encoded = btoa(text.split('').reverse().join(''));
     return encoded;
 }
 
-function decodeSensitiveData(encoded) {
+function decodeSensitiveData(encoded: string | null): string {
     if (!encoded) return '';
     try {
         return atob(encoded).split('').reverse().join('');
@@ -330,7 +398,7 @@ export const lastFMStorage = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 
@@ -342,7 +410,7 @@ export const lastFMStorage = {
         }
     },
 
-    setLoveOnLike(enabled) {
+    setLoveOnLike(enabled: boolean) {
         localStorage.setItem(this.LOVE_ON_LIKE_KEY, enabled ? 'true' : 'false');
     },
 
@@ -355,8 +423,8 @@ export const lastFMStorage = {
         }
     },
 
-    setScrobblePercentage(percentage) {
-        const validPercentage = Math.max(1, Math.min(100, parseInt(percentage, 10) || 75));
+    setScrobblePercentage(percentage: number | string) {
+        const validPercentage = Math.max(1, Math.min(100, parseInt(String(percentage), 10) || 75));
         localStorage.setItem(this.SCROBBLE_PERCENTAGE_KEY, validPercentage.toString());
     },
 
@@ -368,7 +436,7 @@ export const lastFMStorage = {
         }
     },
 
-    setUseCustomCredentials(enabled) {
+    setUseCustomCredentials(enabled: boolean) {
         localStorage.setItem(this.USE_CUSTOM_CREDENTIALS_KEY, enabled ? 'true' : 'false');
     },
 
@@ -381,7 +449,7 @@ export const lastFMStorage = {
         }
     },
 
-    setCustomApiKey(key) {
+    setCustomApiKey(key: string) {
         localStorage.setItem(this.CUSTOM_API_KEY, encodeSensitiveData(key));
     },
 
@@ -394,7 +462,7 @@ export const lastFMStorage = {
         }
     },
 
-    setCustomApiSecret(secret) {
+    setCustomApiSecret(secret: string) {
         localStorage.setItem(this.CUSTOM_API_SECRET, encodeSensitiveData(secret));
     },
 
@@ -416,7 +484,7 @@ export const nowPlayingSettings = {
         }
     },
 
-    setMode(mode) {
+    setMode(mode: string) {
         localStorage.setItem(this.STORAGE_KEY, mode);
     },
 };
@@ -432,7 +500,7 @@ export const lyricsSettings = {
         }
     },
 
-    setDownloadLyrics(enabled) {
+    setDownloadLyrics(enabled: boolean) {
         localStorage.setItem(this.DOWNLOAD_WITH_TRACKS, enabled ? 'true' : 'false');
     },
 };
@@ -449,7 +517,7 @@ export const backgroundSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -466,7 +534,7 @@ export const dynamicColorSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -484,7 +552,7 @@ export const cardSettings = {
         }
     },
 
-    setCompactArtist(enabled) {
+    setCompactArtist(enabled: boolean) {
         localStorage.setItem(this.COMPACT_ARTIST_KEY, enabled ? 'true' : 'false');
     },
 
@@ -496,7 +564,7 @@ export const cardSettings = {
         }
     },
 
-    setCompactAlbum(enabled) {
+    setCompactAlbum(enabled: boolean) {
         localStorage.setItem(this.COMPACT_ALBUM_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -507,15 +575,15 @@ export const replayGainSettings = {
     getMode() {
         return localStorage.getItem(this.STORAGE_KEY_MODE) || 'track';
     },
-    setMode(mode) {
+    setMode(mode: string) {
         localStorage.setItem(this.STORAGE_KEY_MODE, mode);
     },
     getPreamp() {
-        const val = parseFloat(localStorage.getItem(this.STORAGE_KEY_PREAMP));
+        const val = parseFloat(localStorage.getItem(this.STORAGE_KEY_PREAMP) || '');
         return isNaN(val) ? 3 : val;
     },
-    setPreamp(db) {
-        localStorage.setItem(this.STORAGE_KEY_PREAMP, db);
+    setPreamp(db: string | number) {
+        localStorage.setItem(this.STORAGE_KEY_PREAMP, String(db));
     },
 };
 
@@ -528,7 +596,7 @@ export const downloadQualitySettings = {
             return 'HI_RES_LOSSLESS';
         }
     },
-    setQuality(quality) {
+    setQuality(quality: string) {
         localStorage.setItem(this.STORAGE_KEY, quality);
     },
 };
@@ -542,7 +610,7 @@ export const losslessContainerSettings = {
             return 'flac';
         }
     },
-    setContainer(container) {
+    setContainer(container: string) {
         localStorage.setItem(this.STORAGE_KEY, container);
     },
 };
@@ -556,7 +624,7 @@ export const coverArtSizeSettings = {
             return '1280';
         }
     },
-    setSize(size) {
+    setSize(size: string) {
         localStorage.setItem(this.STORAGE_KEY, size);
     },
 };
@@ -572,7 +640,7 @@ export const waveformSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -588,7 +656,7 @@ export const smoothScrollingSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -605,7 +673,7 @@ export const qualityBadgeSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -622,7 +690,7 @@ export const trackDateSettings = {
         }
     },
 
-    setUseAlbumYear(enabled) {
+    setUseAlbumYear(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -638,7 +706,7 @@ export const bulkDownloadSettings = {
         }
     },
 
-    setForceIndividual(enabled) {
+    setForceIndividual(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -711,31 +779,31 @@ export const playlistSettings = {
         }
     },
 
-    setGenerateM3U(enabled) {
+    setGenerateM3U(enabled: boolean) {
         localStorage.setItem(this.M3U_KEY, enabled ? 'true' : 'false');
     },
 
-    setGenerateM3U8(enabled) {
+    setGenerateM3U8(enabled: boolean) {
         localStorage.setItem(this.M3U8_KEY, enabled ? 'true' : 'false');
     },
 
-    setGenerateCUE(enabled) {
+    setGenerateCUE(enabled: boolean) {
         localStorage.setItem(this.CUE_KEY, enabled ? 'true' : 'false');
     },
 
-    setGenerateNFO(enabled) {
+    setGenerateNFO(enabled: boolean) {
         localStorage.setItem(this.NFO_KEY, enabled ? 'true' : 'false');
     },
 
-    setGenerateJSON(enabled) {
+    setGenerateJSON(enabled: boolean) {
         localStorage.setItem(this.JSON_KEY, enabled ? 'true' : 'false');
     },
 
-    setUseRelativePaths(enabled) {
+    setUseRelativePaths(enabled: boolean) {
         localStorage.setItem(this.RELATIVE_PATHS_KEY, enabled ? 'true' : 'false');
     },
 
-    setSeparateDiscsInZip(enabled) {
+    setSeparateDiscsInZip(enabled: boolean) {
         localStorage.setItem(this.SEPARATE_DISCS_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -756,7 +824,7 @@ export const visualizerSettings = {
         }
     },
 
-    setPreset(preset) {
+    setPreset(preset: string) {
         localStorage.setItem(this.PRESET_KEY, preset);
     },
 
@@ -769,8 +837,8 @@ export const visualizerSettings = {
         }
     },
 
-    setEnabled(enabled) {
-        localStorage.setItem(this.ENABLED_KEY, enabled);
+    setEnabled(enabled: boolean | string) {
+        localStorage.setItem(this.ENABLED_KEY, String(enabled));
     },
 
     getMode() {
@@ -781,7 +849,7 @@ export const visualizerSettings = {
         }
     },
 
-    setMode(mode) {
+    setMode(mode: string) {
         localStorage.setItem(this.MODE_KEY, mode);
     },
 
@@ -795,8 +863,8 @@ export const visualizerSettings = {
         }
     },
 
-    setSensitivity(value) {
-        localStorage.setItem(this.SENSITIVITY_KEY, value);
+    setSensitivity(value: number | string) {
+        localStorage.setItem(this.SENSITIVITY_KEY, String(value));
     },
 
     isSmartIntensityEnabled() {
@@ -808,8 +876,8 @@ export const visualizerSettings = {
         }
     },
 
-    setSmartIntensity(enabled) {
-        localStorage.setItem(this.SMART_INTENSITY_KEY, enabled);
+    setSmartIntensity(enabled: boolean | string) {
+        localStorage.setItem(this.SMART_INTENSITY_KEY, String(enabled));
     },
 
     // Butterchurn preset cycle duration in seconds
@@ -822,7 +890,7 @@ export const visualizerSettings = {
         }
     },
 
-    setButterchurnCycleDuration(seconds) {
+    setButterchurnCycleDuration(seconds: number) {
         localStorage.setItem(this.BUTTERCHURN_CYCLE_KEY, seconds.toString());
     },
 
@@ -835,8 +903,8 @@ export const visualizerSettings = {
         }
     },
 
-    setButterchurnCycleEnabled(enabled) {
-        localStorage.setItem('butterchurn-cycle-enabled', enabled);
+    setButterchurnCycleEnabled(enabled: boolean | string) {
+        localStorage.setItem('butterchurn-cycle-enabled', String(enabled));
     },
 
     // Butterchurn randomize preset
@@ -848,8 +916,8 @@ export const visualizerSettings = {
         }
     },
 
-    setButterchurnRandomizeEnabled(enabled) {
-        localStorage.setItem('butterchurn-randomize-enabled', enabled);
+    setButterchurnRandomizeEnabled(enabled: boolean | string) {
+        localStorage.setItem('butterchurn-randomize-enabled', String(enabled));
     },
 };
 
@@ -888,7 +956,7 @@ export const equalizerSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
@@ -907,10 +975,10 @@ export const equalizerSettings = {
         return this.DEFAULT_BAND_COUNT;
     },
 
-    setBandCount(count) {
+    setBandCount(count: number | string) {
         const validCount = Math.max(
             this.MIN_BANDS,
-            Math.min(this.MAX_BANDS, parseInt(count, 10) || this.DEFAULT_BAND_COUNT)
+            Math.min(this.MAX_BANDS, parseInt(String(count), 10) || this.DEFAULT_BAND_COUNT)
         );
         localStorage.setItem(this.BAND_COUNT_KEY, validCount.toString());
     },
@@ -930,8 +998,8 @@ export const equalizerSettings = {
         return this.DEFAULT_RANGE_MIN;
     },
 
-    setRangeMin(value) {
-        const val = parseInt(value, 10);
+    setRangeMin(value: number | string) {
+        const val = parseInt(String(value), 10);
         if (!isNaN(val) && val >= this.ABSOLUTE_MIN && val < 0) {
             localStorage.setItem(this.RANGE_MIN_KEY, val.toString());
             return true;
@@ -954,8 +1022,8 @@ export const equalizerSettings = {
         return this.DEFAULT_RANGE_MAX;
     },
 
-    setRangeMax(value) {
-        const val = parseInt(value, 10);
+    setRangeMax(value: number | string) {
+        const val = parseInt(String(value), 10);
         if (!isNaN(val) && val > 0 && val <= this.ABSOLUTE_MAX) {
             localStorage.setItem(this.RANGE_MAX_KEY, val.toString());
             return true;
@@ -970,7 +1038,7 @@ export const equalizerSettings = {
         };
     },
 
-    setRange(min, max) {
+    setRange(min: number | string, max: number | string) {
         const validMin = this.setRangeMin(min);
         const validMax = this.setRangeMax(max);
         return validMin && validMax;
@@ -991,8 +1059,8 @@ export const equalizerSettings = {
         return this.DEFAULT_FREQ_MIN;
     },
 
-    setFreqMin(value) {
-        const val = parseInt(value, 10);
+    setFreqMin(value: number | string) {
+        const val = parseInt(String(value), 10);
         // Get effective max from storage without recursive call
         let effectiveMax = this.DEFAULT_FREQ_MAX;
         try {
@@ -1040,8 +1108,8 @@ export const equalizerSettings = {
         return this.DEFAULT_FREQ_MAX;
     },
 
-    setFreqMax(value) {
-        const maxVal = parseInt(value, 10);
+    setFreqMax(value: number | string) {
+        const maxVal = parseInt(String(value), 10);
         if (!isNaN(maxVal) && maxVal > this.ABSOLUTE_FREQ_MIN && maxVal <= this.ABSOLUTE_FREQ_MAX) {
             // Check against stored min without recursive call
             try {
@@ -1068,7 +1136,7 @@ export const equalizerSettings = {
         };
     },
 
-    setFreqRange(min, max) {
+    setFreqRange(min: number | string, max: number | string) {
         const validMax = this.setFreqMax(max);
         const validMin = this.setFreqMin(min);
         return validMin && validMax;
@@ -1089,8 +1157,8 @@ export const equalizerSettings = {
         return this.DEFAULT_PREAMP;
     },
 
-    setPreamp(value) {
-        const val = parseFloat(value);
+    setPreamp(value: number | string) {
+        const val = parseFloat(String(value));
         if (!isNaN(val) && val >= this.PREAMP_MIN && val <= this.PREAMP_MAX) {
             localStorage.setItem(this.PREAMP_KEY, val.toString());
             return true;
@@ -1098,7 +1166,7 @@ export const equalizerSettings = {
         return false;
     },
 
-    getGains(bandCount) {
+    getGains(bandCount?: number): number[] {
         const count = bandCount || this.getBandCount();
         try {
             const stored = localStorage.getItem(this.GAINS_KEY);
@@ -1122,7 +1190,7 @@ export const equalizerSettings = {
         return new Array(count).fill(0);
     },
 
-    setGains(gains) {
+    setGains(gains: number[]) {
         try {
             if (Array.isArray(gains) && gains.length >= this.MIN_BANDS && gains.length <= this.MAX_BANDS) {
                 localStorage.setItem(this.GAINS_KEY, JSON.stringify(gains));
@@ -1135,7 +1203,7 @@ export const equalizerSettings = {
     /**
      * Interpolate gains array to match target band count
      */
-    _interpolateGains(sourceGains, targetCount) {
+    _interpolateGains(sourceGains: number[], targetCount: number): number[] {
         if (sourceGains.length === targetCount) {
             return [...sourceGains];
         }
@@ -1165,12 +1233,12 @@ export const equalizerSettings = {
         }
     },
 
-    setPreset(preset) {
+    setPreset(preset: string) {
         localStorage.setItem(this.PRESET_KEY, preset);
     },
 
     // Custom Preset Methods
-    getCustomPresets() {
+    getCustomPresets(): Record<string, CustomEqPreset> {
         try {
             const stored = localStorage.getItem(this.CUSTOM_PRESETS_KEY);
             if (stored) {
@@ -1185,7 +1253,7 @@ export const equalizerSettings = {
         return {};
     },
 
-    saveCustomPreset(name, gains) {
+    saveCustomPreset(name: string, gains: number[]): string | false {
         try {
             if (!name || !Array.isArray(gains) || gains.length < this.MIN_BANDS || gains.length > this.MAX_BANDS) {
                 console.warn('[EQ] Invalid preset data');
@@ -1220,7 +1288,7 @@ export const equalizerSettings = {
         }
     },
 
-    deleteCustomPreset(presetId) {
+    deleteCustomPreset(presetId: string) {
         try {
             const presets = this.getCustomPresets();
             if (presets[presetId]) {
@@ -1235,7 +1303,7 @@ export const equalizerSettings = {
         }
     },
 
-    updateCustomPreset(presetId, name, gains) {
+    updateCustomPreset(presetId: string, name: string | undefined, gains?: number[]) {
         try {
             const presets = this.getCustomPresets();
             if (!presets[presetId]) {
@@ -1277,7 +1345,7 @@ export const monoAudioSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -1293,13 +1361,13 @@ export const exponentialVolumeSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 
     // Apply exponential curve to linear volume (0-1)
     // Uses a power curve: output = input^3 for more natural volume control
-    applyCurve(linearVolume) {
+    applyCurve(linearVolume: number): number {
         if (!this.isEnabled()) {
             return linearVolume;
         }
@@ -1309,7 +1377,7 @@ export const exponentialVolumeSettings = {
     },
 
     // Convert from perceived volume back to linear for UI
-    inverseCurve(perceivedVolume) {
+    inverseCurve(perceivedVolume: number): number {
         if (!this.isEnabled()) {
             return perceivedVolume;
         }
@@ -1323,15 +1391,15 @@ export const audioEffectsSettings = {
     // Playback speed (0.01 to 100, default 1.0)
     getSpeed() {
         try {
-            const val = parseFloat(localStorage.getItem(this.SPEED_KEY));
+            const val = parseFloat(localStorage.getItem(this.SPEED_KEY) || '');
             return isNaN(val) ? 1.0 : Math.max(0.01, Math.min(100, val));
         } catch {
             return 1.0;
         }
     },
 
-    setSpeed(speed) {
-        const validSpeed = Math.max(0.01, Math.min(100, parseFloat(speed) || 1.0));
+    setSpeed(speed: number | string) {
+        const validSpeed = Math.max(0.01, Math.min(100, parseFloat(String(speed)) || 1.0));
         localStorage.setItem(this.SPEED_KEY, validSpeed.toString());
     },
 };
@@ -1347,7 +1415,7 @@ export const settingsUiState = {
         }
     },
 
-    setActiveTab(tab) {
+    setActiveTab(tab: string) {
         localStorage.setItem(this.ACTIVE_TAB_KEY, tab);
     },
 };
@@ -1364,7 +1432,7 @@ export const queueManager = {
         }
     },
 
-    saveQueue(queueState) {
+    saveQueue(queueState: Record<string, unknown>) {
         try {
             // Only save essential data to avoid quota limits
             const minimalState = {
@@ -1393,7 +1461,7 @@ export const sidebarSettings = {
         }
     },
 
-    setCollapsed(collapsed) {
+    setCollapsed(collapsed: boolean) {
         localStorage.setItem(this.STORAGE_KEY, collapsed ? 'true' : 'false');
     },
 
@@ -1423,7 +1491,7 @@ export const listenBrainzSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1435,7 +1503,7 @@ export const listenBrainzSettings = {
         }
     },
 
-    setToken(token) {
+    setToken(token: string) {
         localStorage.setItem(this.TOKEN_KEY, token);
     },
 
@@ -1447,7 +1515,7 @@ export const listenBrainzSettings = {
         }
     },
 
-    setCustomUrl(url) {
+    setCustomUrl(url: string) {
         localStorage.setItem(this.CUSTOM_URL_KEY, url);
     },
 };
@@ -1465,7 +1533,7 @@ export const malojaSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1477,7 +1545,7 @@ export const malojaSettings = {
         }
     },
 
-    setToken(token) {
+    setToken(token: string) {
         localStorage.setItem(this.TOKEN_KEY, token);
     },
 
@@ -1489,7 +1557,7 @@ export const malojaSettings = {
         }
     },
 
-    setCustomUrl(url) {
+    setCustomUrl(url: string) {
         localStorage.setItem(this.CUSTOM_URL_KEY, url);
     },
 };
@@ -1506,7 +1574,7 @@ export const libreFmSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1518,7 +1586,7 @@ export const libreFmSettings = {
         }
     },
 
-    setLoveOnLike(enabled) {
+    setLoveOnLike(enabled: boolean) {
         localStorage.setItem(this.LOVE_ON_LIKE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -1538,7 +1606,7 @@ export const homePageSettings = {
         }
     },
 
-    setShowRecommendedSongs(enabled) {
+    setShowRecommendedSongs(enabled: boolean) {
         localStorage.setItem(this.SHOW_RECOMMENDED_SONGS_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1551,7 +1619,7 @@ export const homePageSettings = {
         }
     },
 
-    setShowRecommendedAlbums(enabled) {
+    setShowRecommendedAlbums(enabled: boolean) {
         localStorage.setItem(this.SHOW_RECOMMENDED_ALBUMS_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1564,7 +1632,7 @@ export const homePageSettings = {
         }
     },
 
-    setShowRecommendedArtists(enabled) {
+    setShowRecommendedArtists(enabled: boolean) {
         localStorage.setItem(this.SHOW_RECOMMENDED_ARTISTS_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1577,7 +1645,7 @@ export const homePageSettings = {
         }
     },
 
-    setShowJumpBackIn(enabled) {
+    setShowJumpBackIn(enabled: boolean) {
         localStorage.setItem(this.SHOW_JUMP_BACK_IN_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1592,7 +1660,7 @@ export const homePageSettings = {
         }
     },
 
-    setShowEditorsPicks(enabled) {
+    setShowEditorsPicks(enabled: boolean) {
         localStorage.setItem(this.SHOW_EDITORS_PICKS_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1607,7 +1675,7 @@ export const homePageSettings = {
         }
     },
 
-    setShuffleEditorsPicks(enabled) {
+    setShuffleEditorsPicks(enabled: boolean) {
         localStorage.setItem(this.SHUFFLE_EDITORS_PICKS_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -1624,7 +1692,7 @@ export const analyticsSettings = {
         }
     },
 
-    setEnabled(enabled) {
+    setEnabled(enabled: boolean) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -1652,7 +1720,7 @@ export const sidebarSectionSettings = {
         'sidebar-nav-discordbtn',
     ],
 
-    getBottomNavIds() {
+    getBottomNavIds(): string[] {
         const ul = document.querySelector('.sidebar-nav.bottom ul');
         if (!ul) return [];
         return Array.from(ul.children).map((li) => li.id);
@@ -1667,7 +1735,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowHome(enabled) {
+    setShowHome(enabled: boolean) {
         localStorage.setItem(this.SHOW_HOME_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1680,7 +1748,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowLibrary(enabled) {
+    setShowLibrary(enabled: boolean) {
         localStorage.setItem(this.SHOW_LIBRARY_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1693,7 +1761,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowRecent(enabled) {
+    setShowRecent(enabled: boolean) {
         localStorage.setItem(this.SHOW_RECENT_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1706,7 +1774,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowUnreleased(enabled) {
+    setShowUnreleased(enabled: boolean) {
         localStorage.setItem(this.SHOW_UNRELEASED_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1719,7 +1787,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowDonate(enabled) {
+    setShowDonate(enabled: boolean) {
         localStorage.setItem(this.SHOW_DONATE_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1727,7 +1795,7 @@ export const sidebarSectionSettings = {
         return true;
     },
 
-    setShowSettings(enabled) {
+    setShowSettings(enabled: boolean) {
         if (enabled) {
             localStorage.setItem(this.SHOW_SETTINGS_KEY, 'true');
         } else {
@@ -1744,7 +1812,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowAbout(enabled) {
+    setShowAbout(enabled: boolean) {
         localStorage.setItem(this.SHOW_ABOUT_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1757,7 +1825,7 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowDownload(enabled) {
+    setShowDownload(enabled: boolean) {
         localStorage.setItem(this.SHOW_DOWNLOAD_KEY, enabled ? 'true' : 'false');
     },
 
@@ -1770,11 +1838,11 @@ export const sidebarSectionSettings = {
         }
     },
 
-    setShowDiscord(enabled) {
+    setShowDiscord(enabled: boolean) {
         localStorage.setItem(this.SHOW_DISCORD_KEY, enabled ? 'true' : 'false');
     },
 
-    normalizeOrder(order) {
+    normalizeOrder(order: string[]): string[] {
         const baseOrder = this.DEFAULT_ORDER;
         const safeOrder = Array.isArray(order) ? order.filter((id) => baseOrder.includes(id)) : [];
         const uniqueOrder = [...new Set(safeOrder)];
@@ -1794,7 +1862,7 @@ export const sidebarSectionSettings = {
         return this.normalizeOrder([]);
     },
 
-    setOrder(order) {
+    setOrder(order: string[]) {
         const normalized = this.normalizeOrder(order);
         localStorage.setItem(this.ORDER_KEY, JSON.stringify(normalized));
     },
@@ -1889,8 +1957,8 @@ export const fontSettings = {
         return this.getDefaultFontSize();
     },
 
-    setFontSize(size) {
-        const validSize = Math.max(50, Math.min(200, parseInt(size, 10) || 100));
+    setFontSize(size: number | string) {
+        const validSize = Math.max(50, Math.min(200, parseInt(String(size), 10) || 100));
         localStorage.setItem(this.FONT_SIZE_KEY, validSize.toString());
         this.applyFontSize();
         return validSize;
@@ -1919,11 +1987,11 @@ export const fontSettings = {
         return this.getDefaultConfig();
     },
 
-    setConfig(config) {
+    setConfig(config: FontConfigData) {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(config));
     },
 
-    parseGoogleFontsUrl(url) {
+    parseGoogleFontsUrl(url: string): string | null {
         try {
             if (url.includes('fonts.google.com/specimen/')) {
                 const match = url.match(/specimen\/([^/?]+)/);
@@ -1943,7 +2011,7 @@ export const fontSettings = {
         return null;
     },
 
-    async loadGoogleFont(familyName) {
+    async loadGoogleFont(familyName: string) {
         // Validate familyName to prevent injection
         if (!familyName || typeof familyName !== 'string') {
             return;
@@ -1957,7 +2025,7 @@ export const fontSettings = {
         const encodedFamily = encodeURIComponent(sanitizedFamily);
         const url = `https://fonts.googleapis.com/css2?family=${encodedFamily}:wght@100;200;300;400;500;600;700;800;900&display=swap`;
 
-        let link = document.getElementById(this.FONT_LINK_ID);
+        let link = document.getElementById(this.FONT_LINK_ID) as HTMLLinkElement | null;
         if (!link) {
             link = document.createElement('link');
             link.id = this.FONT_LINK_ID;
@@ -1977,7 +2045,7 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', `'${familyName}', sans-serif`);
     },
 
-    async loadFontFromUrl(url, familyName) {
+    async loadFontFromUrl(url: string, familyName?: string) {
         const weights = [100, 200, 300, 400, 500, 600, 700, 800, 900];
         const fontFaceId = this.FONT_FACE_ID;
 
@@ -2012,9 +2080,9 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', `'${fontFamily}', sans-serif`);
     },
 
-    getFontFormat(url) {
-        const ext = url.split('.').pop().toLowerCase();
-        const formats = {
+    getFontFormat(url: string): string {
+        const ext = url.split('.').pop()?.toLowerCase() || '';
+        const formats: Record<string, string> = {
             woff2: 'woff2',
             woff: 'woff',
             ttf: 'truetype',
@@ -2023,11 +2091,11 @@ export const fontSettings = {
         return formats[ext] || 'woff2';
     },
 
-    async saveUploadedFont(file) {
+    async saveUploadedFont(file: File): Promise<CustomFontData & { id: string }> {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const base64 = e.target.result;
+            reader.onload = (e: ProgressEvent<FileReader>) => {
+                const base64 = e.target?.result as string;
                 const fontId = 'uploaded-' + Date.now();
                 const customFonts = this.getCustomFonts();
 
@@ -2047,7 +2115,7 @@ export const fontSettings = {
         });
     },
 
-    getCustomFonts() {
+    getCustomFonts(): Record<string, CustomFontData> {
         try {
             const stored = localStorage.getItem(this.CUSTOM_FONTS_KEY);
             return stored ? JSON.parse(stored) : {};
@@ -2056,7 +2124,7 @@ export const fontSettings = {
         }
     },
 
-    async loadUploadedFont(fontId) {
+    async loadUploadedFont(fontId: string) {
         const customFonts = this.getCustomFonts();
         const font = customFonts[fontId];
 
@@ -2095,13 +2163,13 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', `'${fontFamily}', sans-serif`);
     },
 
-    deleteUploadedFont(fontId) {
+    deleteUploadedFont(fontId: string) {
         const customFonts = this.getCustomFonts();
         delete customFonts[fontId];
         localStorage.setItem(this.CUSTOM_FONTS_KEY, JSON.stringify(customFonts));
     },
 
-    loadPresetFont(family, fallback = 'sans-serif') {
+    loadPresetFont(family: string, fallback: string = 'sans-serif') {
         let link = document.getElementById(this.FONT_LINK_ID);
         if (link) {
             link.remove();
@@ -2139,7 +2207,7 @@ export const fontSettings = {
         }
 
         // Load Apple font CSS
-        let link = document.getElementById(APPLE_FONT_LINK_ID);
+        let link = document.getElementById(APPLE_FONT_LINK_ID) as HTMLLinkElement | null;
         if (!link) {
             link = document.createElement('link');
             link.id = APPLE_FONT_LINK_ID;
@@ -2184,7 +2252,7 @@ export const fontSettings = {
 
     getUploadedFontList() {
         const fonts = this.getCustomFonts();
-        return Object.entries(fonts).map(([id, font]) => ({
+        return Object.entries(fonts).map(([id, font]: [string, CustomFontData]) => ({
             id,
             name: font.name,
             size: font.size,
@@ -2205,7 +2273,7 @@ export const pwaUpdateSettings = {
         }
     },
 
-    setAutoUpdateEnabled(enabled) {
+    setAutoUpdateEnabled(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -2221,7 +2289,7 @@ export const musicProviderSettings = {
         }
     },
 
-    setProvider(provider) {
+    setProvider(provider: string) {
         localStorage.setItem(this.STORAGE_KEY, provider);
     },
 };
@@ -2242,7 +2310,7 @@ export const modalSettings = {
         }
     },
 
-    setCloseOnNavigation(enabled) {
+    setCloseOnNavigation(enabled: boolean) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 
@@ -2258,7 +2326,7 @@ export const modalSettings = {
         }
     },
 
-    setInterceptBackToClose(enabled) {
+    setInterceptBackToClose(enabled: boolean) {
         localStorage.setItem(this.INTERCEPT_BACK_KEY, enabled ? 'true' : 'false');
     },
 
@@ -2334,7 +2402,7 @@ export const contentBlockingSettings = {
     BLOCKED_ALBUMS_KEY: 'blocked-albums',
 
     // Blocked Artists
-    getBlockedArtists() {
+    getBlockedArtists(): BlockedArtistEntry[] {
         try {
             const data = localStorage.getItem(this.BLOCKED_ARTISTS_KEY);
             return data ? JSON.parse(data) : [];
@@ -2343,19 +2411,19 @@ export const contentBlockingSettings = {
         }
     },
 
-    setBlockedArtists(artists) {
+    setBlockedArtists(artists: BlockedArtistEntry[]) {
         localStorage.setItem(this.BLOCKED_ARTISTS_KEY, JSON.stringify(artists));
     },
 
-    isArtistBlocked(artistId) {
+    isArtistBlocked(artistId: string | number) {
         if (!artistId) return false;
-        return this.getBlockedArtists().some((a) => a.id === artistId);
+        return this.getBlockedArtists().some((a: BlockedArtistEntry) => a.id === artistId);
     },
 
-    blockArtist(artist) {
+    blockArtist(artist: { id: string | number; name?: string }) {
         if (!artist || !artist.id) return;
         const blocked = this.getBlockedArtists();
-        if (!blocked.some((a) => a.id === artist.id)) {
+        if (!blocked.some((a: BlockedArtistEntry) => a.id === artist.id)) {
             blocked.push({
                 id: artist.id,
                 name: artist.name || 'Unknown Artist',
@@ -2365,13 +2433,13 @@ export const contentBlockingSettings = {
         }
     },
 
-    unblockArtist(artistId) {
-        const blocked = this.getBlockedArtists().filter((a) => a.id !== artistId);
+    unblockArtist(artistId: string | number) {
+        const blocked = this.getBlockedArtists().filter((a: BlockedArtistEntry) => a.id !== artistId);
         this.setBlockedArtists(blocked);
     },
 
     // Blocked Tracks
-    getBlockedTracks() {
+    getBlockedTracks(): BlockedTrackEntry[] {
         try {
             const data = localStorage.getItem(this.BLOCKED_TRACKS_KEY);
             return data ? JSON.parse(data) : [];
@@ -2380,36 +2448,36 @@ export const contentBlockingSettings = {
         }
     },
 
-    setBlockedTracks(tracks) {
+    setBlockedTracks(tracks: BlockedTrackEntry[]) {
         localStorage.setItem(this.BLOCKED_TRACKS_KEY, JSON.stringify(tracks));
     },
 
-    isTrackBlocked(trackId) {
+    isTrackBlocked(trackId: string | number) {
         if (!trackId) return false;
-        return this.getBlockedTracks().some((t) => t.id === trackId);
+        return this.getBlockedTracks().some((t: BlockedTrackEntry) => t.id === trackId);
     },
 
-    blockTrack(track) {
+    blockTrack(track: TrackData) {
         if (!track || !track.id) return;
         const blocked = this.getBlockedTracks();
-        if (!blocked.some((t) => t.id === track.id)) {
+        if (!blocked.some((t: BlockedTrackEntry) => t.id === track.id)) {
             blocked.push({
                 id: track.id,
                 title: track.title || 'Unknown Track',
-                artist: track.artist?.name || track.artist || 'Unknown Artist',
+                artist: track.artist?.name || 'Unknown Artist',
                 blockedAt: Date.now(),
             });
             this.setBlockedTracks(blocked);
         }
     },
 
-    unblockTrack(trackId) {
-        const blocked = this.getBlockedTracks().filter((t) => t.id !== trackId);
+    unblockTrack(trackId: string | number) {
+        const blocked = this.getBlockedTracks().filter((t: BlockedTrackEntry) => t.id !== trackId);
         this.setBlockedTracks(blocked);
     },
 
     // Blocked Albums
-    getBlockedAlbums() {
+    getBlockedAlbums(): BlockedAlbumEntry[] {
         try {
             const data = localStorage.getItem(this.BLOCKED_ALBUMS_KEY);
             return data ? JSON.parse(data) : [];
@@ -2418,36 +2486,36 @@ export const contentBlockingSettings = {
         }
     },
 
-    setBlockedAlbums(albums) {
+    setBlockedAlbums(albums: BlockedAlbumEntry[]) {
         localStorage.setItem(this.BLOCKED_ALBUMS_KEY, JSON.stringify(albums));
     },
 
-    isAlbumBlocked(albumId) {
+    isAlbumBlocked(albumId: string | number) {
         if (!albumId) return false;
-        return this.getBlockedAlbums().some((a) => a.id === albumId);
+        return this.getBlockedAlbums().some((a: BlockedAlbumEntry) => a.id === albumId);
     },
 
-    blockAlbum(album) {
+    blockAlbum(album: TrackAlbum) {
         if (!album || !album.id) return;
         const blocked = this.getBlockedAlbums();
-        if (!blocked.some((a) => a.id === album.id)) {
+        if (!blocked.some((a: BlockedAlbumEntry) => a.id === album.id)) {
             blocked.push({
                 id: album.id,
                 title: album.title || 'Unknown Album',
-                artist: album.artist?.name || album.artist || 'Unknown Artist',
+                artist: album.artist?.name || 'Unknown Artist',
                 blockedAt: Date.now(),
             });
             this.setBlockedAlbums(blocked);
         }
     },
 
-    unblockAlbum(albumId) {
-        const blocked = this.getBlockedAlbums().filter((a) => a.id !== albumId);
+    unblockAlbum(albumId: string | number) {
+        const blocked = this.getBlockedAlbums().filter((a: BlockedAlbumEntry) => a.id !== albumId);
         this.setBlockedAlbums(blocked);
     },
 
     // Check if track should be hidden (blocked track or by blocked artist)
-    shouldHideTrack(track) {
+    shouldHideTrack(track: TrackData) {
         if (!track) return true;
         if (this.isTrackBlocked(track.id)) return true;
         if (track.artist?.id && this.isArtistBlocked(track.artist.id)) return true;
@@ -2457,31 +2525,31 @@ export const contentBlockingSettings = {
     },
 
     // Check if album should be hidden
-    shouldHideAlbum(album) {
+    shouldHideAlbum(album: TrackAlbum) {
         if (!album) return true;
         if (this.isAlbumBlocked(album.id)) return true;
         if (album.artist?.id && this.isArtistBlocked(album.artist.id)) return true;
-        if (album.artists?.some((a) => this.isArtistBlocked(a.id))) return true;
+        if ((album as TrackAlbum & { artists?: TrackArtist[] }).artists?.some((a: TrackArtist) => this.isArtistBlocked(a.id))) return true;
         return false;
     },
 
     // Check if artist should be hidden
-    shouldHideArtist(artist) {
+    shouldHideArtist(artist: TrackArtist) {
         if (!artist) return true;
         return this.isArtistBlocked(artist.id);
     },
 
     // Filter arrays
-    filterTracks(tracks) {
-        return tracks.filter((t) => !this.shouldHideTrack(t));
+    filterTracks(tracks: TrackData[]) {
+        return tracks.filter((t: TrackData) => !this.shouldHideTrack(t));
     },
 
-    filterAlbums(albums) {
-        return albums.filter((a) => !this.shouldHideAlbum(a));
+    filterAlbums(albums: TrackAlbum[]) {
+        return albums.filter((a: TrackAlbum) => !this.shouldHideAlbum(a));
     },
 
-    filterArtists(artists) {
-        return artists.filter((a) => !this.shouldHideArtist(a));
+    filterArtists(artists: TrackArtist[]) {
+        return artists.filter((a: TrackArtist) => !this.shouldHideArtist(a));
     },
 
     // Get all blocked items count
