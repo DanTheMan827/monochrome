@@ -1,7 +1,117 @@
+type HeaderKey = 'track' | 'artist' | 'album' | 'type' | 'isrc' | 'spotifyId' | 'playlistName' | 'duration';
+
+interface PlaylistExportMeta {
+    title?: string;
+    artist?: string;
+}
+
+interface SearchItemsResult<T> {
+    items: T[];
+}
+
+interface PlaylistImporterApi {
+    searchTracks(query: string): Promise<SearchItemsResult<TrackData>>;
+    searchAlbums(query: string): Promise<SearchItemsResult<TrackAlbum>>;
+    searchArtists(query: string): Promise<SearchItemsResult<ArtistData>>;
+}
+
+interface PlaylistImporterDb {
+    toggleFavorite(type: string, item: TrackData | TrackAlbum | ArtistData): Promise<void>;
+    createPlaylist(name: string, tracks: TrackData[]): Promise<void>;
+}
+
+interface CSVFormatInfo {
+    format: string;
+    hasMultipleTypes: boolean;
+    supportsTracks: boolean;
+    supportsAlbums: boolean;
+    supportsArtists: boolean;
+}
+
+interface MissingItem {
+    type: string;
+    title?: string;
+    artist?: string;
+    album?: string;
+    isrc?: string;
+    name?: string;
+}
+
+interface MissingTrack {
+    title: string;
+    artist: string;
+    album: string;
+}
+
+interface DynamicCSVProgress {
+    current: number;
+    total: number;
+    currentItem: string;
+    type: string;
+}
+
+interface ParseProgress {
+    current: number;
+    total: number;
+    currentTrack: string;
+    currentArtist: string;
+}
+
+interface ImportProgress {
+    action: string;
+    item: string;
+}
+
+interface DynamicCSVResult {
+    format: string;
+    tracks: TrackData[];
+    albums: TrackAlbum[];
+    artists: ArtistData[];
+    missingItems: MissingItem[];
+    playlists: Record<string, TrackData[]>;
+    stats?: {
+        totalItems: number;
+        tracksFound: number;
+        albumsFound: number;
+        artistsFound: number;
+        missingCount: number;
+        playlistCount: number;
+    };
+}
+
+interface ImportResults {
+    tracks: { added: number; failed: number };
+    albums: { added: number; failed: number };
+    artists: { added: number; failed: number };
+    playlists: { created: number; tracksAdded: number };
+}
+
+interface ParseResult {
+    tracks: TrackData[];
+    missingTracks: MissingTrack[];
+}
+
+interface JSPFTrack {
+    title?: string;
+    creator?: string;
+    album?: string;
+}
+
+interface JSPFData {
+    playlist?: {
+        track?: JSPFTrack[];
+    };
+}
+
+interface M3UTrackInfo {
+    title: string;
+    artist: string;
+}
+
 /**
  * Helper function to get track artists string
  */
-function getTrackArtists(track) {
+function getTrackArtists(track: TrackData): string {
     if (track.artists && track.artists.length > 0) {
         return track.artists.map((artist) => artist.name).join(', ');
     }
@@ -14,7 +124,7 @@ function getTrackArtists(track) {
  * @param {Array} tracks - Array of track objects
  * @returns {string} CSV content
  */
-export function generateCSV(playlist, tracks) {
+export function generateCSV(playlist: PlaylistExportMeta, tracks: TrackData[]): string {
     const headers = ['Track Name', 'Artist Name(s)', 'Album', 'Duration'];
     let content = headers.map((h) => `"${h}"`).join(',') + '\n';
 
@@ -36,7 +146,7 @@ export function generateCSV(playlist, tracks) {
  * @param {Array} tracks - Array of track objects
  * @returns {string} XSPF XML content
  */
-export function generateXSPF(playlist, tracks) {
+export function generateXSPF(playlist: PlaylistExportMeta, tracks: TrackData[]): string {
     const date = new Date().toISOString();
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
@@ -71,7 +181,7 @@ export function generateXSPF(playlist, tracks) {
  * @param {Array} tracks - Array of track objects
  * @returns {string} XML content
  */
-export function generateXML(playlist, tracks) {
+export function generateXML(playlist: PlaylistExportMeta, tracks: TrackData[]): string {
     const date = new Date().toISOString();
 
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
@@ -105,7 +215,7 @@ export function generateXML(playlist, tracks) {
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-const HEADER_MAPPINGS = {
+const HEADER_MAPPINGS: Record<HeaderKey, string[]> = {
     track: ['track name', 'title', 'song', 'name', 'track', 'track title'],
     artist: ['artist name(s)', 'artist name', 'artist', 'artists', 'creator', 'artist names'],
     album: ['album', 'album name'],
@@ -116,20 +226,20 @@ const HEADER_MAPPINGS = {
     duration: ['duration', 'length', 'time'],
 };
 
-function normalizeHeader(header) {
+function normalizeHeader(header: string): string {
     return header
         .toLowerCase()
         .trim()
         .replace(/[_\s]+/g, ' ');
 }
 
-function mapHeaders(rawHeaders) {
-    const mapped = {};
+function mapHeaders(rawHeaders: string[]): Partial<Record<HeaderKey, number>> {
+    const mapped: Partial<Record<HeaderKey, number>> = {};
     rawHeaders.forEach((header, index) => {
         const normalized = normalizeHeader(header);
         for (const [key, aliases] of Object.entries(HEADER_MAPPINGS)) {
             if (aliases.includes(normalized)) {
-                mapped[key] = index;
+                mapped[key as HeaderKey] = index;
                 break;
             }
         }
@@ -137,7 +247,7 @@ function mapHeaders(rawHeaders) {
     return mapped;
 }
 
-function detectCSVFormat(mappedHeaders) {
+function detectCSVFormat(mappedHeaders: Partial<Record<HeaderKey, number>>): CSVFormatInfo {
     const hasType = mappedHeaders.type !== undefined;
     const hasTrack = mappedHeaders.track !== undefined;
     const hasArtist = mappedHeaders.artist !== undefined;
@@ -172,7 +282,7 @@ function detectCSVFormat(mappedHeaders) {
     };
 }
 
-export async function parseDynamicCSV(csvText, api, onProgress) {
+export async function parseDynamicCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: DynamicCSVProgress) => void): Promise<DynamicCSVResult> {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) {
         return {
@@ -185,8 +295,8 @@ export async function parseDynamicCSV(csvText, api, onProgress) {
         };
     }
 
-    const parseLine = (text) => {
-        const values = [];
+    const parseLine = (text: string): string[] => {
+        const values: string[] = [];
         let current = '';
         let inQuote = false;
 
@@ -212,14 +322,14 @@ export async function parseDynamicCSV(csvText, api, onProgress) {
     const formatInfo = detectCSVFormat(mappedHeaders);
     const rows = lines.slice(1);
 
-    const tracks = [];
-    const albums = [];
-    const artists = [];
-    const missingItems = [];
-    const playlists = {};
+    const tracks: TrackData[] = [];
+    const albums: TrackAlbum[] = [];
+    const artists: ArtistData[] = [];
+    const missingItems: MissingItem[] = [];
+    const playlists: Record<string, TrackData[]> = {};
     const totalItems = rows.length;
 
-    const getItemType = (values) => {
+    const getItemType = (values: string[]): string => {
         if (mappedHeaders.type !== undefined) {
             const typeValue = values[mappedHeaders.type]?.toLowerCase().trim();
             if (typeValue === 'album' || typeValue === 'favorite album') return 'album';
@@ -364,7 +474,7 @@ export async function parseDynamicCSV(csvText, api, onProgress) {
     };
 }
 
-export async function importToLibrary(csvResult, db, onProgress) {
+export async function importToLibrary(csvResult: DynamicCSVResult, db: PlaylistImporterDb, onProgress?: (progress: ImportProgress) => void): Promise<ImportResults> {
     const results = {
         tracks: { added: 0, failed: 0 },
         albums: { added: 0, failed: 0 },
@@ -431,12 +541,12 @@ export async function importToLibrary(csvResult, db, onProgress) {
     return results;
 }
 
-export async function parseCSV(csvText, api, onProgress) {
+export async function parseCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) return { tracks: [], missingTracks: [] };
 
-    const parseLine = (text) => {
-        const values = [];
+    const parseLine = (text: string): string[] => {
+        const values: string[] = [];
         let current = '';
         let inQuote = false;
 
@@ -460,8 +570,8 @@ export async function parseCSV(csvText, api, onProgress) {
     const headers = parseLine(lines[0]);
     const rows = lines.slice(1);
 
-    const tracks = [];
-    const missingTracks = [];
+    const tracks: TrackData[] = [];
+    const missingTracks: MissingTrack[] = [];
     const totalTracks = rows.length;
 
     for (let i = 0; i < rows.length; i++) {
@@ -538,21 +648,25 @@ export async function parseCSV(csvText, api, onProgress) {
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseJSPF(jspfText, api, onProgress) {
+export async function parseJSPF(jspfText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
     try {
-        const jspfData = JSON.parse(jspfText);
+        const jspfData: JSPFData = JSON.parse(jspfText);
 
         if (!jspfData.playlist || !Array.isArray(jspfData.playlist.track)) {
             throw new Error('Invalid JSPF format: missing playlist or track array');
         }
 
         const playlist = jspfData.playlist;
-        const tracks = [];
-        const missingTracks = [];
-        const totalTracks = playlist.track.length;
+        const jspfTracks = playlist.track;
+        if (!jspfTracks) {
+            throw new Error('Invalid JSPF format: missing track array');
+        }
+        const tracks: TrackData[] = [];
+        const missingTracks: MissingTrack[] = [];
+        const totalTracks = jspfTracks.length;
 
-        for (let i = 0; i < playlist.track.length; i++) {
-            const jspfTrack = playlist.track[i];
+        for (let i = 0; i < jspfTracks.length; i++) {
+            const jspfTrack = jspfTracks[i];
             const trackTitle = jspfTrack.title;
             const trackCreator = jspfTrack.creator;
             const trackAlbum = jspfTrack.album;
@@ -576,17 +690,17 @@ export async function parseJSPF(jspfText, api, onProgress) {
                     if (searchResults.items && searchResults.items.length > 0) {
                         tracks.push(searchResults.items[0]);
                     } else {
-                        missingTracks.push({ title: trackTitle, artist: trackCreator, album: trackAlbum });
+                        missingTracks.push({ title: trackTitle, artist: trackCreator, album: trackAlbum || '' });
                     }
                 } catch {
-                    missingTracks.push({ title: trackTitle, artist: trackCreator, album: trackAlbum });
+                    missingTracks.push({ title: trackTitle, artist: trackCreator, album: trackAlbum || '' });
                 }
             }
         }
 
         return { tracks, missingTracks };
-    } catch (error) {
-        throw new Error('Failed to parse JSPF: ' + error.message);
+    } catch (error: unknown) {
+        throw new Error('Failed to parse JSPF: ' + (error instanceof Error ? error.message : String(error)));
     }
 }
 
@@ -597,7 +711,7 @@ export async function parseJSPF(jspfText, api, onProgress) {
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseXSPF(xspfText, api, onProgress) {
+export async function parseXSPF(xspfText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
     // Validate input to prevent potential XXE attacks
     if (!xspfText || typeof xspfText !== 'string' || xspfText.length > 10 * 1024 * 1024) {
         throw new Error('Invalid XSPF content');
@@ -611,8 +725,8 @@ export async function parseXSPF(xspfText, api, onProgress) {
     const xmlDoc = parser.parseFromString(xspfText, 'application/xml');
 
     const trackList = xmlDoc.getElementsByTagName('track');
-    const tracks = [];
-    const missingTracks = [];
+    const tracks: TrackData[] = [];
+    const missingTracks: MissingTrack[] = [];
     const totalTracks = trackList.length;
 
     for (let i = 0; i < trackList.length; i++) {
@@ -658,7 +772,7 @@ export async function parseXSPF(xspfText, api, onProgress) {
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseXML(xmlText, api, onProgress) {
+export async function parseXML(xmlText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
     // Validate input to prevent potential XXE attacks
     if (!xmlText || typeof xmlText !== 'string' || xmlText.length > 10 * 1024 * 1024) {
         throw new Error('Invalid XML content');
@@ -672,7 +786,7 @@ export async function parseXML(xmlText, api, onProgress) {
     const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
 
     // Try different track element names
-    let trackElements = xmlDoc.getElementsByTagName('track');
+    let trackElements: HTMLCollectionOf<Element> = xmlDoc.getElementsByTagName('track') as HTMLCollectionOf<Element>;
     if (trackElements.length === 0) {
         trackElements = xmlDoc.getElementsByTagName('song');
     }
@@ -680,8 +794,8 @@ export async function parseXML(xmlText, api, onProgress) {
         trackElements = xmlDoc.getElementsByTagName('item');
     }
 
-    const tracks = [];
-    const missingTracks = [];
+    const tracks: TrackData[] = [];
+    const missingTracks: MissingTrack[] = [];
     const totalTracks = trackElements.length;
 
     for (let i = 0; i < trackElements.length; i++) {
@@ -736,13 +850,13 @@ export async function parseXML(xmlText, api, onProgress) {
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseM3U(m3uText, api, onProgress) {
+export async function parseM3U(m3uText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
     const lines = m3uText.trim().split('\n');
-    const tracks = [];
-    const missingTracks = [];
+    const tracks: TrackData[] = [];
+    const missingTracks: MissingTrack[] = [];
 
-    const trackInfo = [];
-    let currentInfo = null;
+    const trackInfo: M3UTrackInfo[] = [];
+    let currentInfo: M3UTrackInfo | null = null;
 
     // Parse M3U format
     for (const line of lines) {
@@ -809,7 +923,7 @@ export async function parseM3U(m3uText, api, onProgress) {
  * @param {number} seconds - Duration in seconds
  * @returns {string} Formatted duration
  */
-function formatDuration(seconds) {
+function formatDuration(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -818,7 +932,7 @@ function formatDuration(seconds) {
 /**
  * Helper function to escape XML special characters
  */
-function escapeXml(text) {
+function escapeXml(text: string): string {
     if (!text) return '';
     return text
         .toString()
