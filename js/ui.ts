@@ -52,6 +52,10 @@ import {
 } from './tracker.ts';
 import { trackSearch, trackChangeSort } from './analytics.ts';
 
+interface TidalAPIAccessor {
+    tidalAPI: { getVideoCoverUrl(id: string, size?: string): string };
+}
+
 fontSettings.applyFont();
 fontSettings.applyFontSize();
 
@@ -420,7 +424,7 @@ export class UIRenderer {
     }
 
     getCoverHTML(videoCover: string | undefined, cover: string | undefined, alt: string, className: string = 'card-image', loading: string = 'lazy'): string {
-        const videoUrl = videoCover ? (this.api as unknown as { tidalAPI: { getVideoCoverUrl(id: string, size?: string): string } }).tidalAPI.getVideoCoverUrl(videoCover) : null;
+        const videoUrl = videoCover ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(videoCover) : null;
         if (videoUrl) {
             return `<video src="${videoUrl}" class="${className}" alt="${alt}" autoplay loop muted playsinline></video>`;
         }
@@ -928,7 +932,7 @@ export class UIRenderer {
 
         const albumRec = track.album as Record<string, unknown> | undefined;
         const videoCoverUrl = albumRec?.videoCover
-            ? (this.api as unknown as { tidalAPI: { getVideoCoverUrl(id: string, size?: string): string } }).tidalAPI.getVideoCoverUrl(albumRec.videoCover as string, '1280')
+            ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(albumRec.videoCover as string, '1280')
             : null;
         const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover ?? undefined, '1280');
 
@@ -2385,7 +2389,7 @@ export class UIRenderer {
         try {
             const { album, tracks } = await this.api.getAlbum(albumId, provider as null);
 
-            const videoCoverUrl = album.videoCover ? (this.api as unknown as { tidalAPI: { getVideoCoverUrl(id: string, size?: string): string } }).tidalAPI.getVideoCoverUrl(album.videoCover) : null;
+            const videoCoverUrl = album.videoCover ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(album.videoCover) : null;
             const coverUrl = videoCoverUrl || this.api.getCoverUrl(album.cover);
 
             if (videoCoverUrl) {
@@ -3137,7 +3141,7 @@ export class UIRenderer {
                 // Try to get cover from first track album
                 if (tracks.length > 0 && tracks[0].album?.cover) {
                     const videoCoverUrl = tracks[0].album?.videoCover
-                        ? (this.api as unknown as { tidalAPI: { getVideoCoverUrl(id: string, size?: string): string } }).tidalAPI.getVideoCoverUrl(tracks[0].album.videoCover)
+                        ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(tracks[0].album.videoCover)
                         : null;
                     const coverUrl = videoCoverUrl || this.api.getCoverUrl(tracks[0].album.cover);
 
@@ -3577,7 +3581,7 @@ export class UIRenderer {
                                     const era = eras.find((e) => (e as Record<string, unknown>).name === eraName);
                                     if (!era) return;
 
-                                    ;(card as HTMLElement).onclick = (e: MouseEvent) => {
+                                    (card as HTMLElement).onclick = (e: MouseEvent) => {
                                         if ((e.target as HTMLElement).closest('.card-play-btn')) {
                                             e.stopPropagation();
                                             let eraTracks: TrackData[] = [];
@@ -4182,7 +4186,7 @@ export class UIRenderer {
             }
 
             const videoCoverUrl = (track.album as Record<string, unknown> | undefined)?.videoCover as string | undefined
-                ? (this.api as unknown as { tidalAPI: { getVideoCoverUrl(id: string, size?: string): string } }).tidalAPI.getVideoCoverUrl(track.album.videoCover)
+                ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(track.album.videoCover)
                 : null;
             const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover);
 
