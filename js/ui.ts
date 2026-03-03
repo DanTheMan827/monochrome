@@ -231,8 +231,8 @@ export class UIRenderer {
                 } else {
                     const coverUrl =
                         item.type === 'artist'
-                            ? this.api.getArtistPictureUrl(item.cover)
-                            : this.api.getCoverUrl(item.cover);
+                            ? this.api.getArtistPictureUrl(item.cover as string ?? '')
+                            : this.api.getCoverUrl(item.cover as string ?? '');
                     const coverClass = item.type === 'artist' ? 'artist' : '';
                     iconHTML = `<img src="${coverUrl}" class="pinned-item-cover ${coverClass}" alt="${escapeHtml(item.name)}" loading="lazy" onerror="this.src='assets/logo.svg'">`;
                 }
@@ -428,7 +428,7 @@ export class UIRenderer {
         if (videoUrl) {
             return `<video src="${videoUrl}" class="${className}" alt="${alt}" autoplay loop muted playsinline></video>`;
         }
-        return `<img src="${this.api.getCoverUrl(cover)}" class="${className}" alt="${alt}" loading="${loading}">`;
+        return `<img src="${this.api.getCoverUrl(cover ?? '')}" class="${className}" alt="${alt}" loading="${loading}">`;
     }
 
     createBaseCardHTML({
@@ -499,7 +499,7 @@ export class UIRenderer {
             href: `/playlist/${playlist.uuid}`,
             title: playlist.title || '',
             subtitle: `${playlist.numberOfTracks || 0} tracks`,
-            imageHTML: `<img src="${this.api.getCoverUrl(imageId)}" alt="${playlist.title}" class="card-image" loading="lazy">`,
+            imageHTML: `<img src="${this.api.getCoverUrl(imageId ?? '')}" alt="${playlist.title}" class="card-image" loading="lazy">`,
             actionButtonsHTML: `
                 <button class="like-btn card-like-btn" data-action="toggle-like" data-type="playlist" title="Add to Liked">
                     ${this.createHeartIcon(false)}
@@ -618,8 +618,8 @@ export class UIRenderer {
     }
 
     createAlbumCardHTML(album: TrackAlbum): string {
-        const explicitBadge = hasExplicitContent(album) ? this.createExplicitBadge() : '';
-        const qualityBadge = createQualityBadgeHTML(album);
+        const explicitBadge = hasExplicitContent(album as unknown as TrackData) ? this.createExplicitBadge() : '';
+        const qualityBadge = createQualityBadgeHTML(album as unknown as TrackData);
         const isBlocked = contentBlockingSettings?.shouldHideAlbum(album);
         let yearDisplay = '';
         if (album.releaseDate) {
@@ -669,7 +669,7 @@ export class UIRenderer {
             href: `/artist/${artist.id}`,
             title: escapeHtml(artist.name),
             subtitle: '',
-            imageHTML: `<img src="${this.api.getArtistPictureUrl(artist.picture)}" alt="${escapeHtml(artist.name)}" class="card-image" loading="lazy">`,
+            imageHTML: `<img src="${this.api.getArtistPictureUrl(artist.picture ?? '')}" alt="${escapeHtml(artist.name)}" class="card-image" loading="lazy">`,
             actionButtonsHTML: `
                 <button class="like-btn card-like-btn" data-action="toggle-like" data-type="artist" title="Add to Liked">
                     ${this.createHeartIcon(false)}
@@ -934,7 +934,7 @@ export class UIRenderer {
         const videoCoverUrl = albumRec?.videoCover
             ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(albumRec.videoCover as string, '1280')
             : null;
-        const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover ?? undefined, '1280');
+        const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover ?? '', '1280');
 
         const fsLikeBtn = document.getElementById('fs-like-btn');
         if (fsLikeBtn) {
@@ -968,7 +968,7 @@ export class UIRenderer {
             currentImage.src = coverUrl;
         }
         overlay.style.setProperty('--bg-image', `url('${coverUrl}')`);
-        this.extractAndApplyColor(this.api.getCoverUrl(track.album?.cover ?? undefined, '80'));
+        this.extractAndApplyColor(this.api.getCoverUrl(track.album?.cover ?? '', '80'));
 
         const qualityBadge = createQualityBadgeHTML(track);
         title.innerHTML = `${escapeHtml(track.title)} ${qualityBadge}`;
@@ -1503,7 +1503,7 @@ export class UIRenderer {
             likedAlbums.forEach((album: TrackAlbum) => {
                 const el = albumsContainer.querySelector(`[data-album-id="${album.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, album);
+                    trackDataStore.set(el, album as unknown as TrackData);
                     this.updateLikeState(el, 'album', album.id);
                 }
             });
@@ -1517,7 +1517,7 @@ export class UIRenderer {
             likedArtists.forEach((artist: ArtistData) => {
                 const el = artistsContainer.querySelector(`[data-artist-id="${artist.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, artist);
+                    trackDataStore.set(el, artist as unknown as TrackData);
                     this.updateLikeState(el, 'artist', artist.id);
                 }
             });
@@ -1545,7 +1545,7 @@ export class UIRenderer {
             likedPlaylists.forEach((playlist: Record<string, unknown>) => {
                 const el = playlistsContainer.querySelector(`[data-playlist-id="${playlist.uuid}"]`);
                 if (el) {
-                    trackDataStore.set(el, playlist);
+                    trackDataStore.set(el, playlist as unknown as TrackData);
                     this.updateLikeState(el, 'playlist', playlist.uuid as string | number);
                 }
             });
@@ -1553,7 +1553,7 @@ export class UIRenderer {
             likedMixes.forEach((mix: Record<string, unknown>) => {
                 const el = playlistsContainer.querySelector(`[data-mix-id="${mix.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, mix);
+                    trackDataStore.set(el, mix as unknown as TrackData);
                     this.updateLikeState(el, 'mix', mix.id as string | number);
                 }
             });
@@ -1584,7 +1584,7 @@ export class UIRenderer {
             visiblePlaylists.forEach((playlist: Record<string, unknown>) => {
                 const el = myPlaylistsContainer.querySelector(`[data-user-playlist-id="${playlist.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, playlist);
+                    trackDataStore.set(el, playlist as unknown as TrackData);
                 }
             });
         } else {
@@ -1752,7 +1752,7 @@ export class UIRenderer {
                     skipCache: forceRefresh,
                 });
 
-                const filteredTracks = await this.filterUserContent(recommendedTracks, 'track');
+                const filteredTracks = await this.filterUserContent(recommendedTracks as TrackData[], 'track');
 
                 if (filteredTracks.length > 0) {
                     this.renderListWithTracks(songsContainer, filteredTracks as TrackData[], true);
@@ -1789,7 +1789,7 @@ export class UIRenderer {
                 const albumSeed = seeds.find((t: TrackData) => t.album && t.album.id);
                 if (albumSeed) {
                     const similarAlbums = await this.api.getSimilarAlbums(albumSeed.album!.id);
-                    const filteredAlbums = await this.filterUserContent(similarAlbums, 'album');
+                    const filteredAlbums = await this.filterUserContent(similarAlbums as TrackAlbum[], 'album');
 
                     if (filteredAlbums.length > 0) {
                         albumsContainer.innerHTML = filteredAlbums
@@ -1799,7 +1799,7 @@ export class UIRenderer {
                         filteredAlbums.slice(0, 12).forEach((a) => {
                             const el = albumsContainer.querySelector(`[data-album-id="${a.id}"]`);
                             if (el) {
-                                trackDataStore.set(el, a);
+                                trackDataStore.set(el, a as unknown as TrackData);
                                 this.updateLikeState(el, 'album', a.id);
                             }
                         });
@@ -1898,7 +1898,7 @@ export class UIRenderer {
                                 itemsToStore.push({ el: null, data: album, type: 'album' });
                             } else {
                                 // Fall back to API call for legacy format
-                                const result = await this.api.getAlbum(item.id);
+                                const result = await this.api.getAlbum(item.id) as { album: TrackAlbum } | null;
                                 if (result && result.album) {
                                     cardsHTML.push(this.createAlbumCardHTML(result.album));
                                     itemsToStore.push({ el: null, data: result.album, type: 'album' });
@@ -1916,10 +1916,10 @@ export class UIRenderer {
                                 itemsToStore.push({ el: null, data: artist, type: 'artist' });
                             } else {
                                 // Fall back to API call
-                                const artist = await this.api.getArtist(item.id);
+                                const artist = await this.api.getArtist(item.id) as ArtistData | null;
                                 if (artist) {
                                     cardsHTML.push(this.createArtistCardHTML(artist));
-                                    itemsToStore.push({ el: null, data: artist, type: 'artist' });
+                                    itemsToStore.push({ el: null, data: artist as unknown as Record<string, unknown>, type: 'artist' });
                                 }
                             }
                         } else if (item.type === 'track') {
@@ -1939,10 +1939,10 @@ export class UIRenderer {
                                 itemsToStore.push({ el: null, data: track, type: 'track' });
                             } else {
                                 // Fall back to API call
-                                const track = await this.api.getTrackMetadata(item.id);
+                                const track = await this.api.getTrackMetadata(item.id) as TrackData | null;
                                 if (track) {
                                     cardsHTML.push(this.createTrackCardHTML(track));
-                                    itemsToStore.push({ el: null, data: track, type: 'track' });
+                                    itemsToStore.push({ el: null, data: track as unknown as Record<string, unknown>, type: 'track' });
                                 }
                             }
                         } else if (item.type === 'user-playlist') {
@@ -1978,7 +1978,7 @@ export class UIRenderer {
                         const id = item.data.id;
                         const el = picksContainer.querySelector(`[data-${type}-id="${id}"]`);
                         if (el) {
-                            trackDataStore.set(el, item.data);
+                            trackDataStore.set(el, item.data as unknown as TrackData);
                             this.updateLikeState(el, type, id as string | number);
                         }
                     });
@@ -2017,7 +2017,7 @@ export class UIRenderer {
 
                 if (artistId) {
                     const similarArtists = await this.api.getSimilarArtists(artistId);
-                    const filteredArtists = await this.filterUserContent(similarArtists, 'artist');
+                    const filteredArtists = await this.filterUserContent(similarArtists as ArtistData[], 'artist');
 
                     if (filteredArtists.length > 0) {
                         artistsContainer.innerHTML = filteredArtists
@@ -2027,7 +2027,7 @@ export class UIRenderer {
                         filteredArtists.slice(0, 12).forEach((a) => {
                             const el = artistsContainer.querySelector(`[data-artist-id="${a.id}"]`);
                             if (el) {
-                                trackDataStore.set(el, a);
+                                trackDataStore.set(el, a as unknown as TrackData);
                                 this.updateLikeState(el, 'artist', a.id);
                             }
                         });
@@ -2093,7 +2093,7 @@ export class UIRenderer {
 
                     const el = recentContainer.querySelector(selector);
                     if (el) {
-                        trackDataStore.set(el, item);
+                        trackDataStore.set(el, item as unknown as TrackData);
                         if (item._kind === 'album') this.updateLikeState(el, 'album', item.id as string | number);
                         if (item._kind === 'playlist' && !item.isUserPlaylist)
                             this.updateLikeState(el, 'playlist', item.uuid as string | number);
@@ -2241,7 +2241,7 @@ export class UIRenderer {
             finalArtists.forEach((artist: ArtistData) => {
                 const el = artistsContainer.querySelector(`[data-artist-id="${artist.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, artist);
+                    trackDataStore.set(el, artist as unknown as TrackData);
                     this.updateLikeState(el, 'artist', artist.id);
                 }
             });
@@ -2253,7 +2253,7 @@ export class UIRenderer {
             finalAlbums.forEach((album: TrackAlbum) => {
                 const el = albumsContainer.querySelector(`[data-album-id="${album.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, album);
+                    trackDataStore.set(el, album as unknown as TrackData);
                     this.updateLikeState(el, 'album', album.id);
                 }
             });
@@ -2265,7 +2265,7 @@ export class UIRenderer {
             finalPlaylists.forEach((playlist: PlaylistData) => {
                 const el = playlistsContainer.querySelector(`[data-playlist-id="${playlist.uuid}"]`);
                 if (el) {
-                    trackDataStore.set(el, playlist);
+                    trackDataStore.set(el, playlist as unknown as TrackData);
                     this.updateLikeState(el, 'playlist', playlist.uuid as string | number);
                 }
             });
@@ -2387,7 +2387,7 @@ export class UIRenderer {
         `;
 
         try {
-            const { album, tracks } = await this.api.getAlbum(albumId, provider as null);
+            const { album, tracks } = await this.api.getAlbum(albumId, provider as null) as { album: TrackAlbum & { videoCover?: string; artist: TrackArtist }; tracks: TrackData[] };
 
             const videoCoverUrl = album.videoCover ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(album.videoCover) : null;
             const coverUrl = videoCoverUrl || this.api.getCoverUrl(album.cover);
@@ -2422,10 +2422,10 @@ export class UIRenderer {
             // Set background and vibrant color
             this.setPageBackground(coverUrl);
             if (backgroundSettings.isEnabled() && album.cover) {
-                this.extractAndApplyColor(this.api.getCoverUrl(album.cover ?? undefined, '80'));
+                this.extractAndApplyColor(this.api.getCoverUrl(album.cover ?? '', '80'));
             }
 
-            const explicitBadge = hasExplicitContent(album) ? this.createExplicitBadge() : '';
+            const explicitBadge = hasExplicitContent(album as unknown as TrackData) ? this.createExplicitBadge() : '';
             titleEl.innerHTML = `${escapeHtml(album.title)} ${explicitBadge}`;
 
             this.adjustTitleFontSize(titleEl, album.title);
@@ -2506,7 +2506,7 @@ export class UIRenderer {
             });
 
             try {
-                const artistData = await this.api.getArtist(album.artist.id);
+                const artistData = await this.api.getArtist(album.artist.id) as ArtistData & { eps?: TrackAlbum[] };
 
                 // Add Mix/Radio Button to header
                 const mixBtn = document.getElementById('album-mix-btn');
@@ -2534,7 +2534,7 @@ export class UIRenderer {
                     filtered.forEach((a) => {
                         const el = container.querySelector(`[data-album-id="${a.id}"]`);
                         if (el) {
-                            trackDataStore.set(el, a);
+                            trackDataStore.set(el, a as unknown as TrackData);
                             this.updateLikeState(el, 'album', a.id);
                         }
                     });
@@ -2561,7 +2561,7 @@ export class UIRenderer {
                     .then(async (similar) => {
                         // Filter out blocked artists
                         const { contentBlockingSettings } = await import('./storage.ts');
-                        const filteredSimilar = contentBlockingSettings.filterArtists(similar || []);
+                        const filteredSimilar = contentBlockingSettings.filterArtists((similar || []) as TrackArtist[]);
 
                         if (filteredSimilar.length > 0 && similarArtistsContainer && similarArtistsSection) {
                             similarArtistsContainer.innerHTML = filteredSimilar
@@ -2572,7 +2572,7 @@ export class UIRenderer {
                             filteredSimilar.forEach((a: ArtistData) => {
                                 const el = similarArtistsContainer.querySelector(`[data-artist-id="${a.id}"]`);
                                 if (el) {
-                                    trackDataStore.set(el, a);
+                                    trackDataStore.set(el, a as unknown as TrackData);
                                     this.updateLikeState(el, 'artist', a.id);
                                 }
                             });
@@ -2586,7 +2586,7 @@ export class UIRenderer {
                     .then(async (similar) => {
                         // Filter out blocked albums
                         const { contentBlockingSettings } = await import('./storage.ts');
-                        const filteredSimilar = contentBlockingSettings.filterAlbums(similar || []);
+                        const filteredSimilar = contentBlockingSettings.filterAlbums((similar || []) as TrackAlbum[]);
 
                         if (filteredSimilar.length > 0 && similarAlbumsContainer && similarAlbumsSection) {
                             similarAlbumsContainer.innerHTML = filteredSimilar
@@ -2597,7 +2597,7 @@ export class UIRenderer {
                             filteredSimilar.forEach((a: TrackAlbum) => {
                                 const el = similarAlbumsContainer.querySelector(`[data-album-id="${a.id}"]`);
                                 if (el) {
-                                    trackDataStore.set(el, a);
+                                    trackDataStore.set(el, a as unknown as TrackData);
                                     this.updateLikeState(el, 'album', a.id);
                                 }
                             });
@@ -2629,7 +2629,7 @@ export class UIRenderer {
         try {
             let recommendedTracks = await this.api.getRecommendedTracksForPlaylist(tracks, 20, {
                 refresh: forceRefresh,
-            });
+            }) as TrackData[];
 
             // Filter out blocked tracks
             const { contentBlockingSettings } = await import('./storage.ts');
@@ -2959,7 +2959,7 @@ export class UIRenderer {
                 }
 
                 // Render API playlist
-                let apiResult = await this.api.getPlaylist(playlistId);
+                let apiResult = await this.api.getPlaylist(playlistId) as { playlist: PlaylistData & { squareImage?: string; image?: string }; tracks: TrackData[] };
 
                 const { playlist, tracks } = apiResult;
 
@@ -2975,8 +2975,8 @@ export class UIRenderer {
                     this.resetVibrantColor();
                 }
 
-                titleEl.textContent = playlist.title;
-                this.adjustTitleFontSize(titleEl, playlist.title);
+                titleEl.textContent = playlist.title ?? '';
+                this.adjustTitleFontSize(titleEl, playlist.title ?? '');
 
                 const totalDuration = calculateTotalDuration(tracks);
 
@@ -3085,7 +3085,7 @@ export class UIRenderer {
                     container.innerHTML = playlists.map((p: Record<string, unknown>) => this.createUserPlaylistCardHTML(p)).join('');
                     playlists.forEach((playlist: Record<string, unknown>) => {
                         const el = container.querySelector(`[data-user-playlist-id="${playlist.id}"]`);
-                        if (el) trackDataStore.set(el, playlist);
+                        if (el) trackDataStore.set(el, playlist as unknown as TrackData);
                     });
                 } else {
                     container.innerHTML = createPlaceholder(
@@ -3131,7 +3131,7 @@ export class UIRenderer {
         `;
 
         try {
-            const { mix, tracks } = await this.api.getMix(mixId, provider as null);
+            const { mix, tracks } = await this.api.getMix(mixId, provider as null) as { mix: MixData & { cover?: string }; tracks: TrackData[] };
 
             if (mix.cover) {
                 imageEl.src = mix.cover;
@@ -3141,7 +3141,7 @@ export class UIRenderer {
                 // Try to get cover from first track album
                 if (tracks.length > 0 && tracks[0].album?.cover) {
                     const videoCoverUrl = tracks[0].album?.videoCover
-                        ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(tracks[0].album.videoCover)
+                        ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(tracks[0].album!.videoCover as string)
                         : null;
                     const coverUrl = videoCoverUrl || this.api.getCoverUrl(tracks[0].album.cover);
 
@@ -3262,7 +3262,7 @@ export class UIRenderer {
         if (similarSection) similarSection.style.display = 'block';
 
         try {
-            const artist = await this.api.getArtist(artistId, provider as null);
+            const artist = await this.api.getArtist(artistId, provider as null) as ArtistData & { biography?: string; tracks?: TrackData[]; eps?: TrackAlbum[]; artistRoles?: { category?: string }[] };
 
             // Handle Biography
             if (bioEl) {
@@ -3406,8 +3406,8 @@ export class UIRenderer {
                     }
                 };
 
-                if ((artist as Record<string, unknown>).biography) {
-                    renderBioPreview((artist as Record<string, unknown>).biography as string);
+                if (artist.biography) {
+                    renderBioPreview(artist.biography);
                 } else {
                     // Try to fetch biography asynchronously
                     this.api
@@ -3439,7 +3439,7 @@ export class UIRenderer {
                     .then(async (similar) => {
                         // Filter out blocked artists
                         const { contentBlockingSettings } = await import('./storage.ts');
-                        const filteredSimilar = contentBlockingSettings.filterArtists(similar || []);
+                        const filteredSimilar = contentBlockingSettings.filterArtists((similar || []) as TrackArtist[]);
 
                         if (filteredSimilar.length > 0) {
                             similarContainer.innerHTML = filteredSimilar
@@ -3450,7 +3450,7 @@ export class UIRenderer {
                             filteredSimilar.forEach((a: ArtistData) => {
                                 const el = similarContainer.querySelector(`[data-artist-id="${a.id}"]`);
                                 if (el) {
-                                    trackDataStore.set(el, a);
+                                    trackDataStore.set(el, a as unknown as TrackData);
                                     this.updateLikeState(el, 'artist', a.id);
                                 }
                             });
@@ -3463,7 +3463,7 @@ export class UIRenderer {
                     });
             }
 
-            imageEl.src = this.api.getArtistPictureUrl(artist.picture);
+            imageEl.src = this.api.getArtistPictureUrl(artist.picture ?? '');
             imageEl.style.backgroundColor = '';
             nameEl.textContent = artist.name;
 
@@ -3471,7 +3471,7 @@ export class UIRenderer {
             this.setPageBackground(imageEl.src);
 
             // Extract vibrant color using robust image extraction (160x160 for speed/accuracy balance)
-            const artistPic160 = this.api.getArtistPictureUrl(artist.picture ?? undefined, '160');
+            const artistPic160 = this.api.getArtistPictureUrl(artist.picture ?? '', '160');
             this.extractAndApplyColor(artistPic160);
 
             this.adjustTitleFontSize(nameEl, artist.name);
@@ -3479,20 +3479,21 @@ export class UIRenderer {
             metaEl.innerHTML = `
                 <span>${artist.popularity}% popularity</span>
                 <div class="artist-tags">
-                    ${((artist as Record<string, unknown>).artistRoles as { category?: string }[] || [])
+                    ${(artist.artistRoles || [])
                         .filter((role: { category?: string }) => role.category)
                         .map((role: { category?: string }) => `<span class="artist-tag">${role.category}</span>`)
                         .join('')}
                 </div>
             `;
 
-            this.api.getArtistSocials(artist.name).then((links: { url: string }[]) => {
-                if (socialsEl && links.length > 0) {
-                    socialsEl.innerHTML = links.map((link) => this.createSocialLinkHTML(link)).join('');
+            this.api.getArtistSocials(artist.name).then((links) => {
+                const typedLinks = links as { url: string }[];
+                if (socialsEl && typedLinks.length > 0) {
+                    socialsEl.innerHTML = typedLinks.map((link) => this.createSocialLinkHTML(link)).join('');
                 }
             });
 
-            this.renderListWithTracks(tracksContainer, (artist as Record<string, unknown>).tracks as TrackData[] || [], true);
+            this.renderListWithTracks(tracksContainer, artist.tracks || [], true);
 
             // Update header like button
             const artistLikeBtn = document.getElementById('like-artist-btn');
@@ -3503,20 +3504,20 @@ export class UIRenderer {
             }
 
             // Render Albums
-            albumsContainer.innerHTML = ((artist as Record<string, unknown>).albums as TrackAlbum[]).length
-                ? ((artist as Record<string, unknown>).albums as TrackAlbum[]).map((album: TrackAlbum) => this.createAlbumCardHTML(album)).join('')
+            albumsContainer.innerHTML = (artist.albums || []).length
+                ? (artist.albums || []).map((album: TrackAlbum) => this.createAlbumCardHTML(album)).join('')
                 : createPlaceholder('No albums found.');
 
             // Render EPs and Singles
             if (epsContainer && epsSection) {
-                if ((artist as Record<string, unknown>).eps && ((artist as Record<string, unknown>).eps as TrackAlbum[]).length > 0) {
-                    epsContainer.innerHTML = ((artist as Record<string, unknown>).eps as TrackAlbum[]).map((album: TrackAlbum) => this.createAlbumCardHTML(album)).join('');
+                if (artist.eps && artist.eps.length > 0) {
+                    epsContainer.innerHTML = artist.eps.map((album: TrackAlbum) => this.createAlbumCardHTML(album)).join('');
                     epsSection.style.display = 'block';
 
-                    ((artist as Record<string, unknown>).eps as TrackAlbum[]).forEach((album: TrackAlbum) => {
+                    artist.eps.forEach((album: TrackAlbum) => {
                         const el = epsContainer.querySelector(`[data-album-id="${album.id}"]`);
                         if (el) {
-                            trackDataStore.set(el, album);
+                            trackDataStore.set(el, album as unknown as TrackData);
                             this.updateLikeState(el, 'album', album.id);
                         }
                     });
@@ -3525,10 +3526,10 @@ export class UIRenderer {
                 }
             }
 
-            ((artist as Record<string, unknown>).albums as TrackAlbum[]).forEach((album: TrackAlbum) => {
+            (artist.albums || []).forEach((album: TrackAlbum) => {
                 const el = albumsContainer.querySelector(`[data-album-id="${album.id}"]`);
                 if (el) {
-                    trackDataStore.set(el, album);
+                    trackDataStore.set(el, album as unknown as TrackData);
                     this.updateLikeState(el, 'album', album.id);
                 }
             });
@@ -3625,7 +3626,7 @@ export class UIRenderer {
                 }
             }
 
-            recentActivityManager.addArtist(artist);
+            recentActivityManager.addArtist(artist as unknown as { id: string | number; [key: string]: unknown });
 
             document.title = artist.name;
         } catch (error) {
@@ -4126,7 +4127,7 @@ export class UIRenderer {
                 `;
                 };
 
-                container.innerHTML = renderGroup(apiInstances, 'api') + renderGroup(streamingInstances, 'streaming');
+                container.innerHTML = renderGroup(apiInstances as unknown as Record<string, unknown>[], 'api') + renderGroup(streamingInstances as unknown as Record<string, unknown>[], 'streaming');
 
                 const stats = this.api.getCacheStats();
                 const cacheInfo = document.getElementById('cache-info');
@@ -4176,19 +4177,19 @@ export class UIRenderer {
         }
 
         try {
-            let track;
+            let track: TrackData;
             try {
-                const result = await this.api.getTrack(trackId, provider);
+                const result = await this.api.getTrack(trackId, provider ?? '') as { track: TrackData };
                 track = result.track;
             } catch (e) {
                 console.warn('getTrack failed, trying getTrackMetadata', e);
-                track = await this.api.getTrackMetadata(trackId, provider as null);
+                track = await this.api.getTrackMetadata(trackId, provider as null) as TrackData;
             }
 
             const videoCoverUrl = (track.album as Record<string, unknown> | undefined)?.videoCover as string | undefined
-                ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(track.album.videoCover)
+                ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(track.album!.videoCover as string)
                 : null;
-            const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover);
+            const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover ?? '');
 
             if (videoCoverUrl) {
                 if (imageEl.tagName === 'IMG') {
@@ -4252,7 +4253,7 @@ export class UIRenderer {
             }
 
             if (track.album?.id) {
-                const { tracks } = await this.api.getAlbum(track.album.id);
+                const { tracks } = await this.api.getAlbum(track.album.id) as { tracks: TrackData[] };
                 if (tracks && tracks.length > 0) {
                     albumSection.style.display = 'block';
                     this.renderListWithTracks(albumTracksContainer, tracks, false);
