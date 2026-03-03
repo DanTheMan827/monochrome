@@ -1,8 +1,35 @@
+import PocketBase, { type RecordModel } from 'pocketbase';
 import { syncManager } from './accounts/pocketbase.ts';
 import { authManager } from './accounts/auth.ts';
 import { navigate } from './router.ts';
 
+interface ThemeInput {
+    css: string;
+    id?: string;
+    name?: string;
+    authorName?: string;
+    authorUrl?: string;
+    expand?: { author?: { username?: string; display_name?: string } };
+}
+
+interface PBError {
+    message?: string;
+    status?: number;
+    data?: { message?: string; data?: Record<string, { message: string }> };
+}
+
 export class ThemeStore {
+    private pb: PocketBase;
+    private modal: HTMLElement | null;
+    private grid: HTMLElement | null;
+    private uploadForm: HTMLElement | null;
+    private searchInput: HTMLElement | null;
+    private loadingIndicator: HTMLElement | null;
+    private _isCheckingAuth: boolean;
+    private previewShadow: ShadowRoot | null;
+    private detailsPreviewShadow: ShadowRoot | null;
+    private previewStyleTag: HTMLStyleElement | null;
+
     constructor() {
         this.pb = syncManager.pb;
         this.modal = document.getElementById('theme-store-modal');
@@ -12,51 +39,52 @@ export class ThemeStore {
         this.loadingIndicator = document.getElementById('theme-store-loading');
         this._isCheckingAuth = false;
         this.previewShadow = null;
+        this.detailsPreviewShadow = null;
+        this.previewStyleTag = null;
         this.init();
     }
 
-    init() {
+    init(): void {
         document.getElementById('open-theme-store-btn')?.addEventListener('click', () => {
-            this.modal.classList.add('active');
+            this.modal?.classList.add('active');
             this.loadThemes();
         });
 
         this.modal?.querySelector('.close-modal-btn')?.addEventListener('click', () => {
-            this.modal.classList.remove('active');
+            this.modal?.classList.remove('active');
         });
 
         const tabs = this.modal?.querySelectorAll('.search-tab');
-        tabs?.forEach((tab) => {
+        tabs?.forEach((tab: Element) => {
             tab.addEventListener('click', () => {
-                tabs.forEach((t) => t.classList.remove('active'));
-                this.modal.querySelectorAll('.search-tab-content').forEach((c) => c.classList.remove('active'));
-                tab.classList.add('active');
-                const contentId = tab.dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
+                tabs.forEach((t: Element) => t.classList.remove('active'));
+                this.modal?.querySelectorAll('.search-tab-content').forEach((c: Element) => c.classList.remove('active'));
+                const contentId = (tab as HTMLElement).dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
                 document.getElementById(contentId)?.classList.add('active');
-                if (tab.dataset.tab === 'upload') {
+                if ((tab as HTMLElement).dataset.tab === 'upload') {
                     this.checkAuth();
                 }
             });
         });
 
-        let debounceTimer;
-        this.searchInput?.addEventListener('input', (e) => {
+        let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+        this.searchInput?.addEventListener('input', (e: Event) => {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => this.loadThemes(e.target.value), 300);
+            debounceTimer = setTimeout(() => this.loadThemes((e.target as HTMLInputElement).value), 300);
         });
 
-        this.uploadForm?.addEventListener('submit', (e) => this.handleUpload(e));
+        this.uploadForm?.addEventListener('submit', (e: Event) => this.handleUpload(e));
 
         if (authManager) {
             authManager.onAuthStateChanged(() => {
-                if (this.modal.classList.contains('active')) {
+                if (this.modal?.classList.contains('active')) {
                     this.checkAuth();
                 }
             });
         }
 
         document.getElementById('theme-store-login-btn')?.addEventListener('click', () => {
-            this.modal.classList.remove('active');
+            this.modal?.classList.remove('active');
             document.getElementById('email-auth-modal')?.classList.add('active');
         });
 
@@ -69,12 +97,12 @@ export class ThemeStore {
         this.applySavedTheme();
     }
 
-    applySavedTheme() {
+    applySavedTheme(): void {
         const theme = localStorage.getItem('monochrome-theme');
         const css = localStorage.getItem('custom_theme_css');
         if (theme === 'custom' && css) {
             const metadataStr = localStorage.getItem('community-theme');
-            let metadata = null;
+            let metadata: { id?: string; name?: string; author?: string } | null = null;
             if (metadataStr) {
                 try {
                     metadata = JSON.parse(metadataStr);
@@ -96,16 +124,16 @@ export class ThemeStore {
         }
     }
 
-    async loadThemes(query = '') {
+    async loadThemes(query: string = ''): Promise<void> {
         if (!this.grid) return;
         this.grid.innerHTML = '';
-        this.loadingIndicator.style.display = 'block';
+        if (this.loadingIndicator) this.loadingIndicator.style.display = 'block';
 
-        let currentUserId = null;
+        let currentUserId: string | null = null;
         if (authManager.user) {
             try {
                 const record = await syncManager._getUserRecord(authManager.user.uid);
-                currentUserId = record?.id;
+                currentUserId = record?.id ?? null;
             } catch (e) {
                 console.warn('Failed to resolve user ID for theme ownership check', e);
             }
@@ -117,22 +145,22 @@ export class ThemeStore {
                 filter: query ? `name ~ "${query}" || description ~ "${query}"` : '',
                 expand: 'author',
             });
-            this.loadingIndicator.style.display = 'none';
+            if (this.loadingIndicator) this.loadingIndicator.style.display = 'none';
             if (result.items.length === 0) {
                 this.grid.innerHTML = '<div class="empty-state">No themes found.</div>';
                 return;
             }
-            result.items.forEach((theme) => {
-                this.grid.appendChild(this.createThemeCard(theme, currentUserId));
+            result.items.forEach((theme: RecordModel) => {
+                this.grid!.appendChild(this.createThemeCard(theme, currentUserId));
             });
         } catch (err) {
             console.error('Failed to load themes:', err);
-            this.loadingIndicator.style.display = 'none';
+            if (this.loadingIndicator) this.loadingIndicator.style.display = 'none';
             this.grid.innerHTML = '<div class="empty-state">Failed to load themes.</div>';
         }
     }
 
-    createThemeCard(theme, currentUserId) {
+    createThemeCard(theme: RecordModel, currentUserId: string | null): HTMLDivElement {
         const div = document.createElement('div');
         div.className = 'card theme-card';
         const authorName =
@@ -188,8 +216,8 @@ export class ThemeStore {
             </div>
         `;
 
-        div.addEventListener('click', (e) => {
-            if (e.target.closest('.delete-theme-btn')) {
+        div.addEventListener('click', (e: MouseEvent) => {
+            if ((e.target as Element)?.closest('.delete-theme-btn')) {
                 e.stopPropagation();
                 this.deleteTheme(theme.id);
                 return;
@@ -199,17 +227,17 @@ export class ThemeStore {
 
         if (isInternalProfile) {
             const link = div.querySelector('.author-link');
-            link?.addEventListener('click', (e) => {
+            link?.addEventListener('click', (e: Event) => {
                 e.stopPropagation();
-                this.modal.classList.remove('active');
-                navigate(`/user/@${theme.expand.author.username}`);
+                this.modal?.classList.remove('active');
+                navigate(`/user/@${theme.expand?.author?.username}`);
             });
         }
 
         return div;
     }
 
-    async deleteTheme(themeId) {
+    async deleteTheme(themeId: string): Promise<void> {
         if (!confirm('Are you sure you want to delete this theme?')) return;
 
         try {
@@ -225,95 +253,110 @@ export class ThemeStore {
         }
     }
 
-    openThemeDetails(theme) {
-        const detailsView = document.getElementById('theme-store-details');
-        const browseView = document.getElementById('theme-store-browse');
-        const tabs = this.modal.querySelector('.search-tabs');
+    openThemeDetails(theme: RecordModel): void {
+        const detailsView = document.getElementById('theme-store-details') as HTMLElement | null;
+        const browseView = document.getElementById('theme-store-browse') as HTMLElement | null;
+        const tabs = this.modal?.querySelector('.search-tabs') as HTMLElement | null;
 
-        document.getElementById('theme-details-name').textContent = theme.name;
+        const nameEl = document.getElementById('theme-details-name');
+        if (nameEl) nameEl.textContent = theme.name;
 
-        const authorName =
+        const authorName: string =
             theme.expand?.author?.username || theme.expand?.author?.display_name || theme.authorName || 'Unknown';
         const authorEl = document.getElementById('theme-details-author');
 
         if (theme.expand?.author?.username) {
-            authorEl.innerHTML = `by <span style="cursor: pointer; text-decoration: underline; color: var(--primary);">${this.escapeHtml(authorName)}</span>`;
-            authorEl.querySelector('span').onclick = () => {
-                this.modal.classList.remove('active');
-                navigate(`/user/@${theme.expand.author.username}`);
-            };
+            if (authorEl) {
+                authorEl.innerHTML = `by <span style="cursor: pointer; text-decoration: underline; color: var(--primary);">${this.escapeHtml(authorName)}</span>`;
+                const spanEl = authorEl.querySelector('span');
+                if (spanEl) {
+                    spanEl.onclick = () => {
+                        this.modal?.classList.remove('active');
+                        navigate(`/user/@${theme.expand?.author?.username}`);
+                    };
+                }
+            }
         } else {
-            authorEl.textContent = `by ${authorName}`;
+            if (authorEl) authorEl.textContent = `by ${authorName}`;
         }
 
-        document.getElementById('theme-details-created').textContent = new Date(theme.created).toLocaleDateString();
-        document.getElementById('theme-details-updated').textContent = new Date(theme.updated).toLocaleDateString();
-        document.getElementById('theme-details-installs').textContent = theme.installs || 0;
-        document.getElementById('theme-details-desc').textContent = theme.description || 'No description provided.';
+        const createdEl = document.getElementById('theme-details-created');
+        if (createdEl) createdEl.textContent = new Date(theme.created).toLocaleDateString();
+        const updatedEl = document.getElementById('theme-details-updated');
+        if (updatedEl) updatedEl.textContent = new Date(theme.updated).toLocaleDateString();
+        const installsEl = document.getElementById('theme-details-installs');
+        if (installsEl) installsEl.textContent = String(theme.installs || 0);
+        const descEl = document.getElementById('theme-details-desc');
+        if (descEl) descEl.textContent = theme.description || 'No description provided.';
 
         const applyBtn = document.getElementById('theme-details-apply-btn');
-        applyBtn.onclick = async () => {
-            this.applyTheme(theme);
-            this.modal.classList.remove('active');
+        if (applyBtn) {
+            applyBtn.onclick = async () => {
+                this.applyTheme(theme);
+                this.modal?.classList.remove('active');
 
-            try {
-                const latest = await this.pb.collection('themes').getOne(theme.id);
-                await this.pb.collection('themes').update(theme.id, {
-                    installs: (latest.installs || 0) + 1,
-                });
-            } catch (e) {
-                console.warn('Failed to update theme installs:', e);
-            }
-        };
+                try {
+                    const latest = await this.pb.collection('themes').getOne(theme.id);
+                    await this.pb.collection('themes').update(theme.id, {
+                        installs: (latest.installs || 0) + 1,
+                    });
+                } catch (e) {
+                    console.warn('Failed to update theme installs:', e);
+                }
+            };
+        }
 
         const previewContainer = document.getElementById('theme-details-preview-container');
-        previewContainer.innerHTML = '';
-        this.detailsPreviewShadow = previewContainer.attachShadow({ mode: 'open' });
+        if (previewContainer) {
+            previewContainer.innerHTML = '';
+            this.detailsPreviewShadow = previewContainer.attachShadow({ mode: 'open' });
 
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = '/styles.css';
-        this.detailsPreviewShadow.appendChild(link);
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = '/styles.css';
+            this.detailsPreviewShadow.appendChild(link);
 
-        const styleTag = document.createElement('style');
-        styleTag.textContent = theme.css.replace(/:root/g, ':host');
-        this.detailsPreviewShadow.appendChild(styleTag);
+            const styleTag = document.createElement('style');
+            styleTag.textContent = (theme.css as string).replace(/:root/g, ':host');
+            this.detailsPreviewShadow.appendChild(styleTag);
 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'preview-content';
-        wrapper.style.padding = '1rem';
-        wrapper.style.height = '100%';
-        wrapper.style.background = 'var(--background)';
-        wrapper.style.color = 'var(--foreground)';
-        wrapper.style.overflow = 'hidden';
-        wrapper.innerHTML = `
-            <div class="card" style="margin-bottom: 1rem;">
-                <div style="height: 60px; background: var(--muted); border-radius: var(--radius); margin-bottom: 0.5rem;"></div>
-                <div class="card-title">Preview</div>
-                <div class="card-subtitle">Subtitle</div>
-            </div>
-            <button class="btn-primary" style="margin-bottom: 0.5rem; width: 100%;">Button</button>
-        `;
-        this.detailsPreviewShadow.appendChild(wrapper);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'preview-content';
+            wrapper.style.padding = '1rem';
+            wrapper.style.height = '100%';
+            wrapper.style.background = 'var(--background)';
+            wrapper.style.color = 'var(--foreground)';
+            wrapper.style.overflow = 'hidden';
+            wrapper.innerHTML = `
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="height: 60px; background: var(--muted); border-radius: var(--radius); margin-bottom: 0.5rem;"></div>
+                    <div class="card-title">Preview</div>
+                    <div class="card-subtitle">Subtitle</div>
+                </div>
+                <button class="btn-primary" style="margin-bottom: 0.5rem; width: 100%;">Button</button>
+            `;
+            this.detailsPreviewShadow.appendChild(wrapper);
+        }
 
-        browseView.style.display = 'none';
-        tabs.style.display = 'none';
-        detailsView.style.display = 'flex';
+        if (browseView) browseView.style.display = 'none';
+        if (tabs) tabs.style.display = 'none';
+        if (detailsView) detailsView.style.display = 'flex';
     }
 
-    closeThemeDetails() {
-        const detailsView = document.getElementById('theme-store-details');
-        const browseView = document.getElementById('theme-store-browse');
-        const tabs = this.modal.querySelector('.search-tabs');
+    closeThemeDetails(): void {
+        const detailsView = document.getElementById('theme-store-details') as HTMLElement | null;
+        const browseView = document.getElementById('theme-store-browse') as HTMLElement | null;
+        const tabs = this.modal?.querySelector('.search-tabs') as HTMLElement | null;
 
-        detailsView.style.display = 'none';
-        browseView.style.display = 'block';
-        tabs.style.display = 'flex';
+        if (detailsView) detailsView.style.display = 'none';
+        if (browseView) browseView.style.display = 'block';
+        if (tabs) tabs.style.display = 'flex';
 
-        document.getElementById('theme-details-preview-container').innerHTML = '';
+        const container = document.getElementById('theme-details-preview-container');
+        if (container) container.innerHTML = '';
     }
 
-    extractPreviewStyles(css) {
+    extractPreviewStyles(css: string): string {
         const vars = ['--background', '--foreground', '--primary', '--card', '--border', '--muted-foreground'];
         let style = '';
         vars.forEach((v) => {
@@ -326,21 +369,25 @@ export class ThemeStore {
         return style;
     }
 
-    applyTheme(theme) {
-        let css = theme.css;
-        if (!css && typeof theme === 'string') {
+    applyTheme(theme: RecordModel | ThemeInput | string): void {
+        let css: string;
+        let themeObj: ThemeInput;
+        if (typeof theme === 'string') {
             css = theme;
-            theme = { name: 'Custom Theme', authorName: 'Unknown' };
+            themeObj = { css: theme, name: 'Custom Theme', authorName: 'Unknown' };
+        } else {
+            css = theme.css as string;
+            themeObj = theme as ThemeInput;
         }
 
         localStorage.setItem('custom_theme_css', css);
         localStorage.setItem('monochrome-theme', 'custom');
 
         const metadata = {
-            id: theme.id,
-            name: theme.name,
+            id: themeObj.id,
+            name: themeObj.name,
             author:
-                theme.authorName || theme.expand?.author?.username || theme.expand?.author?.display_name || 'Unknown',
+                themeObj.authorName || themeObj.expand?.author?.username || themeObj.expand?.author?.display_name || 'Unknown',
         };
         localStorage.setItem('community-theme', JSON.stringify(metadata));
 
@@ -388,7 +435,7 @@ export class ThemeStore {
 
             if (!isPresetOrGeneric) {
                 const FONT_LINK_ID = 'monochrome-dynamic-font';
-                let link = document.getElementById(FONT_LINK_ID);
+                let link = document.getElementById(FONT_LINK_ID) as HTMLLinkElement | null;
 
                 if (urlMatch && urlMatch[1]) {
                     const customUrl = urlMatch[1].trim().replace(/['"]/g, '');
@@ -450,7 +497,7 @@ export class ThemeStore {
         window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: 'custom' } }));
     }
 
-    async checkAuth() {
+    async checkAuth(): Promise<void> {
         if (this._isCheckingAuth) return;
         this._isCheckingAuth = true;
 
@@ -462,8 +509,8 @@ export class ThemeStore {
         const websiteContainer = websiteInput?.parentElement;
 
         if (isLoggedIn) {
-            authMessage.style.display = 'none';
-            form.style.display = 'block';
+            if (authMessage) authMessage.style.display = 'none';
+            if (form) form.style.display = 'block';
 
             try {
                 const userData = await syncManager.getUserData();
@@ -476,20 +523,20 @@ export class ThemeStore {
                 console.warn('Failed to check profile for website input visibility', e);
             }
         } else {
-            authMessage.style.display = 'flex';
-            form.style.display = 'none';
+            if (authMessage) authMessage.style.display = 'flex';
+            if (form) form.style.display = 'none';
         }
 
         this._isCheckingAuth = false;
     }
 
-    async handleUpload(e) {
+    async handleUpload(e: Event): Promise<void> {
         e.preventDefault();
 
-        const name = document.getElementById('theme-upload-name').value;
-        const desc = document.getElementById('theme-upload-desc').value;
-        const css = document.getElementById('theme-upload-css').value;
-        const website = document.getElementById('theme-upload-website').value;
+        const name = (document.getElementById('theme-upload-name') as HTMLInputElement).value;
+        const desc = (document.getElementById('theme-upload-desc') as HTMLTextAreaElement).value;
+        const css = (document.getElementById('theme-upload-css') as HTMLTextAreaElement).value;
+        const website = (document.getElementById('theme-upload-website') as HTMLInputElement).value;
 
         const fbUser = authManager?.user;
         if (!fbUser) {
@@ -497,8 +544,8 @@ export class ThemeStore {
             return;
         }
 
-        let userId = null;
-        let userName = null;
+        let userId: string | null = null;
+        let userName: string | null = null;
 
         try {
             const dbUser = await syncManager._getUserRecord(fbUser.uid);
@@ -522,14 +569,14 @@ export class ThemeStore {
             formData.append('name', name);
             formData.append('description', desc);
             formData.append('css', css);
-            formData.append('author', userId);
-            formData.append('authorName', userName);
+            formData.append('author', userId ?? '');
+            formData.append('authorName', userName ?? '');
             if (website) formData.append('authorUrl', website);
 
             await this.pb.collection('themes').create(formData, { f_id: fbUser.uid });
 
             alert('Theme uploaded successfully!');
-            e.target.reset();
+            (e.target as HTMLFormElement)?.reset();
 
             const previewWindow = document.getElementById('theme-preview-window');
             const togglePreviewBtn = document.getElementById('te-toggle-preview');
@@ -539,13 +586,14 @@ export class ThemeStore {
                 togglePreviewBtn.classList.remove('active');
             }
 
-            this.modal.querySelector('[data-tab="browse"]').click();
+            (this.modal?.querySelector('[data-tab="browse"]') as HTMLElement)?.click();
             this.loadThemes();
-        } catch (err) {
+        } catch (err: unknown) {
+            const pbErr = err as PBError;
             console.error('Upload failed:', err);
-            console.error('Response data:', err.data);
+            console.error('Response data:', pbErr.data);
 
-            const responseData = err.data?.data || {};
+            const responseData: Record<string, { message: string }> = pbErr.data?.data || {};
 
             if (Object.keys(responseData).length > 0) {
                 let msg = 'Failed to upload theme:\n';
@@ -554,21 +602,21 @@ export class ThemeStore {
                 }
                 alert(msg);
             } else {
-                const message = err.message || err.data?.message || 'Unknown error';
-                const debugInfo = `\n\nDebug: User ID: ${userId} (${userId?.length} chars) | Status: ${err.status}`;
+                const message = pbErr.message || pbErr.data?.message || 'Unknown error';
+                const debugInfo = `\n\nDebug: User ID: ${userId} (${userId?.length} chars) | Status: ${pbErr.status}`;
                 alert(`Failed to upload theme: ${message}${debugInfo}`);
             }
         }
     }
 
-    escapeHtml(str) {
+    escapeHtml(str: string): string {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
     }
 
-    setupEditorTools() {
-        const cssInput = document.getElementById('theme-upload-css');
+    setupEditorTools(): void {
+        const cssInput = document.getElementById('theme-upload-css') as HTMLTextAreaElement | null;
         const insertTemplateBtn = document.getElementById('te-insert-template');
         const togglePreviewBtn = document.getElementById('te-toggle-preview');
         const previewWindow = document.getElementById('theme-preview-window');
@@ -585,35 +633,37 @@ export class ThemeStore {
         };
 
         Object.entries(colorMap).forEach(([id, variable]) => {
-            document.getElementById(id)?.addEventListener('input', (e) => {
-                this.updateCssVariable(cssInput, variable, e.target.value);
+            document.getElementById(id)?.addEventListener('input', (e: Event) => {
+                this.updateCssVariable(cssInput, variable, (e.target as HTMLInputElement).value);
                 this.updatePreview();
             });
         });
 
-        const styleMap = {
+        const styleMap: Record<string, string> = {
             'te-font-family': '--font-family',
             'te-radius': '--radius',
         };
 
         Object.entries(styleMap).forEach(([id, variable]) => {
-            document.getElementById(id)?.addEventListener('change', (e) => {
-                if (e.target.value) {
-                    this.updateCssVariable(cssInput, variable, e.target.value);
+            document.getElementById(id)?.addEventListener('change', (e: Event) => {
+                const target = e.target as HTMLSelectElement;
+                if (target.value) {
+                    this.updateCssVariable(cssInput, variable, target.value);
                     this.updatePreview();
-                    e.target.value = '';
+                    target.value = '';
                 }
             });
         });
 
-        document.getElementById('te-font-custom')?.addEventListener('input', (e) => {
-            this.updateCssVariable(cssInput, '--font-family', e.target.value);
+        document.getElementById('te-font-custom')?.addEventListener('input', (e: Event) => {
+            this.updateCssVariable(cssInput, '--font-family', (e.target as HTMLInputElement).value);
             this.updatePreview();
         });
 
         insertTemplateBtn?.addEventListener('click', () => {
-            if (cssInput.value.trim() && !confirm('Overwrite current CSS with template?')) return;
-            cssInput.value = `:root {
+            if (cssInput && cssInput.value.trim() && !confirm('Overwrite current CSS with template?')) return;
+            if (cssInput) {
+                cssInput.value = `:root {
     /* Base Colors */
     --background: #0a0a0a;
     --foreground: #ededed;
@@ -640,10 +690,12 @@ export class ThemeStore {
     --font-family: 'Inter', sans-serif;
     --font-size-scale: 100%;
 }`;
+            }
             this.updatePreview();
         });
 
         togglePreviewBtn?.addEventListener('click', () => {
+            if (!previewWindow) return;
             const isVisible = previewWindow.style.display !== 'none';
             if (isVisible) {
                 previewWindow.style.display = 'none';
@@ -661,7 +713,8 @@ export class ThemeStore {
         cssInput?.addEventListener('input', () => this.updatePreview());
     }
 
-    updateCssVariable(textarea, variable, value) {
+    updateCssVariable(textarea: HTMLTextAreaElement | null, variable: string, value: string): void {
+        if (!textarea) return;
         let css = textarea.value;
         const regex = new RegExp(`${variable}:\\s*[^;\\}]+(?:;|(?=\\}))`, 'g');
         const newLine = `${variable}: ${value};`;
@@ -678,8 +731,9 @@ export class ThemeStore {
         textarea.value = css;
     }
 
-    initPreviewWindow() {
+    initPreviewWindow(): void {
         const container = document.getElementById('theme-preview-window');
+        if (!container) return;
         if (!this.previewShadow) {
             this.previewShadow = container.attachShadow({ mode: 'open' });
 
@@ -714,9 +768,9 @@ export class ThemeStore {
         }
     }
 
-    updatePreview() {
+    updatePreview(): void {
         if (!this.previewShadow || !this.previewStyleTag) return;
-        const css = document.getElementById('theme-upload-css').value;
+        const css = (document.getElementById('theme-upload-css') as HTMLTextAreaElement | null)?.value ?? '';
         const scopedCss = css.replace(/:root/g, ':host');
         this.previewStyleTag.textContent = scopedCss;
     }
