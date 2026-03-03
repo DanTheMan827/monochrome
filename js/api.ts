@@ -16,8 +16,64 @@ import { ffmpeg } from './ffmpeg.ts';
 export const DASH_MANIFEST_UNAVAILABLE_CODE = 'DASH_MANIFEST_UNAVAILABLE';
 const TIDAL_V2_TOKEN = 'txNoH4kkV41MfH25';
 
+interface ApiInstance {
+    url: string;
+    version?: string;
+}
+
+interface ApiSettingsProvider {
+    getInstances(type: string): Promise<ApiInstance[]>;
+}
+
+interface FetchRetryOptions {
+    type?: string;
+    minVersion?: string;
+    signal?: AbortSignal;
+}
+
+interface NormalizedSearchResult {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    items: any[];
+    limit: number;
+    offset: number;
+    totalNumberOfItems: number;
+}
+
+interface TrackLookupInfo {
+    manifest: string;
+    [key: string]: unknown;
+}
+
+interface TrackLookupResult {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    track: any;
+    info: TrackLookupInfo;
+    originalTrackUrl?: string;
+}
+
+interface GetArtistOptions {
+    lightweight?: boolean;
+    skipCache?: boolean;
+}
+
+interface RecommendOptions {
+    refresh?: boolean;
+}
+
+interface DownloadTrackOptions {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    onProgress?: ((info: any) => void) | null;
+    track?: TrackData;
+    signal?: AbortSignal;
+}
+
+
 export class LosslessAPI {
-    constructor(settings) {
+    private settings: ApiSettingsProvider;
+    private cache: APICache;
+    private streamCache: Map<string, string>;
+
+    constructor(settings: ApiSettingsProvider) {
         this.settings = settings;
         this.cache = new APICache({
             maxSize: 200,
@@ -38,11 +94,11 @@ export class LosslessAPI {
         if (this.streamCache.size > 50) {
             const entries = Array.from(this.streamCache.entries());
             const toDelete = entries.slice(0, entries.length - 50);
-            toDelete.forEach(([key]) => this.streamCache.delete(key));
+            toDelete.forEach(([key]: [string, string]) => this.streamCache.delete(key));
         }
     }
 
-    async fetchWithRetry(relativePath, options = {}) {
+    async fetchWithRetry(relativePath: string, options: FetchRetryOptions = {}): Promise<Response> {
         const type = options.type || 'api';
         let instances = await this.settings.getInstances(type);
         if (instances.length === 0) {
@@ -50,9 +106,9 @@ export class LosslessAPI {
         }
 
         if (options.minVersion) {
-            instances = instances.filter((instance) => {
+            instances = instances.filter((instance: ApiInstance) => {
                 if (!instance.version) return false;
-                return parseFloat(instance.version) >= parseFloat(options.minVersion);
+                return parseFloat(instance.version) >= parseFloat(options.minVersion!);
             });
             if (instances.length === 0) {
                 throw new Error(`No API instances configured for type: ${type} with minVersion: ${options.minVersion}`);
@@ -99,10 +155,10 @@ export class LosslessAPI {
 
                 lastError = new Error(`Request failed with status ${response.status}`);
                 instanceIndex++;
-            } catch (error) {
-                if (error.name === 'AbortError') throw error;
+            } catch (error: unknown) {
+                if (error instanceof Error && error.name === 'AbortError') throw error;
                 lastError = error;
-                console.warn(`Network error on ${baseUrl}: ${error.message}. Trying next instance...`);
+                console.warn(`Network error on ${baseUrl}: ${(error as Error).message}. Trying next instance...`);
                 instanceIndex++;
                 await delay(200);
             }
@@ -111,7 +167,8 @@ export class LosslessAPI {
         throw lastError || new Error(`All API instances failed for: ${relativePath}`);
     }
 
-    findSearchSection(source, key, visited) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    findSearchSection(source: any, key: string, visited: Set<object>): any | undefined {
         if (!source || typeof source !== 'object') return;
 
         if (Array.isArray(source)) {
@@ -138,7 +195,8 @@ export class LosslessAPI {
         }
     }
 
-    buildSearchResponse(section) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    buildSearchResponse(section: any): NormalizedSearchResult {
         const items = section?.items ?? [];
         return {
             items,
@@ -148,12 +206,14 @@ export class LosslessAPI {
         };
     }
 
-    normalizeSearchResponse(data, key) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    normalizeSearchResponse(data: any, key: string): NormalizedSearchResult {
         const section = this.findSearchSection(data, key, new Set());
         return this.buildSearchResponse(section);
     }
 
-    prepareTrack(track) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prepareTrack(track: any): TrackData {
         let normalized = track;
 
         if (!track.artist && Array.isArray(track.artists) && track.artists.length > 0) {
@@ -170,28 +230,31 @@ export class LosslessAPI {
         return normalized;
     }
 
-    prepareAlbum(album) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prepareAlbum(album: any): TrackAlbum {
         if (!album.artist && Array.isArray(album.artists) && album.artists.length > 0) {
             return { ...album, artist: album.artists[0] };
         }
         return album;
     }
 
-    preparePlaylist(playlist) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    preparePlaylist(playlist: any): PlaylistData {
         return playlist;
     }
 
-    prepareArtist(artist) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    prepareArtist(artist: any): ArtistData {
         if (!artist.type && Array.isArray(artist.artistTypes) && artist.artistTypes.length > 0) {
             return { ...artist, type: artist.artistTypes[0] };
         }
         return artist;
     }
 
-    async enrichTracksWithAlbumDates(tracks, maxRequests = 20) {
+    async enrichTracksWithAlbumDates(tracks: TrackData[], maxRequests: number = 20): Promise<TrackData[]> {
         if (!trackDateSettings.useAlbumYear()) return tracks;
 
-        const albumIdsToFetch = [];
+        const albumIdsToFetch: (string | number)[] = [];
         for (const track of tracks) {
             if (!track.album?.releaseDate && track.album?.id && !albumIdsToFetch.includes(track.album.id)) {
                 albumIdsToFetch.push(track.album.id);
@@ -206,7 +269,7 @@ export class LosslessAPI {
             console.warn(`[Enrich] Too many albums to fetch (${albumIdsToFetch.length}). limiting to ${maxRequests}.`);
         }
 
-        const albumDateMap = new Map();
+        const albumDateMap = new Map<string | number, string>();
 
         // Chunk requests to avoid spamming
         const chunkSize = 5;
@@ -223,7 +286,7 @@ export class LosslessAPI {
             }
         }
 
-        return tracks.map((track) => {
+        return tracks.map((track: TrackData) => {
             if (!track.album?.releaseDate && track.album?.id && albumDateMap.has(track.album.id)) {
                 return { ...track, album: { ...track.album, releaseDate: albumDateMap.get(track.album.id) } };
             }
@@ -231,7 +294,8 @@ export class LosslessAPI {
         });
     }
 
-    parseTrackLookup(data) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    parseTrackLookup(data: any): TrackLookupResult {
         const entries = Array.isArray(data) ? data : [data];
         let track, info, originalTrackUrl;
 
@@ -263,7 +327,7 @@ export class LosslessAPI {
         return { track, info, originalTrackUrl };
     }
 
-    extractStreamUrlFromManifest(manifest) {
+    extractStreamUrlFromManifest(manifest: string): string | null {
         try {
             const decoded = atob(manifest);
 
@@ -282,13 +346,16 @@ export class LosslessAPI {
                 const match = decoded.match(/https?:\/\/[\w\-.~:?#[@!$&'()*+,;=%/]+/);
                 return match ? match[0] : null;
             }
+
+            return null;
         } catch (error) {
             console.error('Failed to decode manifest:', error);
             return null;
         }
     }
 
-    deduplicateAlbums(albums) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    deduplicateAlbums(albums: any[]): TrackAlbum[] {
         const unique = new Map();
 
         for (const album of albums) {
@@ -322,15 +389,15 @@ export class LosslessAPI {
         return Array.from(unique.values());
     }
 
-    async searchTracks(query, options = {}) {
+    async searchTracks(query: string, options: FetchRetryOptions = {}): Promise<NormalizedSearchResult> {
         const cached = await this.cache.get('search_tracks', query);
-        if (cached) return cached;
+        if (cached) return cached as NormalizedSearchResult;
 
         try {
             const response = await this.fetchWithRetry(`/search/?s=${encodeURIComponent(query)}`, options);
             const data = await response.json();
             const normalized = this.normalizeSearchResponse(data, 'tracks');
-            const preparedTracks = normalized.items.map((t) => this.prepareTrack(t));
+            const preparedTracks = normalized.items.map((t: TrackData) => this.prepareTrack(t));
             // Skip enrichment for search to be fast and lightweight
             // const enrichedTracks = await this.enrichTracksWithAlbumDates(preparedTracks);
             const result = {
@@ -340,16 +407,16 @@ export class LosslessAPI {
 
             await this.cache.set('search_tracks', query, result);
             return result;
-        } catch (error) {
-            if (error.name === 'AbortError') throw error;
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'AbortError') throw error;
             console.error('Track search failed:', error);
             return { items: [], limit: 0, offset: 0, totalNumberOfItems: 0 };
         }
     }
 
-    async searchArtists(query, options = {}) {
+    async searchArtists(query: string, options: FetchRetryOptions = {}): Promise<NormalizedSearchResult> {
         const cached = await this.cache.get('search_artists', query);
-        if (cached) return cached;
+        if (cached) return cached as NormalizedSearchResult;
 
         try {
             const response = await this.fetchWithRetry(`/search/?a=${encodeURIComponent(query)}`, options);
@@ -357,27 +424,27 @@ export class LosslessAPI {
             const normalized = this.normalizeSearchResponse(data, 'artists');
             const result = {
                 ...normalized,
-                items: normalized.items.map((a) => this.prepareArtist(a)),
+                items: normalized.items.map((a: ArtistData) => this.prepareArtist(a)),
             };
 
             await this.cache.set('search_artists', query, result);
             return result;
-        } catch (error) {
-            if (error.name === 'AbortError') throw error;
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'AbortError') throw error;
             console.error('Artist search failed:', error);
             return { items: [], limit: 0, offset: 0, totalNumberOfItems: 0 };
         }
     }
 
-    async searchAlbums(query, options = {}) {
+    async searchAlbums(query: string, options: FetchRetryOptions = {}): Promise<NormalizedSearchResult> {
         const cached = await this.cache.get('search_albums', query);
-        if (cached) return cached;
+        if (cached) return cached as NormalizedSearchResult;
 
         try {
             const response = await this.fetchWithRetry(`/search/?al=${encodeURIComponent(query)}`, options);
             const data = await response.json();
             const normalized = this.normalizeSearchResponse(data, 'albums');
-            const preparedItems = normalized.items.map((a) => this.prepareAlbum(a));
+            const preparedItems = normalized.items.map((a: TrackAlbum) => this.prepareAlbum(a));
             const result = {
                 ...normalized,
                 items: this.deduplicateAlbums(preparedItems),
@@ -385,16 +452,16 @@ export class LosslessAPI {
 
             await this.cache.set('search_albums', query, result);
             return result;
-        } catch (error) {
-            if (error.name === 'AbortError') throw error;
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'AbortError') throw error;
             console.error('Album search failed:', error);
             return { items: [], limit: 0, offset: 0, totalNumberOfItems: 0 };
         }
     }
 
-    async searchPlaylists(query, options = {}) {
+    async searchPlaylists(query: string, options: FetchRetryOptions = {}): Promise<NormalizedSearchResult> {
         const cached = await this.cache.get('search_playlists', query);
-        if (cached) return cached;
+        if (cached) return cached as NormalizedSearchResult;
 
         try {
             const response = await this.fetchWithRetry(`/search/?p=${encodeURIComponent(query)}`, options);
@@ -402,21 +469,22 @@ export class LosslessAPI {
             const normalized = this.normalizeSearchResponse(data, 'playlists');
             const result = {
                 ...normalized,
-                items: normalized.items.map((p) => this.preparePlaylist(p)),
+                items: normalized.items.map((p: PlaylistData) => this.preparePlaylist(p)),
             };
 
             await this.cache.set('search_playlists', query, result);
             return result;
-        } catch (error) {
-            if (error.name === 'AbortError') throw error;
+        } catch (error: unknown) {
+            if (error instanceof Error && error.name === 'AbortError') throw error;
             console.error('Playlist search failed:', error);
             return { items: [], limit: 0, offset: 0, totalNumberOfItems: 0 };
         }
     }
 
-    async getAlbum(id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async getAlbum(id: string | number): Promise<{ album: TrackAlbum; tracks: TrackData[] }> {
         const cached = await this.cache.get('album', id);
-        if (cached) return cached;
+        if (cached) return cached as { album: TrackAlbum; tracks: TrackData[] };
 
         const response = await this.fetchWithRetry(`/album/?id=${id}`);
         const jsonData = await response.json();
@@ -474,10 +542,10 @@ export class LosslessAPI {
             }
         }
 
-        let tracks = (tracksSection?.items || []).map((i) => this.prepareTrack(i.item || i));
+        let tracks = (tracksSection?.items || []).map((i: any) => this.prepareTrack(i.item || i));
 
         // Handle pagination if there are more tracks
-        if (album && album.numberOfTracks > tracks.length) {
+        if (album && album.numberOfTracks != null && album.numberOfTracks > tracks.length) {
             let offset = tracks.length;
             const SAFE_MAX_TRACKS = 10000;
 
@@ -502,7 +570,7 @@ export class LosslessAPI {
 
                     if (!nextItems || nextItems.length === 0) break;
 
-                    const preparedItems = nextItems.map((i) => this.prepareTrack(i.item || i));
+                    const preparedItems = nextItems.map((i: any) => this.prepareTrack(i.item || i));
                     if (preparedItems.length === 0) break;
 
                     // Safeguard: If API ignores offset, it returns the first page again.
@@ -529,7 +597,7 @@ export class LosslessAPI {
 
         // Enrich tracks with album releaseDate if available
         if (album?.releaseDate) {
-            tracks = tracks.map((track) => {
+            tracks = tracks.map((track: TrackData) => {
                 if (track.album && !track.album.releaseDate) {
                     return { ...track, album: { ...track.album, releaseDate: album.releaseDate } };
                 }
@@ -543,9 +611,10 @@ export class LosslessAPI {
         return result;
     }
 
-    async getPlaylist(id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async getPlaylist(id: string | number): Promise<{ playlist: PlaylistData; tracks: TrackData[] }> {
         const cached = await this.cache.get('playlist', id);
-        if (cached) return cached;
+        if (cached) return cached as { playlist: PlaylistData; tracks: TrackData[] };
 
         const response = await this.fetchWithRetry(`/playlist/?id=${id}`);
         const jsonData = await response.json();
@@ -597,7 +666,7 @@ export class LosslessAPI {
 
         if (!playlist) throw new Error('Playlist not found');
 
-        let tracks = (tracksSection?.items || []).map((i) => this.prepareTrack(i.item || i));
+        let tracks = (tracksSection?.items || []).map((i: any) => this.prepareTrack(i.item || i));
 
         // Handle pagination if there are more tracks
         if (playlist.numberOfTracks > tracks.length) {
@@ -625,7 +694,7 @@ export class LosslessAPI {
 
                     if (!nextItems || nextItems.length === 0) break;
 
-                    const preparedItems = nextItems.map((i) => this.prepareTrack(i.item || i));
+                    const preparedItems = nextItems.map((i: any) => this.prepareTrack(i.item || i));
                     if (preparedItems.length === 0) break;
 
                     // Safeguard: If API ignores offset, it returns the first page again.
@@ -653,9 +722,10 @@ export class LosslessAPI {
         return result;
     }
 
-    async getMix(id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async getMix(id: string | number): Promise<{ mix: Record<string, unknown>; tracks: TrackData[] }> {
         const cached = await this.cache.get('mix', id);
-        if (cached) return cached;
+        if (cached) return cached as { mix: Record<string, unknown>; tracks: TrackData[] };
 
         const response = await this.fetchWithRetry(`/mix/?id=${id}`, { type: 'api', minVersion: '2.3' });
         const data = await response.json();
@@ -667,7 +737,7 @@ export class LosslessAPI {
             throw new Error('Mix metadata not found');
         }
 
-        let tracks = items.map((i) => this.prepareTrack(i.item || i));
+        let tracks = items.map((i: any) => this.prepareTrack(i.item || i));
 
         // Enrich tracks with album release dates
         // Limited to reduce API load
@@ -687,10 +757,10 @@ export class LosslessAPI {
         return result;
     }
 
-    async getArtistSocials(artistName) {
+    async getArtistSocials(artistName: string): Promise<{ type: string; url: string }[]> {
         const cacheKey = `artist_socials_${artistName}`;
         const cached = await this.cache.get('artist', cacheKey);
-        if (cached) return cached;
+        if (cached) return cached as { type: string; url: string }[];
 
         try {
             const searchUrl = `https://musicbrainz.org/ws/2/artist/?query=artist:${encodeURIComponent(artistName)}&fmt=json`;
@@ -736,7 +806,8 @@ export class LosslessAPI {
         }
     }
 
-    async getArtist(artistId, options = {}) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async getArtist(artistId: string | number, options: GetArtistOptions = {}): Promise<any> {
         const cacheKey = options.lightweight ? `artist_${artistId}_light` : `artist_${artistId}`;
         if (!options.skipCache) {
             const cached = await this.cache.get('artist', cacheKey);
@@ -770,10 +841,13 @@ export class LosslessAPI {
         const albumMap = new Map();
         const trackMap = new Map();
 
-        const isTrack = (v) => v?.id && v.duration && v.album;
-        const isAlbum = (v) => v?.id && 'numberOfTracks' in v;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isTrack = (v: any): boolean => v?.id && v.duration && v.album;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isAlbum = (v: any): boolean => v?.id && 'numberOfTracks' in v;
 
-        const scan = (value, visited = new Set()) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const scan = (value: any, visited: Set<object> = new Set()): void => {
             if (!value || typeof value !== 'object' || visited.has(value)) return;
             visited.add(value);
 
@@ -802,7 +876,7 @@ export class LosslessAPI {
                         const itemArtistId = item.artist?.id;
                         const matchesArtist =
                             itemArtistId === numericArtistId ||
-                            (Array.isArray(item.artists) && item.artists.some((a) => a.id === numericArtistId));
+                            (Array.isArray(item.artists) && item.artists.some((a: TrackArtist) => a.id === numericArtistId));
 
                         if (matchesArtist && !albumMap.has(item.id)) {
                             albumMap.set(item.id, item);
@@ -816,7 +890,7 @@ export class LosslessAPI {
 
         const rawReleases = Array.from(albumMap.values());
         const allReleases = this.deduplicateAlbums(rawReleases).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         const eps = allReleases.filter((a) => a.type === 'EP' || a.type === 'SINGLE');
@@ -835,9 +909,9 @@ export class LosslessAPI {
         return result;
     }
 
-    async getSimilarArtists(artistId) {
+    async getSimilarArtists(artistId: string | number): Promise<ArtistData[]> {
         const cached = await this.cache.get('similar_artists', artistId);
-        if (cached) return cached;
+        if (cached) return cached as ArtistData[];
 
         try {
             const response = await this.fetchWithRetry(`/artist/similar/?id=${artistId}`, {
@@ -849,7 +923,8 @@ export class LosslessAPI {
             // Handle various response structures
             const items = data.artists || data.items || data.data || (Array.isArray(data) ? data : []);
 
-            const result = items.map((artist) => this.prepareArtist(artist));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = items.map((artist: any) => this.prepareArtist(artist));
 
             await this.cache.set('similar_artists', artistId, result);
             return result;
@@ -859,10 +934,10 @@ export class LosslessAPI {
         }
     }
 
-    async getArtistBiography(artistId) {
+    async getArtistBiography(artistId: string | number): Promise<{ text: string; source: string } | null> {
         const cacheKey = `artist_bio_v1_${artistId}`;
         const cached = await this.cache.get('artist', cacheKey);
-        if (cached) return cached;
+        if (cached) return cached as { text: string; source: string };
 
         try {
             const url = `https://api.tidal.com/v1/artists/${artistId}/bio?locale=en_US&countryCode=GB`;
@@ -889,9 +964,9 @@ export class LosslessAPI {
         return null;
     }
 
-    async getSimilarAlbums(albumId) {
+    async getSimilarAlbums(albumId: string | number): Promise<TrackAlbum[]> {
         const cached = await this.cache.get('similar_albums', albumId);
-        if (cached) return cached;
+        if (cached) return cached as TrackAlbum[];
 
         try {
             const response = await this.fetchWithRetry(`/album/similar/?id=${albumId}`, {
@@ -902,7 +977,8 @@ export class LosslessAPI {
 
             const items = data.items || data.albums || data.data || (Array.isArray(data) ? data : []);
 
-            const result = items.map((album) => this.prepareAlbum(album));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const result = items.map((album: any) => this.prepareAlbum(album));
 
             await this.cache.set('similar_albums', albumId, result);
             return result;
@@ -912,7 +988,7 @@ export class LosslessAPI {
         }
     }
 
-    async getRecommendedTracksForPlaylist(tracks, limit = 20, options = {}) {
+    async getRecommendedTracksForPlaylist(tracks: TrackData[], limit: number = 20, options: RecommendOptions = {}): Promise<TrackData[]> {
         const artistMap = new Map();
 
         // Check if tracks already have artist info (some might)
@@ -965,8 +1041,8 @@ export class LosslessAPI {
             return [];
         }
 
-        const recommendedTracks = [];
-        const seenTrackIds = new Set(tracks.map((t) => t.id));
+        const recommendedTracks: TrackData[] = [];
+        const seenTrackIds = new Set<string | number>(tracks.map((t: TrackData) => t.id));
 
         // Shuffle artists if refreshing to get different results
         let shuffledArtists = artists;
@@ -981,7 +1057,7 @@ export class LosslessAPI {
                 console.log(`Fetching tracks for artist: ${artist.name} (ID: ${artist.id})`);
                 const artistData = await this.getArtist(artist.id, { lightweight: true, skipCache: options.refresh });
                 if (artistData && artistData.tracks && artistData.tracks.length > 0) {
-                    const availableTracks = artistData.tracks.filter((track) => !seenTrackIds.has(track.id));
+                    const availableTracks = artistData.tracks.filter((track: TrackData) => !seenTrackIds.has(track.id));
                     // Shuffle and pick different tracks when refreshing
                     const shuffled = options.refresh
                         ? availableTracks.sort(() => Math.random() - 0.5)
@@ -998,10 +1074,10 @@ export class LosslessAPI {
         });
 
         const results = await Promise.all(artistPromises);
-        results.forEach((tracks) => {
-            if (tracks.length > 0) {
-                recommendedTracks.push(...tracks);
-                seenTrackIds.add(...tracks.map((t) => t.id));
+        results.forEach((resultTracks: TrackData[]) => {
+            if (resultTracks.length > 0) {
+                recommendedTracks.push(...resultTracks);
+                resultTracks.forEach((t: TrackData) => seenTrackIds.add(t.id));
             }
         });
 
@@ -1009,7 +1085,8 @@ export class LosslessAPI {
         return shuffled.slice(0, limit);
     }
 
-    normalizeTrackResponse(apiResponse) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    normalizeTrackResponse(apiResponse: any): any {
         if (!apiResponse || typeof apiResponse !== 'object') {
             return apiResponse;
         }
@@ -1027,10 +1104,11 @@ export class LosslessAPI {
         return [trackStub, raw];
     }
 
-    async getTrackMetadata(id) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async getTrackMetadata(id: string | number): Promise<TrackData> {
         const cacheKey = `meta_${id}`;
         const cached = await this.cache.get('track', cacheKey);
-        if (cached) return cached;
+        if (cached) return cached as TrackData;
 
         const response = await this.fetchWithRetry(`/info/?id=${id}`, { type: 'api' });
         const json = await response.json();
@@ -1049,9 +1127,9 @@ export class LosslessAPI {
         throw new Error('Track metadata not found');
     }
 
-    async getTrackRecommendations(id) {
+    async getTrackRecommendations(id: string | number): Promise<TrackData[]> {
         const cached = await this.cache.get('recommendations', id);
-        if (cached) return cached;
+        if (cached) return cached as TrackData[];
 
         try {
             const response = await this.fetchWithRetry(`/recommendations/?id=${id}`, {
@@ -1062,7 +1140,8 @@ export class LosslessAPI {
             const data = json.data || json;
 
             const items = data.items || [];
-            const tracks = items.map((item) => this.prepareTrack(item.track || item));
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const tracks = items.map((item: any) => this.prepareTrack(item.track || item));
 
             await this.cache.set('recommendations', id, tracks);
             return tracks;
@@ -1072,10 +1151,10 @@ export class LosslessAPI {
         }
     }
 
-    async getTrack(id, quality = 'HI_RES_LOSSLESS') {
+    async getTrack(id: string | number, quality: string = 'HI_RES_LOSSLESS'): Promise<TrackLookupResult> {
         const cacheKey = `${id}_${quality}`;
         const cached = await this.cache.get('track', cacheKey);
-        if (cached) return cached;
+        if (cached) return cached as TrackLookupResult;
 
         const response = await this.fetchWithRetry(`/track/?id=${id}&quality=${quality}`, { type: 'streaming' });
         const jsonResponse = await response.json();
@@ -1085,11 +1164,11 @@ export class LosslessAPI {
         return result;
     }
 
-    async getStreamUrl(id, quality = 'HI_RES_LOSSLESS') {
+    async getStreamUrl(id: string | number, quality: string = 'HI_RES_LOSSLESS'): Promise<string> {
         const cacheKey = `stream_${id}_${quality}`;
 
         if (this.streamCache.has(cacheKey)) {
-            return this.streamCache.get(cacheKey);
+            return this.streamCache.get(cacheKey)!;
         }
 
         const lookup = await this.getTrack(id, quality);
@@ -1108,7 +1187,7 @@ export class LosslessAPI {
         return streamUrl;
     }
 
-    async downloadTrack(id, quality = 'HI_RES_LOSSLESS', filename, options = {}) {
+    async downloadTrack(id: string | number, quality: string = 'HI_RES_LOSSLESS', filename: string, options: DownloadTrackOptions = {}): Promise<void> {
         const { onProgress, track } = options;
 
         try {
@@ -1134,7 +1213,8 @@ export class LosslessAPI {
                     const downloader = new DashDownloader();
                     blob = await downloader.downloadDashStream(streamUrl, {
                         signal: options.signal,
-                        onProgress: options.onProgress,
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        onProgress: options.onProgress as any,
                     });
                 } catch (dashError) {
                     console.error('DASH download failed:', dashError);
@@ -1198,11 +1278,11 @@ export class LosslessAPI {
             if (quality === 'MP3_320') {
                 try {
                     blob = await encodeToMp3(blob, onProgress, options.signal);
-                } catch (encodingError) {
+                } catch (encodingError: unknown) {
                     if (onProgress) {
                         onProgress({
                             stage: 'error',
-                            message: `Encoding failed: ${encodingError.message}`,
+                            message: `Encoding failed: ${(encodingError as Error).message}`,
                         });
                     }
                     throw encodingError;
@@ -1237,8 +1317,8 @@ export class LosslessAPI {
                         default:
                             break;
                     }
-                } catch (error) {
-                    if (error?.name === 'AbortError') {
+                } catch (error: unknown) {
+                    if ((error as Error)?.name === 'AbortError') {
                         throw error;
                     }
 
@@ -1268,22 +1348,22 @@ export class LosslessAPI {
             }
 
             this.triggerDownload(blob, finalFilename);
-        } catch (error) {
-            if (error.name === 'AbortError') {
+        } catch (error: unknown) {
+            if ((error as Error).name === 'AbortError') {
                 throw error;
             }
             console.error('Download failed:', error);
-            if (error instanceof MP3EncodingError || error.code === 'MP3_ENCODING_FAILED') {
+            if (error instanceof MP3EncodingError || (error as { code?: string }).code === 'MP3_ENCODING_FAILED') {
                 throw error;
             }
-            if (error.message === RATE_LIMIT_ERROR_MESSAGE) {
+            if ((error as Error).message === RATE_LIMIT_ERROR_MESSAGE) {
                 throw error;
             }
             throw new Error('Download failed. The stream may require a proxy.');
         }
     }
 
-    triggerDownload(blob, filename) {
+    triggerDownload(blob: Blob, filename: string): void {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1294,7 +1374,7 @@ export class LosslessAPI {
         URL.revokeObjectURL(url);
     }
 
-    getCoverUrl(id, size = '320') {
+    getCoverUrl(id: string, size: string = '320'): string {
         if (!id) {
             return `https://picsum.photos/seed/${Math.random()}/${size}`;
         }
@@ -1307,7 +1387,7 @@ export class LosslessAPI {
         return `https://resources.tidal.com/images/${formattedId}/${size}x${size}.jpg`;
     }
 
-    getVideoCoverUrl(id, size = '1280') {
+    getVideoCoverUrl(id: string, size: string = '1280'): string | null {
         if (!id) {
             return null;
         }
@@ -1320,7 +1400,7 @@ export class LosslessAPI {
         return `https://resources.tidal.com/videos/${parts[0]}/${parts[1]}/${parts[2]}/${parts[3]}/${parts[4]}/${size}x${size}.mp4`;
     }
 
-    getArtistPictureUrl(id, size = '320') {
+    getArtistPictureUrl(id: string, size: string = '320'): string {
         if (!id) {
             return `https://picsum.photos/seed/${Math.random()}/${size}`;
         }
@@ -1333,12 +1413,12 @@ export class LosslessAPI {
         return `https://resources.tidal.com/images/${formattedId}/${size}x${size}.jpg`;
     }
 
-    async clearCache() {
+    async clearCache(): Promise<void> {
         await this.cache.clear();
         this.streamCache.clear();
     }
 
-    getCacheStats() {
+    getCacheStats(): { memoryEntries: number; maxSize: number; ttl: number; streamUrls: number } {
         return {
             ...this.cache.getCacheStats(),
             streamUrls: this.streamCache.size,
