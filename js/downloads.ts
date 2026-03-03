@@ -18,42 +18,85 @@ import { generateM3U, generateM3U8, generateCUE, generateNFO, generateJSON } fro
 import { encodeToMp3 } from './mp3-encoder.ts';
 import { ffmpeg } from './ffmpeg.ts';
 
-const downloadTasks = new Map();
-const bulkDownloadTasks = new Map();
-const ongoingDownloads = new Set();
-let downloadNotificationContainer = null;
+interface DownloadAPI {
+    getTrackMetadata(id: string | number): Promise<TrackData>;
+    getTrack(id: string | number, quality: string): Promise<{ originalTrackUrl?: string; info: { manifest: string } }>;
+    extractStreamUrlFromManifest(manifest: string): string | null;
+    getCoverUrl(coverId: string | undefined, size?: string): string;
+    getAlbum(id: string | number): Promise<{ album: TrackAlbum; tracks: TrackData[] }>;
+    downloadTrack(id: string | number, quality: string, filename: string, options: {
+        signal: AbortSignal;
+        track: TrackData;
+        onProgress: (progress: DownloadProgress) => void;
+    }): Promise<void>;
+}
+
+interface LyricsManager {
+    fetchLyrics(trackId: string | number, track: TrackData): Promise<unknown>;
+    generateLRCContent(lyricsData: unknown, track: TrackData): string | null;
+    downloadLRC(lyricsData: unknown, track: TrackData): void;
+}
+
+interface DownloadProgress {
+    stage?: string;
+    receivedBytes: number;
+    totalBytes?: number;
+}
+
+interface DiscLayoutContext {
+    separateByDisc: boolean;
+    resolveDiscNumber: (index: number) => number;
+}
+
+type PlaylistPathResolver = ((track: TrackData, filename: string, index: number) => string) | null;
+
+interface DownloadMetadata {
+    title?: string;
+    artist?: string | TrackArtist;
+    id?: string | number;
+    uuid?: string;
+    releaseDate?: string;
+    numberOfTracks?: number;
+    cover?: string;
+    [key: string]: unknown;
+}
+
+const downloadTasks = new Map<string | number, { taskEl: HTMLElement; abortController: AbortController }>();
+const bulkDownloadTasks = new Map<HTMLElement, { abortController: AbortController }>();
+const ongoingDownloads = new Set<string>();
+let downloadNotificationContainer: HTMLElement | null = null;
 
 async function loadClientZip() {
     try {
         const module = await import('https://cdn.jsdelivr.net/npm/client-zip@2.4.5/+esm');
         return module;
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Failed to load client-zip:', error);
         throw new Error('Failed to load ZIP library');
     }
 }
 
-function toPositiveInt(value) {
-    const parsed = parseInt(value, 10);
+function toPositiveInt(value: unknown): number | null {
+    const parsed = parseInt(String(value), 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function getExplicitTrackDiscNumber(track) {
+function getExplicitTrackDiscNumber(track: TrackData): number | null {
     const candidates = [
         track?.volumeNumber,
         track?.discNumber,
-        track?.mediaNumber,
-        track?.media_number,
-        track?.volume,
-        track?.disc,
-        track?.volume?.number,
-        track?.disc?.number,
-        track?.media?.number,
-        track?.disc,
-        track?.disc_no,
-        track?.discNo,
-        track?.disc_number,
-        track?.mediaMetadata?.discNumber,
+        (track as Record<string, unknown>)?.mediaNumber,
+        (track as Record<string, unknown>)?.media_number,
+        (track as Record<string, unknown>)?.volume,
+        (track as Record<string, unknown>)?.disc,
+        ((track as Record<string, unknown>)?.volume as Record<string, unknown>)?.number,
+        ((track as Record<string, unknown>)?.disc as Record<string, unknown>)?.number,
+        ((track as Record<string, unknown>)?.media as Record<string, unknown>)?.number,
+        (track as Record<string, unknown>)?.disc,
+        (track as Record<string, unknown>)?.disc_no,
+        (track as Record<string, unknown>)?.discNo,
+        (track as Record<string, unknown>)?.disc_number,
+        (track?.mediaMetadata as Record<string, unknown>)?.discNumber,
     ];
 
     for (const candidate of candidates) {
@@ -63,24 +106,24 @@ function getExplicitTrackDiscNumber(track) {
     return null;
 }
 
-async function createDiscLayoutContext(tracks, api) {
+async function createDiscLayoutContext(tracks: TrackData[], api: DownloadAPI): Promise<DiscLayoutContext> {
     if (!playlistSettings.shouldSeparateDiscsInZip()) {
         return { separateByDisc: false, resolveDiscNumber: () => 1 };
     }
 
-    const explicitDiscNumbers = tracks.map((track) => getExplicitTrackDiscNumber(track));
+    const explicitDiscNumbers = tracks.map((track: TrackData) => getExplicitTrackDiscNumber(track));
     const explicitDistinct = new Set(explicitDiscNumbers.filter(Boolean));
 
     if (explicitDistinct.size > 1) {
         return {
             separateByDisc: true,
-            resolveDiscNumber: (index) => explicitDiscNumbers[index] || 1,
+            resolveDiscNumber: (index: number) => explicitDiscNumbers[index] || 1,
         };
     }
 
     // Some providers omit disc fields in album payload but include them in full track metadata.
     const hydratedDiscNumbers = await Promise.all(
-        tracks.map(async (track, index) => {
+        tracks.map(async (track: TrackData, index: number) => {
             if (explicitDiscNumbers[index]) return explicitDiscNumbers[index];
             try {
                 const fullTrack = await api.getTrackMetadata(track.id);
@@ -95,23 +138,23 @@ async function createDiscLayoutContext(tracks, api) {
     if (hydratedDistinct.size > 1) {
         return {
             separateByDisc: true,
-            resolveDiscNumber: (index) => hydratedDiscNumbers[index] || explicitDiscNumbers[index] || 1,
+            resolveDiscNumber: (index: number) => hydratedDiscNumbers[index] || explicitDiscNumbers[index] || 1,
         };
     }
 
     return { separateByDisc: false, resolveDiscNumber: () => 1 };
 }
 
-function getDiscFolderName(discNumber) {
+function getDiscFolderName(discNumber: number): string {
     return `Disc ${discNumber}`;
 }
 
-function buildZipTrackPath(rootFolder, filename, separateByDisc, discNumber = 1) {
+function buildZipTrackPath(rootFolder: string, filename: string, separateByDisc: boolean, discNumber: number = 1): string {
     if (!separateByDisc) return `${rootFolder}/${filename}`;
     return `${rootFolder}/${getDiscFolderName(discNumber)}/${filename}`;
 }
 
-function getPlaylistAudioExtension(quality) {
+function getPlaylistAudioExtension(quality: string): string {
     return quality === 'LOW' || quality === 'HIGH' ? 'm4a' : 'flac';
 }
 
@@ -124,7 +167,7 @@ function createDownloadNotification() {
     return downloadNotificationContainer;
 }
 
-export function showNotification(message) {
+export function showNotification(message: string): void {
     const container = createDownloadNotification();
 
     const notifEl = document.createElement('div');
@@ -145,12 +188,12 @@ export function showNotification(message) {
     }, 1500);
 }
 
-export function addDownloadTask(trackId, track, filename, api, abortController) {
+export function addDownloadTask(trackId: string | number, track: TrackData, filename: string, api: DownloadAPI, abortController: AbortController) {
     const container = createDownloadNotification();
 
     const taskEl = document.createElement('div');
     taskEl.className = 'download-task';
-    taskEl.dataset.trackId = trackId;
+    taskEl.dataset.trackId = String(trackId);
     const trackTitle = getTrackTitle(track);
     const trackArtists = getTrackArtists(track);
     taskEl.innerHTML = `
@@ -175,7 +218,7 @@ export function addDownloadTask(trackId, track, filename, api, abortController) 
 
     downloadTasks.set(trackId, { taskEl, abortController });
 
-    taskEl.querySelector('.download-cancel').addEventListener('click', () => {
+    taskEl.querySelector('.download-cancel')!.addEventListener('click', () => {
         abortController.abort();
         removeDownloadTask(trackId);
     });
@@ -183,13 +226,13 @@ export function addDownloadTask(trackId, track, filename, api, abortController) 
     return { taskEl, abortController };
 }
 
-export function updateDownloadProgress(trackId, progress) {
+export function updateDownloadProgress(trackId: string | number, progress: DownloadProgress): void {
     const task = downloadTasks.get(trackId);
     if (!task) return;
 
     const { taskEl } = task;
-    const progressFill = taskEl.querySelector('.download-progress-fill');
-    const statusEl = taskEl.querySelector('.download-status');
+    const progressFill = taskEl.querySelector('.download-progress-fill') as HTMLElement;
+    const statusEl = taskEl.querySelector('.download-status') as HTMLElement;
 
     if (progress.stage === 'downloading') {
         const percent = progress.totalBytes ? Math.round((progress.receivedBytes / progress.totalBytes) * 100) : 0;
@@ -203,14 +246,14 @@ export function updateDownloadProgress(trackId, progress) {
     }
 }
 
-export function completeDownloadTask(trackId, success = true, message = null) {
+export function completeDownloadTask(trackId: string | number, success: boolean = true, message: string | null = null): void {
     const task = downloadTasks.get(trackId);
     if (!task) return;
 
     const { taskEl } = task;
-    const progressFill = taskEl.querySelector('.download-progress-fill');
-    const statusEl = taskEl.querySelector('.download-status');
-    const cancelBtn = taskEl.querySelector('.download-cancel');
+    const progressFill = taskEl.querySelector('.download-progress-fill') as HTMLElement;
+    const statusEl = taskEl.querySelector('.download-status') as HTMLElement;
+    const cancelBtn = taskEl.querySelector('.download-cancel') as HTMLElement;
 
     if (success) {
         progressFill.style.width = '100%';
@@ -233,7 +276,7 @@ export function completeDownloadTask(trackId, success = true, message = null) {
     }
 }
 
-function removeDownloadTask(trackId) {
+function removeDownloadTask(trackId: string | number): void {
     const task = downloadTasks.get(trackId);
     if (!task) return;
 
@@ -251,7 +294,7 @@ function removeDownloadTask(trackId) {
     }, 300);
 }
 
-function removeBulkDownloadTask(notifEl) {
+function removeBulkDownloadTask(notifEl: HTMLElement): void {
     const task = bulkDownloadTasks.get(notifEl);
     if (!task) return;
 
@@ -268,10 +311,10 @@ function removeBulkDownloadTask(notifEl) {
     }, 300);
 }
 
-async function downloadTrackBlob(track, quality, api, lyricsManager = null, signal = null) {
-    let enrichedTrack = {
+async function downloadTrackBlob(track: TrackData, quality: string, api: DownloadAPI, lyricsManager: LyricsManager | null = null, signal: AbortSignal | null = null): Promise<{ blob: Blob; extension: string }> {
+    let enrichedTrack: TrackData = {
         ...track,
-        artist: track.artist || (track.artists && track.artists.length > 0 ? track.artists[0] : null),
+        artist: track.artist || (track.artists && track.artists.length > 0 ? track.artists[0] : undefined),
     };
 
     // MP3_320 is not a native TIDAL quality, we download LOSSLESS and convert
@@ -285,13 +328,13 @@ async function downloadTrackBlob(track, quality, api, lyricsManager = null, sign
                 ...enrichedTrack,
                 artist: enrichedTrack.artist || fullTrack.artist,
                 album: {
-                    ...(fullTrack.album || {}),
-                    ...(enrichedTrack.album || {}),
-                },
+                    ...(fullTrack.album || {} as TrackAlbum),
+                    ...(enrichedTrack.album || {} as TrackAlbum),
+                } as TrackAlbum,
                 // Preserve explicit disc fields from either source
-                discNumber: enrichedTrack.discNumber ?? fullTrack.discNumber,
+                discNumber: (enrichedTrack as Record<string, unknown>).discNumber ?? (fullTrack as Record<string, unknown>).discNumber,
                 volumeNumber: enrichedTrack.volumeNumber ?? fullTrack.volumeNumber,
-            };
+            } as TrackData;
         }
     } catch {
         // Non-fatal: continue with best available track payload
@@ -306,7 +349,7 @@ async function downloadTrackBlob(track, quality, api, lyricsManager = null, sign
                     ...albumData.album,
                 };
             }
-        } catch (error) {
+        } catch (error: unknown) {
             console.warn('Failed to fetch album data for metadata:', error);
         }
     }
@@ -328,7 +371,7 @@ async function downloadTrackBlob(track, quality, api, lyricsManager = null, sign
     if (streamUrl.startsWith('blob:')) {
         try {
             const downloader = new DashDownloader();
-            blob = await downloader.downloadDashStream(streamUrl, { signal });
+            blob = await downloader.downloadDashStream(streamUrl, { signal: signal ?? undefined });
         } catch (dashError) {
             console.error('DASH download failed:', dashError);
             // Fallback
@@ -379,8 +422,8 @@ async function downloadTrackBlob(track, quality, api, lyricsManager = null, sign
                 default:
                     break;
             }
-        } catch (error) {
-            if (error?.name === 'AbortError') {
+        } catch (error: unknown) {
+            if ((error as Error)?.name === 'AbortError') {
                 throw error;
             }
 
@@ -397,7 +440,7 @@ async function downloadTrackBlob(track, quality, api, lyricsManager = null, sign
     return { blob, extension };
 }
 
-function triggerDownload(blob, filename) {
+function triggerDownload(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -408,8 +451,8 @@ function triggerDownload(blob, filename) {
     URL.revokeObjectURL(url);
 }
 
-async function bulkDownloadSequentially(tracks, api, quality, lyricsManager, notification) {
-    const { abortController } = bulkDownloadTasks.get(notification);
+async function bulkDownloadSequentially(tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null, notification: HTMLElement): Promise<void> {
+    const { abortController } = bulkDownloadTasks.get(notification)!;
     const signal = abortController.signal;
 
     for (let i = 0; i < tracks.length; i++) {
@@ -439,26 +482,26 @@ async function bulkDownloadSequentially(tracks, api, quality, lyricsManager, not
                     // Silent fail for lyrics
                 }
             }
-        } catch (err) {
-            if (err.name === 'AbortError') throw err;
+        } catch (err: unknown) {
+            if ((err as Error).name === 'AbortError') throw err;
             console.error(`Failed to download track ${trackTitle}:`, err);
         }
     }
 }
 
 async function bulkDownloadToZipStream(
-    tracks,
-    folderName,
-    api,
-    quality,
-    lyricsManager,
-    notification,
-    fileHandle,
-    coverBlob = null,
-    type = 'playlist',
-    metadata = null
-) {
-    const { abortController } = bulkDownloadTasks.get(notification);
+    tracks: TrackData[],
+    folderName: string,
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null,
+    notification: HTMLElement,
+    fileHandle: FileSystemFileHandle,
+    coverBlob: Blob | null = null,
+    type: string = 'playlist',
+    metadata: DownloadMetadata | null = null
+): Promise<void> {
+    const { abortController } = bulkDownloadTasks.get(notification)!;
     const signal = abortController.signal;
     const { downloadZip } = await loadClientZip();
 
@@ -476,7 +519,7 @@ async function bulkDownloadToZipStream(
         const discLayout = await createDiscLayoutContext(tracks, api);
         const separateByDisc = discLayout.separateByDisc;
         const playlistPathResolver = separateByDisc
-            ? (_track, filename, index) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
+            ? (_track: TrackData, filename: string, index: number) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
             : null;
 
         if (playlistSettings.shouldGenerateM3U()) {
@@ -530,7 +573,7 @@ async function bulkDownloadToZipStream(
         // For albums, generate CUE file
         if (type === 'album' && playlistSettings.shouldGenerateCUE()) {
             const audioFilename = `${sanitizeForFilename(folderName)}.flac`; // Assume FLAC for CUE
-            const cueContent = generateCUE(metadata, tracks, audioFilename);
+            const cueContent = generateCUE(metadata!, tracks, audioFilename);
             yield {
                 name: `${folderName}/${sanitizeForFilename(folderName)}.cue`,
                 lastModified: new Date(),
@@ -574,8 +617,8 @@ async function bulkDownloadToZipStream(
                         /* ignore */
                     }
                 }
-            } catch (err) {
-                if (err.name === 'AbortError') throw err;
+            } catch (err: unknown) {
+                if ((err as Error).name === 'AbortError') throw err;
                 console.error(`Failed to download track ${trackTitle}:`, err);
             }
         }
@@ -583,26 +626,26 @@ async function bulkDownloadToZipStream(
 
     try {
         const response = downloadZip(yieldFiles());
-        await response.body.pipeTo(writable);
-    } catch (error) {
-        if (error.name === 'AbortError') return;
+        await response.body!.pipeTo(writable);
+    } catch (error: unknown) {
+        if ((error as Error).name === 'AbortError') return;
         throw error;
     }
 }
 
 // Generate ZIP as blob for browsers without File System Access API (iOS, etc.)
 async function bulkDownloadToZipBlob(
-    tracks,
-    folderName,
-    api,
-    quality,
-    lyricsManager,
-    notification,
-    coverBlob = null,
-    type = 'playlist',
-    metadata = null
-) {
-    const { abortController } = bulkDownloadTasks.get(notification);
+    tracks: TrackData[],
+    folderName: string,
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null,
+    notification: HTMLElement,
+    coverBlob: Blob | null = null,
+    type: string = 'playlist',
+    metadata: DownloadMetadata | null = null
+): Promise<void> {
+    const { abortController } = bulkDownloadTasks.get(notification)!;
     const signal = abortController.signal;
     const { downloadZip } = await loadClientZip();
 
@@ -618,7 +661,7 @@ async function bulkDownloadToZipBlob(
         const discLayout = await createDiscLayoutContext(tracks, api);
         const separateByDisc = discLayout.separateByDisc;
         const playlistPathResolver = separateByDisc
-            ? (_track, filename, index) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
+            ? (_track: TrackData, filename: string, index: number) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
             : null;
 
         if (playlistSettings.shouldGenerateM3U()) {
@@ -672,7 +715,7 @@ async function bulkDownloadToZipBlob(
         // For albums, generate CUE file
         if (type === 'album' && playlistSettings.shouldGenerateCUE()) {
             const audioFilename = `${sanitizeForFilename(folderName)}.flac`; // Assume FLAC for CUE
-            const cueContent = generateCUE(metadata, tracks, audioFilename);
+            const cueContent = generateCUE(metadata!, tracks, audioFilename);
             yield {
                 name: `${folderName}/${sanitizeForFilename(folderName)}.cue`,
                 lastModified: new Date(),
@@ -716,8 +759,8 @@ async function bulkDownloadToZipBlob(
                         /* ignore */
                     }
                 }
-            } catch (err) {
-                if (err.name === 'AbortError') throw err;
+            } catch (err: unknown) {
+                if ((err as Error).name === 'AbortError') throw err;
                 console.error(`Failed to download track ${trackTitle}:`, err);
             }
         }
@@ -727,24 +770,24 @@ async function bulkDownloadToZipBlob(
         const response = downloadZip(yieldFiles());
         const blob = await response.blob();
         triggerDownload(blob, `${folderName}.zip`);
-    } catch (error) {
-        if (error.name === 'AbortError') return;
+    } catch (error: unknown) {
+        if ((error as Error).name === 'AbortError') return;
         throw error;
     }
 }
 
 async function bulkDownloadToZipNeutralino(
-    tracks,
-    folderName,
-    api,
-    quality,
-    lyricsManager,
-    notification,
-    coverBlob = null,
-    type = 'playlist',
-    metadata = null
-) {
-    const { abortController } = bulkDownloadTasks.get(notification);
+    tracks: TrackData[],
+    folderName: string,
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null,
+    notification: HTMLElement,
+    coverBlob: Blob | null = null,
+    type: string = 'playlist',
+    metadata: DownloadMetadata | null = null
+): Promise<void> {
+    const { abortController } = bulkDownloadTasks.get(notification)!;
     const signal = abortController.signal;
     const { downloadZip } = await loadClientZip();
 
@@ -761,7 +804,7 @@ async function bulkDownloadToZipNeutralino(
         const discLayout = await createDiscLayoutContext(tracks, api);
         const separateByDisc = discLayout.separateByDisc;
         const playlistPathResolver = separateByDisc
-            ? (_track, filename, index) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
+            ? (_track: TrackData, filename: string, index: number) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
             : null;
 
         if (playlistSettings.shouldGenerateM3U()) {
@@ -815,7 +858,7 @@ async function bulkDownloadToZipNeutralino(
         // For albums, generate CUE file
         if (type === 'album' && playlistSettings.shouldGenerateCUE()) {
             const audioFilename = `${sanitizeForFilename(folderName)}.flac`; // Assume FLAC for CUE
-            const cueContent = generateCUE(metadata, tracks, audioFilename);
+            const cueContent = generateCUE(metadata!, tracks, audioFilename);
             yield {
                 name: `${folderName}/${sanitizeForFilename(folderName)}.cue`,
                 lastModified: new Date(),
@@ -859,8 +902,8 @@ async function bulkDownloadToZipNeutralino(
                         /* ignore */
                     }
                 }
-            } catch (err) {
-                if (err.name === 'AbortError') throw err;
+            } catch (err: unknown) {
+                if ((err as Error).name === 'AbortError') throw err;
                 console.error(`Failed to download track ${trackTitle}:`, err);
             }
         }
@@ -874,7 +917,7 @@ async function bulkDownloadToZipNeutralino(
         const savePath = await bridge.os.showSaveDialog(`Select save location for ${folderName}.zip`, {
             defaultPath: `${folderName}.zip`,
             filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
-        });
+        }) as string | null;
 
         if (!savePath) {
             // Cancelled
@@ -913,23 +956,23 @@ async function bulkDownloadToZipNeutralino(
         console.log(`[ZIP] Download complete. Total size: ${receivedLength} bytes.`);
 
         completeBulkDownload(notification, true);
-    } catch (error) {
-        if (error.name === 'AbortError') return;
+    } catch (error: unknown) {
+        if ((error as Error).name === 'AbortError') return;
         throw error;
     }
 }
 
 async function startBulkDownload(
-    tracks,
-    defaultName,
-    api,
-    quality,
-    lyricsManager,
-    type,
-    name,
-    coverBlob = null,
-    metadata = null
-) {
+    tracks: TrackData[],
+    defaultName: string,
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null,
+    type: string,
+    name: string,
+    coverBlob: Blob | null = null,
+    metadata: DownloadMetadata | null = null
+): Promise<void> {
     const notification = createBulkDownloadNotification(type, name, tracks.length);
 
     try {
@@ -956,7 +999,7 @@ async function startBulkDownload(
         } else if (useZip) {
             // File System Access API available - use streaming
             try {
-                const fileHandle = await window.showSaveFilePicker({
+                const fileHandle = await window.showSaveFilePicker!({
                     suggestedName: `${defaultName}.zip`,
                     types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }],
                 });
@@ -973,8 +1016,8 @@ async function startBulkDownload(
                     metadata
                 );
                 completeBulkDownload(notification, true);
-            } catch (err) {
-                if (err.name === 'AbortError') {
+            } catch (err: unknown) {
+                if ((err as Error).name === 'AbortError') {
                     removeBulkDownloadTask(notification);
                     return;
                 }
@@ -999,20 +1042,20 @@ async function startBulkDownload(
             await bulkDownloadSequentially(tracks, api, quality, lyricsManager, notification);
             completeBulkDownload(notification, true);
         }
-    } catch (error) {
+    } catch (error: unknown) {
         console.error('Bulk download failed:', error);
-        completeBulkDownload(notification, false, error.message);
+        completeBulkDownload(notification, false, (error as Error).message);
     }
 }
 
-export async function downloadTracks(tracks, api, quality, lyricsManager = null) {
+export async function downloadTracks(tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
     const folderName = `Queue - ${new Date().toISOString().slice(0, 10)}`;
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'queue', 'Queue', null, {
         title: 'Queue',
     });
 }
 
-export async function downloadAlbumAsZip(album, tracks, api, quality, lyricsManager = null) {
+export async function downloadAlbumAsZip(album: TrackAlbum, tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
     const releaseDateStr =
         album.releaseDate || (tracks[0]?.streamStartDate ? tracks[0].streamStartDate.split('T')[0] : '');
     const releaseDate = releaseDateStr ? new Date(releaseDateStr) : null;
@@ -1021,18 +1064,18 @@ export async function downloadAlbumAsZip(album, tracks, api, quality, lyricsMana
     const folderName = formatTemplate(localStorage.getItem('zip-folder-template') || '{albumTitle} - {albumArtist}', {
         albumTitle: album.title,
         albumArtist: album.artist?.name,
-        year: year,
+        year: String(year),
     });
 
-    const coverBlob = await getCoverBlob(api, album.cover || album.album?.cover || album.coverId);
+    const coverBlob = await getCoverBlob(api, album.cover || ((album as Record<string, unknown>).album as TrackAlbum)?.cover || (album as Record<string, unknown>).coverId as string | undefined);
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'album', album.title, coverBlob, album);
 }
 
-export async function downloadPlaylistAsZip(playlist, tracks, api, quality, lyricsManager = null) {
+export async function downloadPlaylistAsZip(playlist: PlaylistData, tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
     const folderName = formatTemplate(localStorage.getItem('zip-folder-template') || '{albumTitle} - {albumArtist}', {
         albumTitle: playlist.title,
         albumArtist: 'Playlist',
-        year: new Date().getFullYear(),
+        year: String(new Date().getFullYear()),
     });
 
     const representativeTrack = tracks.find((t) => t.album?.cover);
@@ -1044,16 +1087,16 @@ export async function downloadPlaylistAsZip(playlist, tracks, api, quality, lyri
         quality,
         lyricsManager,
         'playlist',
-        playlist.title,
+        playlist.title || '',
         coverBlob,
         playlist
     );
 }
 
-export async function downloadDiscography(artist, selectedReleases, api, quality, lyricsManager = null) {
+export async function downloadDiscography(artist: ArtistData, selectedReleases: TrackAlbum[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
     const rootFolder = `${sanitizeForFilename(artist.name)} discography`;
     const notification = createBulkDownloadNotification('discography', artist.name, selectedReleases.length);
-    const { abortController } = bulkDownloadTasks.get(notification);
+    const { abortController } = bulkDownloadTasks.get(notification)!;
     const signal = abortController.signal;
 
     const hasFileSystemAccess = 'showSaveFilePicker' in window && 'createWritable' in FileSystemFileHandle.prototype;
@@ -1080,7 +1123,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
                     {
                         albumTitle: fullAlbum.title,
                         albumArtist: fullAlbum.artist?.name,
-                        year: year,
+                        year: String(year),
                     }
                 );
 
@@ -1094,7 +1137,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
                 const discLayout = await createDiscLayoutContext(tracks, api);
                 const separateByDisc = discLayout.separateByDisc;
                 const playlistPathResolver = separateByDisc
-                    ? (_track, filename, index) =>
+                    ? (_track: TrackData, filename: string, index: number) =>
                           `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
                     : null;
 
@@ -1192,13 +1235,13 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
                                 /* ignore */
                             }
                         }
-                    } catch (err) {
-                        if (err.name === 'AbortError') throw err;
+                    } catch (err: unknown) {
+                        if ((err as Error).name === 'AbortError') throw err;
                         console.error(`Failed to download track ${track.title}:`, err);
                     }
                 }
-            } catch (error) {
-                if (error.name === 'AbortError') throw error;
+            } catch (error: unknown) {
+                if ((error as Error).name === 'AbortError') throw error;
                 console.error(`Failed to download album ${album.title}:`, error);
             }
         }
@@ -1207,7 +1250,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
     try {
         if (useZip) {
             // File System Access API available - use streaming
-            const fileHandle = await window.showSaveFilePicker({
+            const fileHandle = await window.showSaveFilePicker!({
                 suggestedName: `${rootFolder}.zip`,
                 types: [{ description: 'ZIP Archive', accept: { 'application/zip': ['.zip'] } }],
             });
@@ -1215,7 +1258,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
             const { downloadZip } = await loadClientZip();
 
             const response = downloadZip(yieldDiscography());
-            await response.body.pipeTo(writable);
+            await response.body!.pipeTo(writable);
             completeBulkDownload(notification, true);
         } else if (useZipBlob) {
             // No File System Access API (iOS, etc.) - use blob-based ZIP
@@ -1235,16 +1278,16 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
             }
             completeBulkDownload(notification, true);
         }
-    } catch (error) {
-        if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+        if ((error as Error).name === 'AbortError') {
             removeBulkDownloadTask(notification);
             return;
         }
-        completeBulkDownload(notification, false, error.message);
+        completeBulkDownload(notification, false, (error as Error).message);
     }
 }
 
-function createBulkDownloadNotification(type, name, _totalItems) {
+function createBulkDownloadNotification(type: string, name: string, _totalItems: number): HTMLElement {
     const container = createDownloadNotification();
 
     const notifEl = document.createElement('div');
@@ -1286,7 +1329,7 @@ function createBulkDownloadNotification(type, name, _totalItems) {
     const abortController = new AbortController();
     bulkDownloadTasks.set(notifEl, { abortController });
 
-    notifEl.querySelector('.download-cancel').addEventListener('click', () => {
+    notifEl.querySelector('.download-cancel')!.addEventListener('click', () => {
         abortController.abort();
         removeBulkDownloadTask(notifEl);
     });
@@ -1294,18 +1337,18 @@ function createBulkDownloadNotification(type, name, _totalItems) {
     return notifEl;
 }
 
-function updateBulkDownloadProgress(notifEl, current, total, currentItem) {
-    const progressFill = notifEl.querySelector('.download-progress-fill');
-    const statusEl = notifEl.querySelector('.download-status');
+function updateBulkDownloadProgress(notifEl: HTMLElement, current: number, total: number, currentItem: string): void {
+    const progressFill = notifEl.querySelector('.download-progress-fill') as HTMLElement;
+    const statusEl = notifEl.querySelector('.download-status') as HTMLElement;
 
     const percent = total > 0 ? Math.round((current / total) * 100) : 0;
     progressFill.style.width = `${percent}%`;
     statusEl.textContent = `${current}/${total} - ${currentItem}`;
 }
 
-function completeBulkDownload(notifEl, success = true, message = null) {
-    const progressFill = notifEl.querySelector('.download-progress-fill');
-    const statusEl = notifEl.querySelector('.download-status');
+function completeBulkDownload(notifEl: HTMLElement, success: boolean = true, message: string | null = null): void {
+    const progressFill = notifEl.querySelector('.download-progress-fill') as HTMLElement;
+    const statusEl = notifEl.querySelector('.download-status') as HTMLElement;
 
     if (success) {
         progressFill.style.width = '100%';
@@ -1329,7 +1372,7 @@ function completeBulkDownload(notifEl, success = true, message = null) {
     }
 }
 
-export async function downloadTrackWithMetadata(track, quality, api, lyricsManager = null, abortController = null) {
+export async function downloadTrackWithMetadata(track: TrackData | null, quality: string, api: DownloadAPI, lyricsManager: LyricsManager | null = null, abortController: AbortController | null = null): Promise<void> {
     if (!track) {
         alert('No track is currently playing');
         return;
@@ -1341,9 +1384,9 @@ export async function downloadTrackWithMetadata(track, quality, api, lyricsManag
         return;
     }
 
-    let enrichedTrack = {
+    let enrichedTrack: TrackData = {
         ...track,
-        artist: track.artist || (track.artists && track.artists.length > 0 ? track.artists[0] : null),
+        artist: track.artist || (track.artists && track.artists.length > 0 ? track.artists[0] : undefined),
     };
 
     try {
@@ -1354,12 +1397,12 @@ export async function downloadTrackWithMetadata(track, quality, api, lyricsManag
                 ...enrichedTrack,
                 artist: enrichedTrack.artist || fullTrack.artist,
                 album: {
-                    ...(fullTrack.album || {}),
-                    ...(enrichedTrack.album || {}),
-                },
-                discNumber: enrichedTrack.discNumber ?? fullTrack.discNumber,
+                    ...(fullTrack.album || {} as TrackAlbum),
+                    ...(enrichedTrack.album || {} as TrackAlbum),
+                } as TrackAlbum,
+                discNumber: (enrichedTrack as Record<string, unknown>).discNumber ?? (fullTrack as Record<string, unknown>).discNumber,
                 volumeNumber: enrichedTrack.volumeNumber ?? fullTrack.volumeNumber,
-            };
+            } as TrackData;
         }
     } catch {
         // Continue with available track payload
@@ -1374,7 +1417,7 @@ export async function downloadTrackWithMetadata(track, quality, api, lyricsManag
                     ...albumData.album,
                 };
             }
-        } catch (error) {
+        } catch (error: unknown) {
             console.warn('Failed to fetch album data for metadata:', error);
         }
     }
@@ -1390,7 +1433,7 @@ export async function downloadTrackWithMetadata(track, quality, api, lyricsManag
         await api.downloadTrack(track.id, quality, filename, {
             signal: controller.signal,
             track: enrichedTrack,
-            onProgress: (progress) => {
+            onProgress: (progress: DownloadProgress) => {
                 updateDownloadProgress(track.id, progress);
             },
         });
@@ -1407,10 +1450,10 @@ export async function downloadTrackWithMetadata(track, quality, api, lyricsManag
                 console.log('Could not download lyrics for track');
             }
         }
-    } catch (error) {
-        if (error.name !== 'AbortError') {
+    } catch (error: unknown) {
+        if ((error as Error).name !== 'AbortError') {
             const errorMsg =
-                error.message === RATE_LIMIT_ERROR_MESSAGE ? error.message : 'Download failed. Please try again.';
+                (error as Error).message === RATE_LIMIT_ERROR_MESSAGE ? (error as Error).message : 'Download failed. Please try again.';
             completeDownloadTask(track.id, false, errorMsg);
         }
     } finally {
@@ -1418,7 +1461,7 @@ export async function downloadTrackWithMetadata(track, quality, api, lyricsManag
     }
 }
 
-export async function downloadLikedTracks(tracks, api, quality, lyricsManager = null) {
+export async function downloadLikedTracks(tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
     const folderName = `Liked Tracks - ${new Date().toISOString().slice(0, 10)}`;
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'liked', 'Liked Tracks');
 }
