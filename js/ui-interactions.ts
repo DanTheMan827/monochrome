@@ -131,7 +131,7 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
         const downloadBtn = container.querySelector('#download-queue-btn');
         if (downloadBtn) {
             downloadBtn.addEventListener('click', async () => {
-                downloadTracks(currentQueue, api, downloadQualitySettings.getQuality());
+                downloadTracks(currentQueue, api as never, downloadQualitySettings.getQuality());
             });
         }
 
@@ -208,11 +208,11 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
                         try {
                             let addedCount = 0;
                             for (const track of currentQueue) {
-                                await db.addTrackToPlaylist(playlistId, track);
+                                await db.addTrackToPlaylist(playlistId!, track);
                                 addedCount++;
                             }
 
-                            const updatedPlaylist = await db.getPlaylist(playlistId) as Record<string, unknown>;
+                            const updatedPlaylist = await db.getPlaylist(playlistId!) as Record<string, unknown>;
                             syncManager.syncUserPlaylist(updatedPlaylist, 'update');
 
                             showNotification(`Added ${addedCount} tracks to playlist: ${playlistName}`);

@@ -62,7 +62,7 @@ export class Visualizer {
             lcd: new LCDPreset(),
             particles: new ParticlesPreset(),
             'unknown-pleasures': new UnknownPleasuresWebGL(),
-            butterchurn: new ButterchurnPreset(),
+            butterchurn: new ButterchurnPreset() as unknown as VisualizerPreset,
         };
 
         this.activePresetKey = visualizerSettings.getPreset();

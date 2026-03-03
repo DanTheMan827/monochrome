@@ -1013,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (!userPlaylist) {
                     try {
-                        userPlaylist = await syncManager.getPublicPlaylist(playlistId);
+                        userPlaylist = await syncManager.getPublicPlaylist(playlistId) ?? undefined;
                     } catch {
                         // Not a public playlist
                     }
@@ -1108,7 +1108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (name) {
                 const folder = await db.createFolder(name, cover);
-                trackCreateFolder(folder);
+                trackCreateFolder(folder as { name?: string });
                 await syncManager.syncUserFolder(folder, 'create');
                 ui.renderLibraryPage();
                 document.getElementById('folder-modal')!.classList.remove('active');
@@ -1746,7 +1746,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const card = (e.target as HTMLElement).closest('.user-playlist') as HTMLElement;
             const playlistId = card.dataset.userPlaylistId;
             if (confirm('Are you sure you want to delete this playlist?')) {
-                db.deletePlaylist(playlistId).then(() => {
+                db.deletePlaylist(playlistId!).then(() => {
                     syncManager.syncUserPlaylist({ id: playlistId }, 'delete');
                     ui.renderLibraryPage();
                 });
@@ -1975,8 +1975,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const playlistId = (option as HTMLElement).dataset.id;
 
                     try {
-                        await db.addTracksToPlaylist(playlistId, tracks);
-                        const updatedPlaylist = await db.getPlaylist(playlistId);
+                        await db.addTracksToPlaylist(playlistId!, tracks);
+                        const updatedPlaylist = await db.getPlaylist(playlistId!);
                         await syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                         const { showNotification } = await loadDownloadsModule();
                         showNotification(`Added ${tracks.length} tracks to playlist.`);

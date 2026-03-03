@@ -793,16 +793,16 @@ export async function showAddToPlaylistModal(track: TrackData): Promise<void> {
 
         if (removeBtn) {
             e.stopPropagation();
-            await db.removeTrackFromPlaylist(playlistId, track.id);
-            const updatedPlaylist = await db.getPlaylist(playlistId);
+            await db.removeTrackFromPlaylist(playlistId!, track.id);
+            const updatedPlaylist = await db.getPlaylist(playlistId!);
             syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
             showNotification(`Removed from playlist: ${option.querySelector('span')?.textContent}`);
             await renderModal();
         } else {
             if (option.classList.contains('already-contains')) return;
 
-            await db.addTrackToPlaylist(playlistId, track);
-            const updatedPlaylist = await db.getPlaylist(playlistId);
+            await db.addTrackToPlaylist(playlistId!, track);
+            const updatedPlaylist = await db.getPlaylist(playlistId!);
             syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
             showNotification(`Added to playlist: ${option.querySelector('span')?.textContent}`);
             closeModal();
@@ -874,7 +874,7 @@ export async function handleTrackAction(
                 tracks = data.tracks;
                 collectionItem = (data.playlist || item) as TrackData & Record<string, unknown>;
             } else if (type === 'user-playlist') {
-                let playlist = await db.getPlaylist(item.id) as PlaylistData | null;
+                let playlist = await db.getPlaylist(String(item.id)) as PlaylistData | null;
                 if (!playlist) {
                     try {
                         playlist = await syncManager.getPublicPlaylist(String(item.id)) as PlaylistData | null;
@@ -898,17 +898,17 @@ export async function handleTrackAction(
             if (action === 'download') {
                 if (type === 'album') {
                     await downloadAlbumAsZip(
-                        collectionItem,
+                        collectionItem as unknown as TrackAlbum,
                         tracks,
-                        api,
+                        api as never,
                         downloadQualitySettings.getQuality(),
                         lyricsManager as null
                     );
                 } else {
                     await downloadPlaylistAsZip(
-                        collectionItem,
+                        collectionItem as unknown as PlaylistData,
                         tracks,
-                        api,
+                        api as never,
                         downloadQualitySettings.getQuality(),
                         lyricsManager as null
                     );
@@ -974,7 +974,7 @@ export async function handleTrackAction(
     }
 
     if (action === 'toggle-pin') {
-        const pinned = await db.togglePinned(item, type);
+        const pinned = await db.togglePinned(item, type as 'album' | 'artist' | 'playlist' | 'user-playlist');
         showNotification(pinned ? `Pinned to sidebar` : `Unpinned from sidebar`);
 
         if (ui && typeof ui.renderPinnedItems === 'function') {
@@ -1013,21 +1013,21 @@ export async function handleTrackAction(
         }
     } else if (action === 'download') {
         trackDownloadTrack(item, downloadQualitySettings.getQuality());
-        await downloadTrackWithMetadata(item, downloadQualitySettings.getQuality(), api, lyricsManager as null);
+        await downloadTrackWithMetadata(item, downloadQualitySettings.getQuality(), api as never, lyricsManager as null);
     } else if (action === 'toggle-like') {
-        const added = await db.toggleFavorite(type, item);
+        const added = await db.toggleFavorite(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', item);
         syncManager.syncLibraryItem(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', item, added);
 
         // Track like/unlike
         if (added) {
             if (type === 'track') trackLikeTrack(item);
-            else if (type === 'album') trackLikeAlbum(item);
-            else if (type === 'artist') trackLikeArtist(item);
+            else if (type === 'album') trackLikeAlbum(item as unknown as TrackAlbum);
+            else if (type === 'artist') trackLikeArtist(item as unknown as ArtistData);
             else if (type === 'playlist' || type === 'user-playlist') trackLikePlaylist(item);
         } else {
             if (type === 'track') trackUnlikeTrack(item);
-            else if (type === 'album') trackUnlikeAlbum(item);
-            else if (type === 'artist') trackUnlikeArtist(item);
+            else if (type === 'album') trackUnlikeAlbum(item as unknown as TrackAlbum);
+            else if (type === 'artist') trackUnlikeArtist(item as unknown as ArtistData);
             else if (type === 'playlist' || type === 'user-playlist') trackUnlikePlaylist(item);
         }
 
@@ -1217,16 +1217,16 @@ export async function handleTrackAction(
 
             if (removeBtn) {
                 e.stopPropagation();
-                await db.removeTrackFromPlaylist(playlistId, item.id);
-                const updatedPlaylist = await db.getPlaylist(playlistId);
+                await db.removeTrackFromPlaylist(playlistId!, item.id);
+                const updatedPlaylist = await db.getPlaylist(playlistId!);
                 syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                 showNotification(`Removed from playlist: ${option.querySelector('span')?.textContent}`);
                 await renderModal();
             } else {
                 if (option.classList.contains('already-contains')) return;
 
-                await db.addTrackToPlaylist(playlistId, item);
-                const updatedPlaylist = await db.getPlaylist(playlistId);
+                await db.addTrackToPlaylist(playlistId!, item);
+                const updatedPlaylist = await db.getPlaylist(playlistId!);
                 syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
                 showNotification(`Added to playlist: ${option.querySelector('span')?.textContent}`);
                 closeModal();
@@ -1263,7 +1263,7 @@ export async function handleTrackAction(
         const storedHref = contextMenu?._contextHref;
         const url = getShareUrl(storedHref ? storedHref : `/track/${item.id || item.uuid}`);
 
-        trackCopyLink(type, item.id || item.uuid);
+        trackCopyLink(type, (item.id || item.uuid) as string | number);
         navigator.clipboard.writeText(url).then(() => {
             showNotification('Link copied to clipboard!');
         });
@@ -1275,7 +1275,7 @@ export async function handleTrackAction(
             ? `${window.location.origin}${storedHref}`
             : `${window.location.origin}/track/${item.id || item.uuid}`;
 
-        trackOpenInNewTab(type, item.id || item.uuid);
+        trackOpenInNewTab(type, (item.id || item.uuid) as string | number);
         window.open(url, '_blank');
     } else if (action === 'track-info') {
         // Show detailed track info modal
@@ -1513,7 +1513,7 @@ async function updateContextMenuLikeState(contextMenu: ContextMenuElement, conte
 
     const pinItem = contextMenu.querySelector('li[data-action="toggle-pin"]');
     if (pinItem) {
-        const isPinned = await db.isPinned(contextTrack.id || contextTrack.uuid);
+        const isPinned = await db.isPinned((contextTrack.id || contextTrack.uuid) as string | number);
         pinItem.textContent = isPinned ? 'Unpin' : 'Pin';
     }
 

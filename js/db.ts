@@ -151,7 +151,7 @@ export class MusicDatabase {
     }
 
     // Generic Helper
-    async performTransaction<T = unknown>(storeName: string, mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest): Promise<T | undefined> {
+    async performTransaction<T = unknown>(storeName: string, mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest | void): Promise<T | undefined> {
         const db = await this.open();
         return new Promise<T | undefined>((resolve, reject) => {
             const transaction = db.transaction(storeName, mode);

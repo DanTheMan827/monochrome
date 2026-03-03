@@ -57,29 +57,29 @@ export class MusicAPI {
             // Qobuz doesn't support playlist search, return empty
             return { items: [], limit: 0, offset: 0, totalNumberOfItems: 0 };
         }
-        return this.tidalAPI.searchPlaylists(query, options);
+        return this.tidalAPI.searchPlaylists(query, options as Record<string, unknown>);
     }
 
     // Get methods
-    async getTrack(id: string | number, quality: string, provider: string | null = null): Promise<unknown> {
+    async getTrack(id: string | number, quality: string, provider: string | null = null): Promise<{ originalTrackUrl?: string; info: { manifest: string } }> {
         const p = provider || this.getProviderFromId(id) || this.getCurrentProvider();
         const cleanId = String(this.stripProviderPrefix(id));
         if (p === 'qobuz') return this.qobuzAPI.getTrack(cleanId);
         return this.tidalAPI.getTrack(cleanId, quality);
     }
 
-    async getTrackMetadata(id: string | number, provider: string | null = null): Promise<unknown> {
+    async getTrackMetadata(id: string | number, provider: string | null = null): Promise<TrackData> {
         const p = provider || this.getProviderFromId(id) || this.getCurrentProvider();
         const cleanId = String(this.stripProviderPrefix(id));
         if (p === 'qobuz') return this.qobuzAPI.getTrack(cleanId);
         return this.tidalAPI.getTrackMetadata(cleanId);
     }
 
-    async getAlbum(id: string | number, provider: string | null = null): Promise<unknown> {
+    async getAlbum(id: string | number, provider: string | null = null): Promise<{ album: TrackAlbum; tracks: TrackData[] }> {
         const p = provider || this.getProviderFromId(id) || this.getCurrentProvider();
         const api = this.getAPI(p);
         const cleanId = String(this.stripProviderPrefix(id));
-        return api.getAlbum(cleanId);
+        return api.getAlbum(cleanId) as Promise<{ album: TrackAlbum; tracks: TrackData[] }>;
     }
 
     async getArtist(id: string | number, provider: string | null = null): Promise<unknown> {
@@ -132,19 +132,20 @@ export class MusicAPI {
     }
 
     // Cover/artwork methods
-    getCoverUrl(id: string | number, size: string = '320'): string {
+    getCoverUrl(id: string | number | undefined, size: string = '320'): string {
+        if (!id) return '';
         if (typeof id === 'string' && id.startsWith('blob:')) {
             return id;
         }
         if (typeof id === 'string' && id.startsWith('q:')) {
             return this.qobuzAPI.getCoverUrl(id.slice(2), size);
         }
-        return this.tidalAPI.getCoverUrl(id, size);
+        return this.tidalAPI.getCoverUrl(String(id), size);
     }
 
     getVideoCoverUrl(videoCoverId: string | number | null, fallbackCoverId: string | number, size: string = '1280'): string {
         if (videoCoverId) {
-            const videoUrl = this.tidalAPI.getVideoCoverUrl(videoCoverId, size);
+            const videoUrl = this.tidalAPI.getVideoCoverUrl(String(videoCoverId), size);
             if (videoUrl) return videoUrl;
         }
         return this.getCoverUrl(fallbackCoverId, size);
@@ -154,7 +155,7 @@ export class MusicAPI {
         if (typeof id === 'string' && id.startsWith('q:')) {
             return this.qobuzAPI.getArtistPictureUrl(id.slice(2), size);
         }
-        return this.tidalAPI.getArtistPictureUrl(id, size);
+        return this.tidalAPI.getArtistPictureUrl(String(id), size);
     }
 
     extractStreamUrlFromManifest(manifest: string): string | null {

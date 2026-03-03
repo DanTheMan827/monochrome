@@ -197,7 +197,7 @@ export class UIRenderer {
     }
 
     async updateLikeState(element: Element | null, type: string, id: string | number): Promise<void> {
-        const isLiked = await db.isFavorite(type, id);
+        const isLiked = await db.isFavorite(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', id);
         const btn = element?.querySelector('.like-btn') as HTMLElement | null;
         if (btn) {
             btn.innerHTML = this.createHeartIcon(isLiked);
@@ -211,7 +211,7 @@ export class UIRenderer {
         const list = document.getElementById('pinned-items-list');
         if (!nav || !list) return;
 
-        const pinnedItems = await db.getPinned() as Record<string, unknown>[];
+        const pinnedItems = await db.getPinned() as unknown as Record<string, unknown>[];
 
         if (pinnedItems.length === 0) {
             nav.style.display = 'none';
@@ -2121,7 +2121,7 @@ export class UIRenderer {
             items = contentBlockingSettings.filterArtists(items as TrackArtist[]);
         }
 
-        const favorites = await db.getFavorites(type) as Record<string, unknown>[];
+        const favorites = await db.getFavorites(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix') as Record<string, unknown>[];
         const favoriteIds = new Set((favorites as Record<string, unknown>[]).map((i: Record<string, unknown>) => i.id));
 
         const likedTracks = await db.getFavorites('track') as TrackData[];
@@ -3017,7 +3017,7 @@ export class UIRenderer {
                 // Update header like button
                 const playlistLikeBtn = document.getElementById('like-playlist-btn');
                 if (playlistLikeBtn) {
-                    const isLiked = await db.isFavorite('playlist', playlist.uuid);
+                    const isLiked = await db.isFavorite('playlist', playlist.uuid!);
                     playlistLikeBtn.innerHTML = this.createHeartIcon(isLiked);
                     playlistLikeBtn.classList.toggle('active', isLiked);
                     playlistLikeBtn.style.display = 'flex';
@@ -4179,7 +4179,7 @@ export class UIRenderer {
         try {
             let track: TrackData;
             try {
-                const result = await this.api.getTrack(trackId, provider ?? '') as { track: TrackData };
+                const result = await this.api.getTrack(trackId, provider ?? '') as unknown as { track: TrackData };
                 track = result.track;
             } catch (e) {
                 console.warn('getTrack failed, trying getTrackMetadata', e);

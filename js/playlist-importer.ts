@@ -16,8 +16,8 @@ interface PlaylistImporterApi {
 }
 
 interface PlaylistImporterDb {
-    toggleFavorite(type: string, item: TrackData | TrackAlbum | ArtistData): Promise<void>;
-    createPlaylist(name: string, tracks: TrackData[]): Promise<void>;
+    toggleFavorite(type: string, item: TrackData | TrackAlbum | ArtistData): Promise<boolean | void>;
+    createPlaylist(name: string, tracks: TrackData[]): Promise<unknown>;
 }
 
 interface CSVFormatInfo {
