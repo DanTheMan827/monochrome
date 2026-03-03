@@ -6,14 +6,62 @@ const DEFAULT_TITLE = 'Unknown Title';
 const DEFAULT_ARTIST = 'Unknown Artist';
 const DEFAULT_ALBUM = 'Unknown Album';
 
+interface CoverApi {
+    getCoverUrl(coverId: string, size: string): string;
+}
+
+interface FlacBlock {
+    type: number;
+    isLast: boolean;
+    size: number;
+    offset: number;
+    headerOffset: number;
+}
+
+interface FlacBlockList extends Array<FlacBlock> {
+    audioDataOffset?: number;
+}
+
+interface Mp4Atom {
+    type: string;
+    offset: number;
+    size: number;
+}
+
+interface TrackNumberValue {
+    current: number;
+    total: number | undefined;
+}
+
+type Mp4TagValue = string | number | TrackNumberValue;
+
+interface Mp4MetadataAtoms {
+    tags: Record<string, Mp4TagValue>;
+    cover?: { type: string; data: Uint8Array };
+}
+
+interface LocalTrackMetadata {
+    title: string;
+    artists: { name: string }[];
+    artist: { name: string };
+    album: { title: string; cover: string; releaseDate: string | null };
+    duration: number;
+    isrc: string | null;
+    copyright: string | null;
+    explicit?: boolean;
+    isLocal: boolean;
+    file: File;
+    id: string;
+}
+
 /**
  * Builds a full artist string by combining the track's listed artists
  * with any featured artists parsed from the title (feat./with).
  */
-function getFullArtistString(track) {
+function getFullArtistString(track: TrackData): string | null {
     const knownArtists =
         Array.isArray(track.artists) && track.artists.length > 0
-            ? track.artists.map((a) => (typeof a === 'string' ? a : a.name) || '').filter(Boolean)
+            ? track.artists.map((a: string | TrackArtist) => (typeof a === 'string' ? a : a.name) || '').filter(Boolean)
             : track.artist?.name
               ? [track.artist.name]
               : [];
@@ -21,14 +69,14 @@ function getFullArtistString(track) {
     // Parse featured artists from title, e.g. "Song (feat. A, B & C)" or "(with X & Y)"
     // Note: splitting on '&' may incorrectly fragment compound artist names like "Simon & Garfunkel".
     const featPattern = /\(\s*(?:feat\.?|ft\.?|with)\s+(.+?)\s*\)/gi;
-    const allFeatArtists = [...(track.title?.matchAll(featPattern) ?? [])].flatMap((m) =>
+    const allFeatArtists: string[] = [...(track.title?.matchAll(featPattern) ?? [])].flatMap((m: RegExpMatchArray) =>
         m[1]
             .split(/\s*[,&]\s*/)
-            .map((s) => s.trim())
+            .map((s: string) => s.trim())
             .filter(Boolean)
     );
     if (allFeatArtists.length > 0) {
-        const knownLower = new Set(knownArtists.map((n) => n.toLowerCase()));
+        const knownLower = new Set(knownArtists.map((n: string) => n.toLowerCase()));
         for (const feat of allFeatArtists) {
             if (!knownLower.has(feat.toLowerCase())) {
                 knownArtists.push(feat);
@@ -48,7 +96,7 @@ function getFullArtistString(track) {
  * @param {string} quality - Audio quality
  * @returns {Promise<Blob>} - Audio blob with embedded metadata
  */
-export async function addMetadataToAudio(audioBlob, track, api, _quality) {
+export async function addMetadataToAudio(audioBlob: Blob, track: TrackData, api: CoverApi, _quality: string): Promise<Blob> {
     // Always check actual file signature, not just quality setting
     // DASH Hi-Res streams may return fragmented MP4 instead of raw FLAC
     const buffer = await audioBlob.slice(0, 12).arrayBuffer();
@@ -75,8 +123,8 @@ export async function addMetadataToAudio(audioBlob, track, api, _quality) {
  * @param {File} file
  * @returns {Promise<Object>} Track metadata
  */
-export async function readTrackMetadata(file, siblings = []) {
-    const metadata = {
+export async function readTrackMetadata(file: File, siblings: File[] = []): Promise<LocalTrackMetadata> {
+    const metadata: LocalTrackMetadata = {
         title: file.name.replace(/\.[^/.]+$/, ''),
         artists: [],
         artist: { name: 'Unknown Artist' }, // For fallback/compatibility
@@ -108,7 +156,7 @@ export async function readTrackMetadata(file, siblings = []) {
     if (metadata.album.cover === 'assets/appicon.png' && siblings.length > 0) {
         const baseName = file.name.substring(0, file.name.lastIndexOf('.'));
         const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
-        const coverFile = siblings.find((f) => {
+        const coverFile = siblings.find((f: File) => {
             const fName = f.name;
             const lastDot = fName.lastIndexOf('.');
             if (lastDot === -1) return false;
@@ -125,17 +173,17 @@ export async function readTrackMetadata(file, siblings = []) {
     return metadata;
 }
 
-async function readFlacMetadata(file, metadata) {
+async function readFlacMetadata(file: File, metadata: LocalTrackMetadata): Promise<void> {
     const arrayBuffer = await file.arrayBuffer();
     const dataView = new DataView(arrayBuffer);
 
     if (!isFlacFile(dataView)) return;
 
-    const blocks = parseFlacBlocks(dataView);
-    const vorbisBlock = blocks.find((b) => b.type === 4);
-    const pictureBlock = blocks.find((b) => b.type === 6);
+    const blocks: FlacBlockList = parseFlacBlocks(dataView);
+    const vorbisBlock: FlacBlock | undefined = blocks.find((b: FlacBlock) => b.type === 4);
+    const pictureBlock: FlacBlock | undefined = blocks.find((b: FlacBlock) => b.type === 6);
 
-    const artists = [];
+    const artists: string[] = [];
     if (vorbisBlock) {
         const offset = vorbisBlock.offset;
         const vendorLen = dataView.getUint32(offset, true);
@@ -167,7 +215,7 @@ async function readFlacMetadata(file, metadata) {
     }
 
     if (artists.length > 0) {
-        metadata.artists = artists.flatMap((a) => a.split(/; |\/|\\/)).map((name) => ({ name: name.trim() }));
+        metadata.artists = artists.flatMap((a: string) => a.split(/; |\/|\\/)).map((name: string) => ({ name: name.trim() }));
     }
 
     if (pictureBlock) {
@@ -193,53 +241,53 @@ async function readFlacMetadata(file, metadata) {
     }
 }
 
-async function readM4aMetadata(file, metadata) {
+async function readM4aMetadata(file: File, metadata: LocalTrackMetadata): Promise<void> {
     try {
         const chunkSize = Math.min(file.size, 5 * 1024 * 1024);
         const buffer = await file.slice(0, chunkSize).arrayBuffer();
         const view = new DataView(buffer);
 
-        const atoms = parseMp4Atoms(view);
+        const atoms: Mp4Atom[] = parseMp4Atoms(view);
 
-        const moov = atoms.find((a) => a.type === 'moov');
+        const moov: Mp4Atom | undefined = atoms.find((a: Mp4Atom) => a.type === 'moov');
         if (!moov) return;
 
         const moovStart = moov.offset + 8;
         const moovLen = moov.size - 8;
         const moovData = new DataView(view.buffer, moovStart, moovLen);
-        const moovAtoms = parseMp4Atoms(moovData);
+        const moovAtoms: Mp4Atom[] = parseMp4Atoms(moovData);
 
-        const udta = moovAtoms.find((a) => a.type === 'udta');
+        const udta: Mp4Atom | undefined = moovAtoms.find((a: Mp4Atom) => a.type === 'udta');
         if (!udta) return;
 
         const udtaStart = moovStart + udta.offset + 8;
         const udtaLen = udta.size - 8;
         const udtaData = new DataView(view.buffer, udtaStart, udtaLen);
-        const udtaAtoms = parseMp4Atoms(udtaData);
+        const udtaAtoms: Mp4Atom[] = parseMp4Atoms(udtaData);
 
-        const meta = udtaAtoms.find((a) => a.type === 'meta');
+        const meta: Mp4Atom | undefined = udtaAtoms.find((a: Mp4Atom) => a.type === 'meta');
         if (!meta) return;
 
         const metaStart = udtaStart + meta.offset + 12;
         const metaLen = meta.size - 12;
         const metaData = new DataView(view.buffer, metaStart, metaLen);
-        const metaAtoms = parseMp4Atoms(metaData);
+        const metaAtoms: Mp4Atom[] = parseMp4Atoms(metaData);
 
-        const ilst = metaAtoms.find((a) => a.type === 'ilst');
+        const ilst: Mp4Atom | undefined = metaAtoms.find((a: Mp4Atom) => a.type === 'ilst');
         if (!ilst) return;
 
         const ilstStart = metaStart + ilst.offset + 8;
         const ilstLen = ilst.size - 8;
         const ilstData = new DataView(view.buffer, ilstStart, ilstLen);
-        const items = parseMp4Atoms(ilstData);
+        const items: Mp4Atom[] = parseMp4Atoms(ilstData);
 
-        let artistStr = null;
+        let artistStr: string | null = null;
 
         for (const item of items) {
             const itemStart = ilstStart + item.offset + 8;
             const itemLen = item.size - 8;
             const itemData = new DataView(view.buffer, itemStart, itemLen);
-            const dataAtom = parseMp4Atoms(itemData).find((a) => a.type === 'data');
+            const dataAtom: Mp4Atom | undefined = parseMp4Atoms(itemData).find((a: Mp4Atom) => a.type === 'data');
             if (dataAtom) {
                 const contentLen = dataAtom.size - 16;
                 const contentOffset = itemStart + dataAtom.offset + 16;
@@ -271,14 +319,14 @@ async function readM4aMetadata(file, metadata) {
         }
 
         if (artistStr) {
-            metadata.artists = artistStr.split(/; |\/|\\/).map((name) => ({ name: name.trim() }));
+            metadata.artists = artistStr.split(/; |\/|\\/).map((name: string) => ({ name: name.trim() }));
         }
     } catch (e) {
         console.warn('Error parsing M4A:', e);
     }
 }
 
-async function readMp3Metadata(file, metadata) {
+async function readMp3Metadata(file: File, metadata: LocalTrackMetadata): Promise<void> {
     let buffer = await file.slice(0, 10).arrayBuffer();
     let view = new DataView(buffer);
 
@@ -296,10 +344,10 @@ async function readMp3Metadata(file, metadata) {
             offset += extSize;
         }
 
-        let tpe1 = null;
-        let tpe2 = null;
+        let tpe1: string | null = null;
+        let tpe2: string | null = null;
         while (offset < view.byteLength) {
-            let frameId, frameSize;
+            let frameId: string, frameSize: number;
 
             if (majorVer === 3) {
                 frameId = new TextDecoder().decode(new Uint8Array(buffer, offset, 4));
@@ -338,7 +386,7 @@ async function readMp3Metadata(file, metadata) {
                     }
                     pos++;
                     pos++;
-                    let terminator = encoding === 1 || encoding === 2 ? 2 : 1;
+                    let terminator: number = encoding === 1 || encoding === 2 ? 2 : 1;
                     while (pos < frameData.byteLength) {
                         if (frameData.getUint8(pos) === 0) {
                             if (terminator === 1) {
@@ -364,7 +412,7 @@ async function readMp3Metadata(file, metadata) {
 
         const artistStr = tpe1 || tpe2;
         if (artistStr) {
-            metadata.artists = artistStr.split('/').map((name) => ({ name: name.trim() }));
+            metadata.artists = artistStr.split('/').map((name: string) => ({ name: name.trim() }));
         }
     }
 
@@ -393,7 +441,7 @@ async function readMp3Metadata(file, metadata) {
     }
 }
 
-function readSynchsafeInteger32(view, offset) {
+function readSynchsafeInteger32(view: DataView, offset: number): number {
     return (
         ((view.getUint8(offset) & 0x7f) << 21) |
         ((view.getUint8(offset + 1) & 0x7f) << 14) |
@@ -402,10 +450,10 @@ function readSynchsafeInteger32(view, offset) {
     );
 }
 
-function readID3Text(view) {
+function readID3Text(view: DataView): string {
     const encoding = view.getUint8(0);
     const buffer = view.buffer.slice(view.byteOffset + 1, view.byteOffset + view.byteLength);
-    let decoder;
+    let decoder: TextDecoder;
     if (encoding === 0) decoder = new TextDecoder('iso-8859-1');
     else if (encoding === 1) decoder = new TextDecoder('utf-16');
     else if (encoding === 2) decoder = new TextDecoder('utf-16be');
@@ -414,7 +462,7 @@ function readID3Text(view) {
     return decoder.decode(buffer).replace(/\0/g, '');
 }
 
-function getMimeType(data) {
+function getMimeType(data: Uint8Array): string {
     if (data.length >= 2 && data[0] === 0xff && data[1] === 0xd8) return 'image/jpeg';
     if (data.length >= 8 && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47)
         return 'image/png';
@@ -424,7 +472,7 @@ function getMimeType(data) {
 /**
  * Adds Vorbis comment metadata to FLAC files
  */
-async function addFlacMetadata(flacBlob, track, api) {
+async function addFlacMetadata(flacBlob: Blob, track: TrackData, api: CoverApi): Promise<Blob> {
     try {
         const arrayBuffer = await flacBlob.arrayBuffer();
         const dataView = new DataView(arrayBuffer);
@@ -436,7 +484,7 @@ async function addFlacMetadata(flacBlob, track, api) {
         }
 
         // Parse FLAC structure
-        const blocks = parseFlacBlocks(dataView);
+        const blocks: FlacBlockList = parseFlacBlocks(dataView);
 
         // If parsing failed or no audio data found, return original
         if (!blocks || blocks.length === 0 || blocks.audioDataOffset === undefined) {
@@ -454,7 +502,7 @@ async function addFlacMetadata(flacBlob, track, api) {
         const vorbisCommentBlock = createVorbisCommentBlock(track);
 
         // Fetch album artwork if available
-        let pictureBlock = null;
+        let pictureBlock: Uint8Array | null = null;
         if (track.album?.cover) {
             try {
                 pictureBlock = await createFlacPictureBlock(track.album.cover, api);
@@ -464,7 +512,7 @@ async function addFlacMetadata(flacBlob, track, api) {
         }
 
         // Rebuild FLAC file with new metadata
-        let newFlacData;
+        let newFlacData: Uint8Array;
         try {
             newFlacData = rebuildFlacWithMetadata(dataView, blocks, vorbisCommentBlock, pictureBlock);
         } catch (rebuildError) {
@@ -480,20 +528,20 @@ async function addFlacMetadata(flacBlob, track, api) {
         }
 
         // Validate new file has proper block structure
-        const newBlocks = parseFlacBlocks(validationView);
+        const newBlocks: FlacBlockList = parseFlacBlocks(validationView);
         if (!newBlocks || newBlocks.length === 0 || newBlocks.audioDataOffset === undefined) {
             console.error('Rebuilt FLAC has invalid block structure, returning original');
             return flacBlob;
         }
 
-        return new Blob([newFlacData], { type: 'audio/flac' });
+        return new Blob([newFlacData as BlobPart], { type: 'audio/flac' });
     } catch (error) {
         console.error('Failed to add FLAC metadata:', error);
         return flacBlob;
     }
 }
 
-function isFlacFile(dataView) {
+function isFlacFile(dataView: DataView): boolean {
     // Check for "fLaC" signature at the beginning
     return (
         dataView.byteLength >= 4 &&
@@ -504,8 +552,8 @@ function isFlacFile(dataView) {
     ); // 'C'
 }
 
-function parseFlacBlocks(dataView) {
-    const blocks = [];
+function parseFlacBlocks(dataView: DataView): FlacBlockList {
+    const blocks: FlacBlockList = [];
     let offset = 4; // Skip "fLaC" signature
 
     while (offset + 4 <= dataView.byteLength) {
@@ -558,10 +606,10 @@ function parseFlacBlocks(dataView) {
     return blocks;
 }
 
-function createVorbisCommentBlock(track) {
+function createVorbisCommentBlock(track: TrackData): Uint8Array {
     // Vorbis comment structure
-    const comments = [];
-    const discNumber = track.volumeNumber ?? track.discNumber;
+    const comments: [string, string][] = [];
+    const discNumber = track.volumeNumber ?? (track.discNumber as number | undefined);
 
     // Add standard tags
     if (track.title) {
@@ -617,7 +665,7 @@ function createVorbisCommentBlock(track) {
 
     let totalSize = 4 + vendorBytes.length + 4; // vendor length + vendor + comment count
 
-    const encodedComments = comments.map(([key, value]) => {
+    const encodedComments: Uint8Array[] = comments.map(([key, value]: [string, string]) => {
         const text = `${key}=${value}`;
         const bytes = new TextEncoder().encode(text);
         totalSize += 4 + bytes.length;
@@ -654,7 +702,7 @@ function createVorbisCommentBlock(track) {
     return uint8Array;
 }
 
-async function createFlacPictureBlock(coverId, api) {
+async function createFlacPictureBlock(coverId: string, api: CoverApi): Promise<Uint8Array | null> {
     try {
         // Fetch album art
         const imageBlob = await getCoverBlob(api, coverId);
@@ -742,11 +790,11 @@ async function createFlacPictureBlock(coverId, api) {
     }
 }
 
-function rebuildFlacWithMetadata(dataView, blocks, vorbisCommentBlock, pictureBlock) {
+function rebuildFlacWithMetadata(dataView: DataView, blocks: FlacBlockList, vorbisCommentBlock: Uint8Array, pictureBlock: Uint8Array | null): Uint8Array {
     const originalArray = new Uint8Array(dataView.buffer);
 
     // Remove old Vorbis comment and picture blocks
-    const filteredBlocks = blocks.filter((b) => b.type !== 4 && b.type !== 6); // 4 = Vorbis, 6 = Picture
+    const filteredBlocks: FlacBlock[] = blocks.filter((b: FlacBlock) => b.type !== 4 && b.type !== 6); // 4 = Vorbis, 6 = Picture
 
     // Calculate new file size
     let newSize = 4; // "fLaC" signature
@@ -765,7 +813,7 @@ function rebuildFlacWithMetadata(dataView, blocks, vorbisCommentBlock, pictureBl
     }
 
     // Add audio data
-    const audioDataOffset = blocks.audioDataOffset;
+    const audioDataOffset: number | undefined = blocks.audioDataOffset;
     if (audioDataOffset === undefined) {
         throw new Error('Invalid FLAC file structure: unable to locate audio data stream');
     }
@@ -800,7 +848,7 @@ function rebuildFlacWithMetadata(dataView, blocks, vorbisCommentBlock, pictureBl
     }
 
     // Write new Vorbis comment block
-    const vorbisHeaderOffset = offset;
+    const vorbisHeaderOffset: number = offset;
     const vorbisHeader = 0x04; // Vorbis comment type
     newFile[offset++] = vorbisHeader;
     newFile[offset++] = (vorbisCommentBlock.length >> 16) & 0xff;
@@ -838,16 +886,16 @@ function rebuildFlacWithMetadata(dataView, blocks, vorbisCommentBlock, pictureBl
 /**
  * Adds metadata to M4A files using MP4 atoms
  */
-async function addM4aMetadata(m4aBlob, track, api) {
+async function addM4aMetadata(m4aBlob: Blob, track: TrackData, api: CoverApi): Promise<Blob> {
     try {
         const arrayBuffer = await m4aBlob.arrayBuffer();
         const dataView = new DataView(arrayBuffer);
 
         // Parse MP4 atoms
-        const atoms = parseMp4Atoms(dataView);
+        const atoms: Mp4Atom[] = parseMp4Atoms(dataView);
 
         // Create metadata atoms
-        const metadataAtoms = createMp4MetadataAtoms(track);
+        const metadataAtoms: Mp4MetadataAtoms = createMp4MetadataAtoms(track);
 
         // Fetch album artwork if available
         if (track.album?.cover) {
@@ -868,15 +916,15 @@ async function addM4aMetadata(m4aBlob, track, api) {
         // Rebuild MP4 file with metadata
         const newMp4Data = rebuildMp4WithMetadata(dataView, atoms, metadataAtoms);
 
-        return new Blob([newMp4Data], { type: 'audio/mp4' });
+        return new Blob([newMp4Data as BlobPart], { type: 'audio/mp4' });
     } catch (error) {
         console.error('Failed to add M4A metadata:', error);
         return m4aBlob;
     }
 }
 
-function parseMp4Atoms(dataView) {
-    const atoms = [];
+function parseMp4Atoms(dataView: DataView): Mp4Atom[] {
+    const atoms: Mp4Atom[] = [];
     let offset = 0;
 
     while (offset + 8 <= dataView.byteLength) {
@@ -925,11 +973,11 @@ function parseMp4Atoms(dataView) {
     return atoms;
 }
 
-function createMp4MetadataAtoms(track) {
+function createMp4MetadataAtoms(track: TrackData): Mp4MetadataAtoms {
     // MP4 metadata atoms are more complex than FLAC
     // We'll create basic iTunes-style metadata
 
-    const tags = {
+    const tags: Record<string, Mp4TagValue> = {
         '©nam': track.title || DEFAULT_TITLE,
         '©ART': getFullArtistString(track) || DEFAULT_ARTIST,
         '©alb': track.album?.title || DEFAULT_ALBUM,
@@ -954,7 +1002,7 @@ function createMp4MetadataAtoms(track) {
         tags['rtng'] = 1; // 1 = Explicit, 2 = Clean, 0 = Unknown
     }
 
-    const discNumber = track.volumeNumber ?? track.discNumber;
+    const discNumber = track.volumeNumber ?? (track.discNumber as number | undefined);
     if (discNumber) {
         tags['disk'] = {
             current: discNumber,
@@ -978,11 +1026,11 @@ function createMp4MetadataAtoms(track) {
     return { tags };
 }
 
-function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
+function rebuildMp4WithMetadata(dataView: DataView, atoms: Mp4Atom[], metadataAtoms: Mp4MetadataAtoms): Uint8Array {
     const originalArray = new Uint8Array(dataView.buffer);
 
     // Find moov atom
-    const moovAtom = atoms.find((a) => a.type === 'moov');
+    const moovAtom: Mp4Atom | undefined = atoms.find((a: Mp4Atom) => a.type === 'moov');
     if (!moovAtom) {
         console.warn('No moov atom found in M4A file');
         return originalArray;
@@ -1002,10 +1050,10 @@ function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
     // A robust implementation would parse moov children, remove existing udta, and add new one.
 
     // Let's try to do it right: parse moov children
-    const moovChildren = parseMp4Atoms(new DataView(originalArray.buffer, moovAtom.offset + 8, moovAtom.size - 8));
+    const moovChildren: Mp4Atom[] = parseMp4Atoms(new DataView(originalArray.buffer, moovAtom.offset + 8, moovAtom.size - 8));
 
     // Filter out existing udta to replace it
-    const filteredMoovChildren = moovChildren.filter((a) => a.type !== 'udta');
+    const filteredMoovChildren: Mp4Atom[] = moovChildren.filter((a: Mp4Atom) => a.type !== 'udta');
 
     // Calculate new moov size
     // Header (8) + Sum of other children sizes + New Metadata Block Size
@@ -1023,7 +1071,7 @@ function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
     let originalOffset = 0;
 
     // Copy atoms before moov
-    const atomsBeforeMoov = atoms.filter((a) => a.offset < moovAtom.offset);
+    const atomsBeforeMoov: Mp4Atom[] = atoms.filter((a: Mp4Atom) => a.offset < moovAtom.offset);
     for (const atom of atomsBeforeMoov) {
         newFile.set(originalArray.subarray(atom.offset, atom.offset + atom.size), offset);
         offset += atom.size;
@@ -1067,7 +1115,7 @@ function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
     // If moov is BEFORE mdat, we need to shift offsets.
     // Most streaming optimized files have moov before mdat.
 
-    const mdatAtom = atoms.find((a) => a.type === 'mdat');
+    const mdatAtom: Mp4Atom | undefined = atoms.find((a: Mp4Atom) => a.type === 'mdat');
     const moovBeforeMdat = mdatAtom && moovAtom.offset < mdatAtom.offset;
 
     if (moovBeforeMdat) {
@@ -1087,19 +1135,19 @@ function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
     return newFile;
 }
 
-function createMetadataBlock(metadataAtoms) {
+function createMetadataBlock(metadataAtoms: Mp4MetadataAtoms): Uint8Array {
     const { tags, cover } = metadataAtoms;
 
-    const ilstChildren = [];
+    const ilstChildren: Uint8Array[] = [];
 
     // Text tags
     for (const [key, value] of Object.entries(tags)) {
         if (key === 'trkn' || key === 'disk') {
-            ilstChildren.push(createIntAtom(key, value));
+            ilstChildren.push(createIntAtom(key, value as TrackNumberValue));
         } else if (key === 'rtng') {
-            ilstChildren.push(createRatingAtom(value));
+            ilstChildren.push(createRatingAtom(value as number));
         } else {
-            ilstChildren.push(createStringAtom(key, value));
+            ilstChildren.push(createStringAtom(key, value as string));
         }
     }
 
@@ -1199,7 +1247,7 @@ function createMetadataBlock(metadataAtoms) {
     return udta;
 }
 
-function createStringAtom(type, value) {
+function createStringAtom(type: string, value: string): Uint8Array {
     const textBytes = new TextEncoder().encode(value);
     const dataSize = 16 + textBytes.length; // 8 (data atom header) + 8 (flags/null) + text
     const atomSize = 8 + dataSize;
@@ -1236,7 +1284,7 @@ function createStringAtom(type, value) {
  * @param {number} value - The rating to embed (0 = Unrated, 1 = Explicit, 2 = Clean).
  * @returns {Uint8Array} The serialized atom buffer ready to be inserted into metadata.
  */
-function createRatingAtom(value) {
+function createRatingAtom(value: number): Uint8Array {
     const dataSize = 17; // 8 (data atom header) + 8 (flags/null) + Rating
     const atomSize = 8 + dataSize;
 
@@ -1265,7 +1313,7 @@ function createRatingAtom(value) {
     return buf;
 }
 
-function createIntAtom(type, value) {
+function createIntAtom(type: string, value: TrackNumberValue): Uint8Array {
     // trkn/disk are special: data is 8 bytes.
     // reserved(2) + track(2) + total(2) + reserved(2)
     const dataSize = 16 + 8;
@@ -1290,16 +1338,16 @@ function createIntAtom(type, value) {
     buf[offset++] = 0;
     buf[offset++] = 0;
 
-    const current = typeof value === 'object' ? value.current : value;
-    const total = typeof value === 'object' ? value.total : 0;
+    const current: number = value.current;
+    const total: number = value.total ?? 0;
 
     // Numbering payload (track/disc number + total)
     buf[offset++] = 0;
     buf[offset++] = 0;
-    const numberValue = parseInt(current, 10) || 0;
+    const numberValue: number = current || 0;
     buf[offset++] = (numberValue >> 8) & 0xff;
     buf[offset++] = numberValue & 0xff;
-    const totalValue = parseInt(total, 10) || 0;
+    const totalValue: number = total || 0;
     buf[offset++] = (totalValue >> 8) & 0xff;
     buf[offset++] = totalValue & 0xff;
     buf[offset++] = 0;
@@ -1308,7 +1356,7 @@ function createIntAtom(type, value) {
     return buf;
 }
 
-function createCoverAtom(imageBytes) {
+function createCoverAtom(imageBytes: Uint8Array): Uint8Array {
     const dataSize = 16 + imageBytes.length;
     const atomSize = 8 + dataSize;
 
@@ -1343,7 +1391,7 @@ function createCoverAtom(imageBytes) {
     return buf;
 }
 
-function writeAtomHeader(buf, offset, size, type) {
+function writeAtomHeader(buf: Uint8Array, offset: number, size: number, type: string): void {
     buf[offset++] = (size >> 24) & 0xff;
     buf[offset++] = (size >> 16) & 0xff;
     buf[offset++] = (size >> 8) & 0xff;
@@ -1354,7 +1402,7 @@ function writeAtomHeader(buf, offset, size, type) {
     }
 }
 
-function updateChunkOffsets(buffer, moovOffset, moovSize, shift) {
+function updateChunkOffsets(buffer: Uint8Array, moovOffset: number, moovSize: number, shift: number): void {
     const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
     // Scan moov for stco/co64
@@ -1367,7 +1415,7 @@ function updateChunkOffsets(buffer, moovOffset, moovSize, shift) {
     findAndShiftOffsets(view, offset, end, shift);
 }
 
-function findAndShiftOffsets(view, start, end, shift) {
+function findAndShiftOffsets(view: DataView, start: number, end: number, shift: number): void {
     let offset = start;
 
     while (offset + 8 <= end) {
