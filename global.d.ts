@@ -93,7 +93,7 @@ declare module 'https://cdn.jsdelivr.net/npm/client-zip@2.4.5/+esm' {
 
 // Butterchurn & presets
 declare module 'butterchurn' {
-    interface ButterchurnVisualizer {
+    export interface ButterchurnVisualizer {
         connectAudio(node: AudioNode): void;
         loadPreset(preset: Record<string, unknown>, blendTime: number): void;
         render(): void;
@@ -103,7 +103,7 @@ declare module 'butterchurn' {
         static createVisualizer(
             audioContext: AudioContext,
             canvas: HTMLCanvasElement,
-            options: { width: number; height: number }
+            options: { width: number; height: number; pixelRatio?: number; textureRatio?: number }
         ): ButterchurnVisualizer;
     }
 }
@@ -195,7 +195,7 @@ interface Window {
         raf(time: number): void;
         destroy(): void;
     };
-    butterchurnPresets?: Record<string, Record<string, unknown>>;
+    butterchurnPresets?: { getPresets(): Record<string, Record<string, unknown>> };
     _originalXHROpen?: typeof XMLHttpRequest.prototype.open;
     _originalFetch?: typeof globalThis.fetch;
     localFilesCache?: any[];

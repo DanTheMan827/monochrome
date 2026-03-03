@@ -2,20 +2,23 @@
  * Butterchurn (Milkdrop) Visualizer Preset
  * WebGL-based audio visualization using the Butterchurn library
  */
-import butterchurn from 'butterchurn';
+import butterchurn, { type ButterchurnVisualizer } from 'butterchurn';
 import { visualizerSettings } from '../storage.ts';
 import { audioContextManager } from '../audio-context.ts';
 
+type PresetMap = Record<string, Record<string, unknown>>;
+type PresetsLoadedCallback = (presets: PresetMap, keys: string[]) => void;
+
 // Module-level preset cache - loads immediately when this file is imported
-let cachedPresets = null;
-let cachedPresetKeys = [];
+let cachedPresets: PresetMap | null = null;
+let cachedPresetKeys: string[] = [];
 let isLoading = false;
-let loadCallbacks = [];
+let loadCallbacks: PresetsLoadedCallback[] = [];
 
 /**
  * Load presets at module level using dynamic import (lazy loaded)
  */
-async function loadPresetsModule() {
+async function loadPresetsModule(): Promise<void> {
     if (cachedPresets || isLoading) return;
     isLoading = true;
 
@@ -59,7 +62,7 @@ async function loadPresetsModule() {
         console.log('[Butterchurn] Module-level presets loaded:', cachedPresetKeys.length);
 
         // Notify all waiting callbacks
-        loadCallbacks.forEach((cb) => cb(cachedPresets, cachedPresetKeys));
+        loadCallbacks.forEach((cb) => cb(cachedPresets!, cachedPresetKeys));
         loadCallbacks = [];
 
         // Dispatch global event
@@ -76,14 +79,14 @@ async function loadPresetsModule() {
 /**
  * Get cached presets - available immediately after module loads
  */
-export function getButterchurnPresets() {
+export function getButterchurnPresets(): { presets: PresetMap | null; keys: string[] } {
     return { presets: cachedPresets, keys: cachedPresetKeys };
 }
 
 /**
  * Register callback for when presets are loaded
  */
-export function onButterchurnPresetsLoaded(callback) {
+export function onButterchurnPresetsLoaded(callback: PresetsLoadedCallback): void {
     if (cachedPresets) {
         callback(cachedPresets, cachedPresetKeys);
     } else {
@@ -95,6 +98,20 @@ export function onButterchurnPresetsLoaded(callback) {
 loadPresetsModule();
 
 export class ButterchurnPreset {
+    name: string;
+    contextType: string;
+    visualizer: ButterchurnVisualizer | null;
+    canvas: HTMLCanvasElement | null;
+    audioContext: AudioContext | null;
+    currentPresetIndex: number;
+    lastPresetChange: number;
+    isInitialized: boolean;
+    presets: PresetMap;
+    presetKeys: string[];
+    blendProgress: number;
+    blendDuration: number;
+    private _unregisterGraphChange: (() => void) | null = null;
+
     constructor() {
         this.name = 'Butterchurn';
         this.contextType = 'webgl';
@@ -116,7 +133,7 @@ export class ButterchurnPreset {
 
         // Listen for presets if not loaded yet
         if (!cachedPresets) {
-            onButterchurnPresetsLoaded((presets, keys) => {
+            onButterchurnPresetsLoaded((presets: PresetMap, keys: string[]) => {
                 this.presets = presets;
                 this.presetKeys = keys;
 
@@ -134,7 +151,7 @@ export class ButterchurnPreset {
     /**
      * Get the preset cycle duration from settings (in milliseconds)
      */
-    getPresetDuration() {
+    getPresetDuration(): number {
         const seconds = visualizerSettings.getButterchurnCycleDuration();
         return seconds * 1000; // Convert to milliseconds
     }
@@ -142,7 +159,7 @@ export class ButterchurnPreset {
     /**
      * Initialize Butterchurn with the given WebGL context
      */
-    init(canvas, gl, audioContext, sourceNode) {
+    init(canvas: HTMLCanvasElement, _gl: WebGLRenderingContext | WebGL2RenderingContext, audioContext: AudioContext, sourceNode: AudioNode | null): void {
         if (this.isInitialized) return;
 
         try {
@@ -187,7 +204,7 @@ export class ButterchurnPreset {
     /**
      * Connect audio source to the visualizer (public API)
      */
-    connectAudio(sourceNode) {
+    connectAudio(sourceNode: AudioNode): void {
         if (sourceNode) {
             this.connectAudioWithDelay(sourceNode);
         }
@@ -197,7 +214,7 @@ export class ButterchurnPreset {
      * Connect audio source with delay node for proper sync
      * Like bc-demo.html: creates a delay node and connects visualizer to it
      */
-    connectAudioWithDelay(sourceNode) {
+    connectAudioWithDelay(sourceNode: AudioNode): void {
         if (!this.audioContext || !this.visualizer) return;
 
         try {
@@ -212,7 +229,7 @@ export class ButterchurnPreset {
     /**
      * Load next preset based on settings (sequential or random)
      */
-    loadNextPreset() {
+    loadNextPreset(): void {
         if (!this.visualizer || this.presetKeys.length === 0) return;
 
         const randomize = visualizerSettings.isButterchurnRandomizeEnabled();
@@ -242,7 +259,7 @@ export class ButterchurnPreset {
     /**
      * Load a specific preset by name
      */
-    loadPreset(presetName) {
+    loadPreset(presetName: string): void {
         if (!this.visualizer || !this.presets) return;
 
         const preset = this.presets[presetName];
@@ -261,21 +278,21 @@ export class ButterchurnPreset {
     /**
      * Get list of available preset names
      */
-    getPresetNames() {
+    getPresetNames(): string[] {
         return this.presetKeys;
     }
 
     /**
      * Get current preset name
      */
-    getCurrentPresetName() {
+    getCurrentPresetName(): string {
         return this.presetKeys[this.currentPresetIndex] || 'Unknown';
     }
 
     /**
      * Skip to next preset (manually triggered)
      */
-    nextPreset() {
+    nextPreset(): void {
         this.loadNextPreset();
         this.lastPresetChange = performance.now();
     }
@@ -283,7 +300,7 @@ export class ButterchurnPreset {
     /**
      * Resize handler
      */
-    resize(width, height) {
+    resize(width: number, height: number): void {
         if (this.visualizer) {
             this.visualizer.setRendererSize(width, height);
         }
@@ -292,7 +309,7 @@ export class ButterchurnPreset {
     /**
      * Main draw function called each animation frame
      */
-    draw(ctx, canvas, analyser, dataArray, params) {
+    draw(_ctx: WebGLRenderingContext | WebGL2RenderingContext | null, canvas: HTMLCanvasElement, _analyser: AnalyserNode, _dataArray: Uint8Array, params: { mode: string }): void {
         if (!this.isInitialized) {
             return;
         }
@@ -332,7 +349,7 @@ export class ButterchurnPreset {
     /**
      * Lazy initialization helper for when audio context becomes available
      */
-    lazyInit(canvas, audioContext, sourceNode) {
+    lazyInit(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: AudioNode | null): void {
         if (!this.isInitialized && canvas && audioContext) {
             const gl =
                 canvas.getContext('webgl2', {
@@ -363,7 +380,7 @@ export class ButterchurnPreset {
     /**
      * Cleanup resources
      */
-    destroy() {
+    destroy(): void {
         // Unregister graph change listener
         if (this._unregisterGraphChange) {
             this._unregisterGraphChange();
