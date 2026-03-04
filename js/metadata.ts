@@ -1325,7 +1325,7 @@ function createStringAtom(type: string, value: string, truncateType: boolean = t
     return buf;
 }
 
-function createUserAtom(namespace, name, value) {
+function createUserAtom(namespace: string, name: string, value: string): Uint8Array {
     const encoder = new TextEncoder();
     const dashBytes = encoder.encode('----'); // User-defined atom type
     const namespaceBytes = encoder.encode(namespace);
@@ -1434,7 +1434,8 @@ function createUintAtom(key: string, value: number, intByteLength: number = 1): 
     buf[offset++] = 0;
     buf[offset++] = 0;
     buf[offset++] = 0;
-    buf.set(numberBytes, offset++);
+    buf.set(numberBytes, offset);
+    offset += numberBytes.length;
 
     return buf;
 }
