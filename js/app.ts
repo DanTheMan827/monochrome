@@ -4,10 +4,12 @@ import {
     apiSettings,
     themeManager,
     nowPlayingSettings,
+    fullscreenCoverClickSettings,
     downloadQualitySettings,
     sidebarSettings,
     pwaUpdateSettings,
     modalSettings,
+    keyboardShortcuts,
 } from './storage.ts';
 import { UIRenderer } from './ui.ts';
 import { Player } from './player.ts';
@@ -209,74 +211,114 @@ function initializeCasting(audioPlayer: ExtendedAudioElement, castBtn: HTMLEleme
 }
 
 function initializeKeyboardShortcuts(player: Player, audioPlayer: HTMLAudioElement): void {
-    document.addEventListener('keydown', (e) => {
-        if ((e.target as HTMLElement)?.matches('input, textarea')) return;
+    const keyActionMap: Record<string, () => void> = {
+        playPause: () => {
+            trackKeyboardShortcut('Space');
+            player.handlePlayPause();
+        },
+        seekForward: () => {
+            trackKeyboardShortcut('Right');
+            audioPlayer.currentTime = Math.min(audioPlayer.duration, audioPlayer.currentTime + 10);
+        },
+        seekBackward: () => {
+            trackKeyboardShortcut('Left');
+            audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 10);
+        },
+        nextTrack: () => {
+            trackKeyboardShortcut('Shift+Right');
+            player.playNext();
+        },
+        previousTrack: () => {
+            trackKeyboardShortcut('Shift+Left');
+            player.playPrev();
+        },
+        volumeUp: () => {
+            trackKeyboardShortcut('Up');
+            player.setVolume(player.userVolume + 0.1);
+        },
+        volumeDown: () => {
+            trackKeyboardShortcut('Down');
+            player.setVolume(player.userVolume - 0.1);
+        },
+        mute: () => {
+            trackKeyboardShortcut('M');
+            audioPlayer.muted = !audioPlayer.muted;
+        },
+        shuffle: () => {
+            trackKeyboardShortcut('S');
+            document.getElementById('shuffle-btn')?.click();
+        },
+        repeat: () => {
+            trackKeyboardShortcut('R');
+            document.getElementById('repeat-btn')?.click();
+        },
+        queue: () => {
+            trackKeyboardShortcut('Q');
+            document.getElementById('queue-btn')?.click();
+        },
+        lyrics: () => {
+            trackKeyboardShortcut('L');
+            document.querySelector('.now-playing-bar .cover')?.click();
+        },
+        search: () => {
+            trackKeyboardShortcut('/');
+            document.getElementById('search-input')?.focus();
+        },
+        escape: () => {
+            trackKeyboardShortcut('Escape');
+            document.getElementById('search-input')?.blur();
+            sidePanelManager.close();
+            clearLyricsPanelSync(audioPlayer, (sidePanelManager as unknown as { panel: HTMLElement }).panel);
+        },
+        visualizerNext: () => {
+            trackKeyboardShortcut('VisualizerNext');
+            const ui = window.monochromeUi;
+            if (ui?.visualizer?.presets?.['butterchurn']) {
+                ui.visualizer.presets['butterchurn'].nextPreset();
+            }
+        },
+        visualizerPrev: () => {
+            trackKeyboardShortcut('VisualizerPrev');
+            const ui = window.monochromeUi;
+            if (ui?.visualizer?.presets?.['butterchurn']) {
+                ui.visualizer.presets['butterchurn'].prevPreset();
+            }
+        },
+        visualizerCycle: () => {
+            trackKeyboardShortcut('VisualizerCycle');
+            const ui = window.monochromeUi;
+            if (ui?.visualizer?.presets?.['butterchurn']) {
+                ui.visualizer.presets['butterchurn'].toggleCycle();
+            }
+        },
+    };
 
-        switch (e.key.toLowerCase()) {
-            case ' ':
+    document.addEventListener('keydown', (e) => {
+        if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
+
+        const shortcuts = keyboardShortcuts.getShortcuts();
+        const pressedKey = e.key.toLowerCase();
+        const hasShift = e.shiftKey;
+        const hasCtrl = e.ctrlKey || e.metaKey;
+        const hasAlt = e.altKey;
+
+        for (const [action, shortcut] of Object.entries(shortcuts)) {
+            if (!shortcut?.key) continue;
+            const shortcutKey = shortcut.key.toLowerCase();
+            const matches =
+                pressedKey === shortcutKey &&
+                shortcut.shift === hasShift &&
+                shortcut.ctrl === hasCtrl &&
+                shortcut.alt === hasAlt;
+
+            if (matches) {
                 e.preventDefault();
-                trackKeyboardShortcut('Space');
-                player.handlePlayPause();
-                break;
-            case 'arrowright':
-                if (e.shiftKey) {
-                    trackKeyboardShortcut('Shift+Right');
-                    player.playNext();
-                } else {
-                    trackKeyboardShortcut('Right');
-                    audioPlayer.currentTime = Math.min(audioPlayer.duration, audioPlayer.currentTime + 10);
+                const actionFn = keyActionMap[action];
+                if (actionFn) {
+                    actionFn();
                 }
-                break;
-            case 'arrowleft':
-                if (e.shiftKey) {
-                    trackKeyboardShortcut('Shift+Left');
-                    player.playPrev();
-                } else {
-                    trackKeyboardShortcut('Left');
-                    audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 10);
-                }
-                break;
-            case 'arrowup':
-                e.preventDefault();
-                trackKeyboardShortcut('Up');
-                player.setVolume((player as unknown as PlayerWithState).userVolume + 0.1);
-                break;
-            case 'arrowdown':
-                e.preventDefault();
-                trackKeyboardShortcut('Down');
-                player.setVolume((player as unknown as PlayerWithState).userVolume - 0.1);
-                break;
-            case 'm':
-                trackKeyboardShortcut('M');
-                audioPlayer.muted = !audioPlayer.muted;
-                break;
-            case 's':
-                trackKeyboardShortcut('S');
-                document.getElementById('shuffle-btn')?.click();
-                break;
-            case 'r':
-                trackKeyboardShortcut('R');
-                document.getElementById('repeat-btn')?.click();
-                break;
-            case 'q':
-                trackKeyboardShortcut('Q');
-                document.getElementById('queue-btn')?.click();
-                break;
-            case '/':
-                e.preventDefault();
-                trackKeyboardShortcut('/');
-                document.getElementById('search-input')?.focus();
-                break;
-            case 'escape':
-                trackKeyboardShortcut('Escape');
-                document.getElementById('search-input')?.blur();
-                sidePanelManager.close();
-                clearLyricsPanelSync(audioPlayer, (sidePanelManager as unknown as { panel: HTMLElement }).panel);
-                break;
-            case 'l':
-                trackKeyboardShortcut('L');
-                (document.querySelector('.now-playing-bar .cover') as HTMLElement)?.click();
-                break;
+                return;
+            }
         }
     });
 }
@@ -427,6 +469,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeCasting(audioPlayer as unknown as ExtendedAudioElement, castBtn);
 
     const ui = new UIRenderer(api, player);
+    window.monochromeUi = ui;
     const scrobbler = new MultiScrobbler();
     const lyricsManager = new LyricsManager(api);
 
@@ -569,10 +612,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.getElementById('fullscreen-cover-image')?.addEventListener('click', () => {
-        if (window.location.hash === '#fullscreen') {
-            window.history.back();
-        } else {
-            ui.closeFullscreenCover();
+        const action = fullscreenCoverClickSettings.getAction();
+        const overlay = document.getElementById('fullscreen-cover-overlay');
+        const playerInstance = window.monochromePlayer;
+
+        switch (action) {
+            case 'exit':
+                if (window.location.hash === '#fullscreen') {
+                    window.history.back();
+                } else {
+                    ui.closeFullscreenCover();
+                }
+                break;
+            case 'hide-ui':
+                if (overlay) {
+                    const isCurrentlyHidden = overlay.classList.contains('ui-hidden');
+                    if (isCurrentlyHidden) {
+                        overlay.classList.remove('ui-hidden');
+                        const toggleBtn = document.getElementById('toggle-ui-btn');
+                        if (toggleBtn) {
+                            toggleBtn.classList.remove('active');
+                            toggleBtn.classList.add('visible');
+                            toggleBtn.title = 'Hide UI';
+                        }
+                    } else {
+                        overlay.classList.add('ui-hidden');
+                        const toggleBtn = document.getElementById('toggle-ui-btn');
+                        if (toggleBtn) {
+                            toggleBtn.classList.add('active');
+                            toggleBtn.classList.remove('visible');
+                            toggleBtn.title = 'Show UI';
+                        }
+                    }
+                    if (ui && typeof ui.setupUIToggleButton === 'function') {
+                        if (ui.uiToggleCleanup) {
+                            ui.uiToggleCleanup();
+                        }
+                        ui.setupUIToggleButton(overlay);
+                    }
+                }
+                break;
+            case 'pause-resume':
+                if (playerInstance) playerInstance.handlePlayPause();
+                break;
+            case 'next':
+                if (playerInstance) playerInstance.playNext();
+                break;
+            case 'previous':
+                if (playerInstance) playerInstance.playPrev();
+                break;
+            case 'nothing':
+                break;
+            default:
+                if (window.location.hash === '#fullscreen') {
+                    window.history.back();
+                } else {
+                    ui.closeFullscreenCover();
+                }
         }
     });
 
@@ -1185,6 +1281,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const xspfFileInput = document.getElementById('xspf-file-input');
                     const xmlFileInput = document.getElementById('xml-file-input');
                     const m3uFileInput = document.getElementById('m3u-file-input');
+
+                    const importOptions = { strictArtistMatch: true, albumMatch: true };
+
                     let tracks: TrackData[] = [];
                     let importSource = 'manual';
                     let cover = (document.getElementById('playlist-cover-input') as HTMLInputElement).value.trim();
@@ -1258,14 +1357,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const totalTracks = songs.length;
                             progressTotal!.textContent = totalTracks.toString();
 
-                            const result = await parseCSV(csvText, api, (progress: { current: number; currentTrack: string; currentArtist?: string }) => {
-                                const percentage = totalTracks > 0 ? (progress.current / totalTracks) * 100 : 0;
-                                progressFill!.style.width = `${Math.min(percentage, 100)}%`;
-                                progressCurrent!.textContent = progress.current.toString();
-                                currentTrackElement!.textContent = progress.currentTrack;
-                                if (currentArtistElement)
-                                    currentArtistElement.textContent = progress.currentArtist || '';
-                            });
+                            const result = await parseCSV(
+                                csvText,
+                                api,
+                                (progress: { current: number; currentTrack: string; currentArtist?: string }) => {
+                                    const percentage = totalTracks > 0 ? (progress.current / totalTracks) * 100 : 0;
+                                    progressFill!.style.width = `${Math.min(percentage, 100)}%`;
+                                    progressCurrent!.textContent = progress.current.toString();
+                                    currentTrackElement!.textContent = progress.currentTrack;
+                                    if (currentArtistElement)
+                                        currentArtistElement.textContent = progress.currentArtist || '';
+                                },
+                                importOptions
+                            );
 
                             tracks = result.tracks;
                             const missingTracks = result.missingTracks;
@@ -1402,17 +1506,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const totalItems = Math.max(0, lines.length - 1);
                             progressTotal!.textContent = totalItems.toString();
 
-                            const result = await parseDynamicCSV(csvText, api, (progress: { current: number; currentItem: string; type?: string }) => {
-                                const percentage = totalItems > 0 ? (progress.current / totalItems) * 100 : 0;
-                                progressFill!.style.width = `${Math.min(percentage, 100)}%`;
-                                progressCurrent!.textContent = progress.current.toString();
-                                currentTrackElement!.textContent = progress.currentItem;
-                                if (currentArtistElement) {
-                                    currentArtistElement.textContent = progress.type
-                                        ? `Importing ${progress.type}...`
-                                        : '';
-                                }
-                            });
+                            const result = await parseDynamicCSV(
+                                csvText,
+                                api,
+                                (progress: { current: number; currentItem: string; type?: string }) => {
+                                    const percentage = totalItems > 0 ? (progress.current / totalItems) * 100 : 0;
+                                    progressFill!.style.width = `${Math.min(percentage, 100)}%`;
+                                    progressCurrent!.textContent = progress.current.toString();
+                                    currentTrackElement!.textContent = progress.currentItem;
+                                    if (currentArtistElement) {
+                                        currentArtistElement.textContent = progress.type
+                                            ? `Importing ${progress.type}...`
+                                            : '';
+                                    }
+                                },
+                                importOptions
+                            );
 
                             const hasMultipleTypes =
                                 result.tracks.length > 0 && (result.albums.length > 0 || result.artists.length > 0);
@@ -2268,22 +2377,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup clear button for search bar
     ui.setupSearchClearButton(searchInput);
 
-    const performSearch = debounce(((query: string) => {
+    const performSearch = debounce((query: string) => {
         if (query) {
             navigate(`/search/${encodeURIComponent(query)}`);
         }
-    }) as (...args: unknown[]) => void, 300);
+    }, 0);
+
+    const handleExternalLink = (query: string): boolean => {
+        const isExternalLink =
+            query.includes('monochrome.tf/') ||
+            query.includes('monochrome.samidy.com/') ||
+            query.includes('tidal.com/');
+
+        if (isExternalLink) {
+            const url = query.startsWith('http') ? query : 'https://' + query;
+            try {
+                const urlObj = new URL(url);
+                let path = urlObj.pathname;
+                // Remove trailing slashes and get just endpoint/id
+                path = path.replace(/\/+$/, '');
+                // Get just the first two segments (e.g., /album/382839956)
+                const segments = path.split('/').filter((s) => s);
+                if (segments.length >= 2) {
+                    path = '/' + segments[0] + '/' + segments[1];
+                }
+                navigate(path);
+                return true;
+            } catch {
+                return false;
+            }
+        }
+        return false;
+    };
 
     searchInput.addEventListener('input', (e) => {
         const query = (e.target as HTMLInputElement).value.trim();
-        if (query.length > 2) {
+        if (!query) return;
+
+        if (!handleExternalLink(query)) {
             performSearch(query);
         }
     });
 
     searchInput.addEventListener('change', (e) => {
         const query = (e.target as HTMLInputElement).value.trim();
-        if (query.length > 2) {
+        if (query) {
             ui.addToSearchHistory(query);
         }
     });
@@ -2306,7 +2444,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     searchForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const query = searchInput.value.trim();
-        if (query) {
+        if (!query) return;
+
+        if (!handleExternalLink(query)) {
             ui.addToSearchHistory(query);
             navigate(`/search/${encodeURIComponent(query)}`);
             const historyEl = document.getElementById('search-history');
@@ -2415,6 +2555,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         showKeyboardShortcuts();
     });
 
+    document.getElementById('customize-shortcuts-btn')?.addEventListener('click', () => {
+        showCustomizeShortcutsModal();
+    });
+
     // Font Settings
     const fontSelect = document.getElementById('font-select');
     if (fontSelect) {
@@ -2427,6 +2571,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.documentElement.style.setProperty('--font-family', font);
             localStorage.setItem('monochrome-font', font);
         });
+    }
+
+    // Donate Modal Logic
+    const donateModal = document.getElementById('donate-modal');
+    const closeDonateModalBtn = document.getElementById('close-donate-modal-btn');
+    const sidebarDonateLink = document.getElementById('sidebar-donate-link');
+    const donateBtnAbout = document.getElementById('donate-btn');
+    const donateBtnPage = document.getElementById('donate-btn-page');
+
+    const openDonateModal = (e) => {
+        if (e) e.preventDefault();
+        trackOpenModal('Donate');
+        donateModal.classList.add('active');
+    };
+
+    const closeDonateModal = () => {
+        donateModal.classList.remove('active');
+        trackCloseModal('Donate');
+    };
+
+    if (donateModal) {
+        if (closeDonateModalBtn) closeDonateModalBtn.addEventListener('click', closeDonateModal);
+        donateModal.querySelector('.modal-overlay')?.addEventListener('click', closeDonateModal);
+
+        if (sidebarDonateLink) sidebarDonateLink.addEventListener('click', openDonateModal);
+        if (donateBtnAbout) donateBtnAbout.addEventListener('click', openDonateModal);
+        if (donateBtnPage) donateBtnPage.addEventListener('click', openDonateModal);
     }
 
     // Listener for Pocketbase Sync updates
@@ -2488,12 +2659,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     const headerAccountImg = document.getElementById('header-account-img');
     const headerAccountIcon = document.getElementById('header-account-icon');
 
+    // Temporarily disable accounts - show popup
+    const isAccountsDisabled = true;
+
     if (headerAccountBtn && headerAccountDropdown) {
-        headerAccountBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            headerAccountDropdown.classList.toggle('active');
-            updateAccountDropdown();
-        });
+        if (isAccountsDisabled) {
+            headerAccountBtn.style.opacity = '0.5';
+            headerAccountBtn.style.cursor = 'not-allowed';
+            headerAccountBtn.title = 'Accounts temporarily unavailable';
+            headerAccountBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                alert(
+                    "We're moving authentication and data storing systems.\n\nAccounts, profiles, playlists, and community themes will not work during this period (approximately 2 days).\n\nYou will need to re-login after the migration is complete."
+                );
+            });
+        } else {
+            headerAccountBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                headerAccountDropdown.classList.toggle('active');
+                updateAccountDropdown();
+            });
+        }
 
         document.addEventListener('click', (e) => {
             if (!headerAccountBtn.contains(e.target as Node) && !headerAccountDropdown.contains(e.target as Node)) {
@@ -2610,6 +2796,7 @@ function escapeHtml(text: string): string {
 function showMissingTracksNotification(missingTracks: (string | { title?: string; artist?: string })[]): void {
     const modal = document.getElementById('missing-tracks-modal') as HTMLElement;
     const listUl = document.getElementById('missing-tracks-list-ul') as HTMLElement;
+    const copyBtn = document.getElementById('copy-missing-tracks-btn');
 
     listUl.innerHTML = missingTracks
         .map((track) => {
@@ -2618,6 +2805,27 @@ function showMissingTracksNotification(missingTracks: (string | { title?: string
             return `<li>${escapeHtml(text)}</li>`;
         })
         .join('');
+
+    if (copyBtn) {
+        const newCopyBtn = copyBtn.cloneNode(true);
+        copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
+
+        newCopyBtn.addEventListener('click', () => {
+            const textToCopy = missingTracks
+                .map((track) => {
+                    return typeof track === 'string'
+                        ? track
+                        : `${track.artist ? track.artist + ' - ' : ''}${track.title}`;
+                })
+                .join('\n');
+
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                const originalText = newCopyBtn.textContent;
+                newCopyBtn.textContent = 'Copied!';
+                setTimeout(() => (newCopyBtn.textContent = originalText), 2000);
+            });
+        });
+    }
 
     const closeModal = () => modal.classList.remove('active');
 
@@ -2733,5 +2941,162 @@ function showKeyboardShortcuts(): void {
     };
 
     modal.addEventListener('click', handleClose);
+    modal.classList.add('active');
+}
+
+function showCustomizeShortcutsModal() {
+    const modal = document.getElementById('customize-shortcuts-modal');
+    const shortcutsList = document.getElementById('shortcuts-list');
+    let recordingAction = null;
+    let recordingTimeout = null;
+
+    const shortcuts = keyboardShortcuts.getShortcuts();
+
+    const formatKey = (key) => {
+        if (!key) return 'none';
+        const keyMap = {
+            ' ': 'Space',
+            arrowup: '↑',
+            arrowdown: '↓',
+            arrowleft: '←',
+            arrowright: '→',
+            escape: 'Esc',
+            backspace: 'Backspace',
+            delete: 'Delete',
+            insert: 'Insert',
+            home: 'Home',
+            end: 'End',
+            pageup: 'Page Up',
+            pagedown: 'Page Down',
+            '[': '[',
+            ']': ']',
+            '\\': '\\',
+            tab: 'Tab',
+            enter: 'Enter',
+            capslock: 'Caps Lock',
+            shift: 'Shift',
+            control: 'Ctrl',
+            alt: 'Alt',
+            meta: 'Meta',
+            contextmenu: 'Context Menu',
+        };
+        return keyMap[key.toLowerCase()] || key.toUpperCase();
+    };
+
+    const renderShortcuts = () => {
+        shortcutsList.innerHTML = '';
+        const currentShortcuts = keyboardShortcuts.getShortcuts();
+
+        for (const [action, shortcut] of Object.entries(currentShortcuts || {})) {
+            const item = document.createElement('div');
+            item.className = 'customize-shortcut-item';
+            item.dataset.action = action;
+
+            const modifiers = [];
+            if (shortcut?.shift) modifiers.push('Shift');
+            if (shortcut?.ctrl) modifiers.push('Ctrl');
+            if (shortcut?.alt) modifiers.push('Alt');
+
+            const keyDisplay = [...modifiers, formatKey(shortcut?.key)].join(' + ');
+
+            item.innerHTML = `
+                <span class="shortcut-description">${shortcut?.description || 'Unknown'}</span>
+                <div class="shortcut-key">
+                    <kbd class="${recordingAction === action ? 'recording' : ''}">${keyDisplay}</kbd>
+                    <button class="shortcut-btn" title="Reset to default">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                            <path d="M3 3v5h5"/>
+                        </svg>
+                    </button>
+                </div>
+            `;
+
+            const kbd = item.querySelector('kbd');
+            kbd.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (recordingAction === action) {
+                    recordingAction = null;
+                    clearTimeout(recordingTimeout);
+                } else {
+                    recordingAction = action;
+                    recordingTimeout = setTimeout(() => {
+                        keyboardShortcuts.setShortcut(action, {
+                            key: null,
+                            shift: false,
+                            ctrl: false,
+                            alt: false,
+                            description: shortcut?.description || 'Unknown',
+                        });
+                        recordingAction = null;
+                        renderShortcuts();
+                    }, 3000);
+                }
+                renderShortcuts();
+            });
+
+            const resetBtn = item.querySelector('.shortcut-btn');
+            resetBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const defaults = keyboardShortcuts.getDefaultShortcuts();
+                keyboardShortcuts.setShortcut(action, defaults[action]);
+                renderShortcuts();
+            });
+
+            shortcutsList.appendChild(item);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (!recordingAction) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const key = e.key === ' ' ? ' ' : e.key;
+
+        if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+            return;
+        }
+
+        keyboardShortcuts.setShortcut(recordingAction, {
+            key: key,
+            shift: e.shiftKey,
+            ctrl: e.ctrlKey || e.metaKey,
+            alt: e.altKey,
+        });
+
+        clearTimeout(recordingTimeout);
+        recordingAction = null;
+        renderShortcuts();
+    };
+
+    const closeModal = () => {
+        modal.classList.remove('active');
+        recordingAction = null;
+        clearTimeout(recordingTimeout);
+        document.removeEventListener('keydown', handleKeyDown);
+        modal.removeEventListener('click', handleClose);
+    };
+
+    const handleClose = (e) => {
+        if (
+            e.target === modal ||
+            e.target.classList.contains('close-customize-shortcuts') ||
+            e.target.id === 'close-customize-shortcuts-btn' ||
+            e.target.classList.contains('modal-overlay')
+        ) {
+            closeModal();
+        }
+    };
+
+    document.getElementById('reset-shortcuts-btn')?.addEventListener('click', () => {
+        keyboardShortcuts.resetShortcuts();
+        renderShortcuts();
+    });
+
+    document.addEventListener('keydown', handleKeyDown);
+    modal.addEventListener('click', handleClose);
+    renderShortcuts();
     modal.classList.add('active');
 }

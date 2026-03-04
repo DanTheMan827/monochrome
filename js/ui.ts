@@ -1100,7 +1100,9 @@ export class UIRenderer {
         const toggleBtn = document.getElementById('toggle-ui-btn');
         if (!toggleBtn) return;
 
-        let isUIHidden = false;
+        let isUIHidden = overlay.classList.contains('ui-hidden');
+        toggleBtn.classList.toggle('active', isUIHidden);
+        toggleBtn.title = isUIHidden ? 'Show UI' : 'Hide UI';
 
         // Show button
         const showButton = () => {
@@ -1111,6 +1113,13 @@ export class UIRenderer {
         const hideButton = () => {
             toggleBtn.classList.remove('visible');
         };
+
+        // Initial state: hide button if UI is hidden
+        if (isUIHidden) {
+            hideButton();
+        } else {
+            showButton();
+        }
 
         // Mouse move handler
         const handleMouseMove = (e: MouseEvent) => {

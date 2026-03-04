@@ -3,6 +3,7 @@ import {
     themeManager,
     lastFMStorage,
     nowPlayingSettings,
+    fullscreenCoverClickSettings,
     lyricsSettings,
     backgroundSettings,
     dynamicColorSettings,
@@ -34,6 +35,7 @@ import {
     musicProviderSettings,
     analyticsSettings,
     modalSettings,
+    keyboardShortcuts,
 } from './storage.ts';
 import { audioContextManager, EQ_PRESETS } from './audio-context.ts';
 import { getButterchurnPresets } from './visualizers/butterchurn.ts';
@@ -971,6 +973,18 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
 
         playbackSpeedInput.addEventListener('change', handleInputChange);
         playbackSpeedInput.addEventListener('blur', handleInputChange);
+    }
+
+    // ========================================
+    // Preserve Pitch Toggle
+    // ========================================
+    const preservePitchToggle = document.getElementById('preserve-pitch-toggle');
+    if (preservePitchToggle) {
+        preservePitchToggle.checked = audioEffectsSettings.isPreservePitchEnabled();
+
+        preservePitchToggle.addEventListener('change', (e) => {
+            player.setPreservePitch(e.target.checked);
+        });
     }
 
     // ========================================
@@ -2022,6 +2036,15 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
+    // Fullscreen Cover Click Action
+    const fullscreenCoverClickAction = document.getElementById('fullscreen-cover-click-action');
+    if (fullscreenCoverClickAction) {
+        fullscreenCoverClickAction.value = fullscreenCoverClickSettings.getAction();
+        fullscreenCoverClickAction.addEventListener('change', (e) => {
+            fullscreenCoverClickSettings.setAction(e.target.value);
+        });
+    }
+
     // Close Modals on Navigation Toggle
     const closeModalsOnNavigationToggle = document.getElementById('close-modals-on-navigation-toggle') as HTMLInputElement | null;
     if (closeModalsOnNavigationToggle) {
@@ -2467,6 +2490,15 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
+    const sidebarShowGithubToggle = document.getElementById('sidebar-show-githubbtn-toggle');
+    if (sidebarShowGithubToggle) {
+        sidebarShowGithubToggle.checked = sidebarSectionSettings.shouldShowGithub();
+        sidebarShowGithubToggle.addEventListener('change', (e) => {
+            sidebarSectionSettings.setShowGithub(e.target.checked);
+            sidebarSectionSettings.applySidebarVisibility();
+        });
+    }
+
     // Apply sidebar visibility on initialization
     sidebarSectionSettings.applySidebarVisibility();
 
@@ -2774,6 +2806,59 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
             } catch (err) {
                 console.error('Import failed:', err);
                 alert('Failed to import library. Please check the file format.');
+            }
+        };
+        reader.readAsText(file);
+    });
+
+    // Export All Settings
+    document.getElementById('export-settings-btn')?.addEventListener('click', () => {
+        const settingsToExport: Record<string, unknown> = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('monochrome-')) {
+                try {
+                    settingsToExport[key] = JSON.parse(localStorage.getItem(key)!);
+                } catch {
+                    settingsToExport[key] = localStorage.getItem(key);
+                }
+            }
+        }
+        const blob = new Blob([JSON.stringify(settingsToExport, null, 2)], {
+            type: 'application/json',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `monochrome-settings-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    // Import All Settings
+    const settingsImportInput = document.getElementById('import-settings-input');
+    document.getElementById('import-settings-btn')?.addEventListener('click', () => {
+        (settingsImportInput as HTMLInputElement)?.click();
+    });
+
+    settingsImportInput?.addEventListener('change', async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const settingsToImport = JSON.parse(event.target?.result as string);
+                for (const [key, value] of Object.entries(settingsToImport)) {
+                    if (key.startsWith('monochrome-')) {
+                        localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+                    }
+                }
+                alert('Settings imported successfully! Please reload the app.');
+                window.location.reload();
+            } catch (err) {
+                console.error('Import failed:', err);
+                alert('Failed to import settings. Please check the file format.');
             }
         };
         reader.readAsText(file);

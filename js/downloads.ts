@@ -366,6 +366,15 @@ async function downloadTrackBlob(track: TrackData, quality: string, api: Downloa
         }
     }
 
+    if (lookup.info) {
+        enrichedTrack.replayGain = {
+            trackReplayGain: lookup.info.trackReplayGain,
+            trackPeakAmplitude: lookup.info.trackPeakAmplitude,
+            albumReplayGain: lookup.info.albumReplayGain,
+            albumPeakAmplitude: lookup.info.albumPeakAmplitude,
+        };
+    }
+
     // Handle DASH streams (blob URLs)
     let blob;
     if (streamUrl.startsWith('blob:')) {

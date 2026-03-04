@@ -108,6 +108,53 @@ interface M3UTrackInfo {
     artist: string;
 }
 
+interface MatchOptions {
+    strictArtistMatch?: boolean;
+    albumMatch?: boolean;
+}
+
+interface MatchableItem {
+    artist?: { name?: string };
+    artists?: Array<{ name?: string }>;
+    album?: { title?: string };
+}
+
+function isFuzzyMatch(str1: string | null | undefined, str2: string | null | undefined): boolean {
+    if (!str1 || !str2) return false;
+    const s1 = str1.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const s2 = str2.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    return s1.includes(s2) || s2.includes(s1);
+}
+
+function findBestMatch<T extends MatchableItem>(
+    items: T[] | null | undefined,
+    targetArtist: string | null | undefined,
+    targetAlbum: string | null | undefined,
+    options?: MatchOptions
+): T | null {
+    if (!items || items.length === 0) return null;
+    if (!options?.strictArtistMatch && !options?.albumMatch) return items[0];
+
+    return (
+        items.find((item) => {
+            let artistOk = true;
+            let albumOk = true;
+
+            if (options.strictArtistMatch && targetArtist) {
+                const itemArtist = item.artist?.name || item.artists?.[0]?.name;
+                if (!isFuzzyMatch(itemArtist, targetArtist)) artistOk = false;
+            }
+
+            if (options.albumMatch && targetAlbum) {
+                const itemAlbum = item.album?.title;
+                if (itemAlbum && !isFuzzyMatch(itemAlbum, targetAlbum)) albumOk = false;
+            }
+
+            return artistOk && albumOk;
+        }) || null
+    );
+}
+
 /**
  * Helper function to get track artists string
  */
@@ -282,7 +329,7 @@ function detectCSVFormat(mappedHeaders: Partial<Record<HeaderKey, number>>): CSV
     };
 }
 
-export async function parseDynamicCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: DynamicCSVProgress) => void): Promise<DynamicCSVResult> {
+export async function parseDynamicCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: DynamicCSVProgress) => void, options: MatchOptions = {}): Promise<DynamicCSVResult> {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) {
         return {
@@ -387,7 +434,7 @@ export async function parseDynamicCSV(csvText: string, api: PlaylistImporterApi,
                     const searchQuery = `"${trackName}" ${artistName}`.trim();
                     const searchResult = await api.searchTracks(searchQuery);
                     if (searchResult.items && searchResult.items.length > 0) {
-                        foundTrack = searchResult.items[0];
+                        foundTrack = findBestMatch(searchResult.items, artistName, albumName, options);
                     }
                 }
 
@@ -541,7 +588,7 @@ export async function importToLibrary(csvResult: DynamicCSVResult, db: PlaylistI
     return results;
 }
 
-export async function parseCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
+export async function parseCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void, options: MatchOptions = {}): Promise<ParseResult> {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) return { tracks: [], missingTracks: [] };
 
@@ -627,7 +674,9 @@ export async function parseCSV(csvText: string, api: PlaylistImporterApi, onProg
                     const searchResult = await api.searchTracks(searchQuery);
 
                     if (searchResult.items && searchResult.items.length > 0) {
-                        tracks.push(searchResult.items[0]);
+                        const match = findBestMatch(searchResult.items, artistNames, albumName, options);
+                        if (match) tracks.push(match);
+                        else missingTracks.push({ title: trackTitle, artist: artistNames, album: albumName });
                     } else {
                         missingTracks.push({ title: trackTitle, artist: artistNames, album: albumName });
                     }

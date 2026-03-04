@@ -489,6 +489,22 @@ export const nowPlayingSettings = {
     },
 };
 
+export const fullscreenCoverClickSettings = {
+    STORAGE_KEY: 'fullscreen-cover-click-action',
+
+    getAction() {
+        try {
+            return localStorage.getItem(this.STORAGE_KEY) || 'exit';
+        } catch {
+            return 'exit';
+        }
+    },
+
+    setAction(action) {
+        localStorage.setItem(this.STORAGE_KEY, action);
+    },
+};
+
 export const lyricsSettings = {
     DOWNLOAD_WITH_TRACKS: 'lyrics-download-with-tracks',
 
@@ -1387,6 +1403,7 @@ export const exponentialVolumeSettings = {
 
 export const audioEffectsSettings = {
     SPEED_KEY: 'audio-effects-speed',
+    PITCH_PRESERVE_KEY: 'audio-effects-pitch-preserve',
 
     // Playback speed (0.01 to 100, default 1.0)
     getSpeed() {
@@ -1401,6 +1418,20 @@ export const audioEffectsSettings = {
     setSpeed(speed: number | string) {
         const validSpeed = Math.max(0.01, Math.min(100, parseFloat(String(speed)) || 1.0));
         localStorage.setItem(this.SPEED_KEY, validSpeed.toString());
+    },
+
+    // Preserve pitch when changing speed (default true)
+    isPreservePitchEnabled() {
+        try {
+            const val = localStorage.getItem(this.PITCH_PRESERVE_KEY);
+            return val === null ? true : val === 'true';
+        } catch {
+            return true;
+        }
+    },
+
+    setPreservePitch(enabled) {
+        localStorage.setItem(this.PITCH_PRESERVE_KEY, enabled ? 'true' : 'false');
     },
 };
 
@@ -1707,6 +1738,7 @@ export const sidebarSectionSettings = {
     SHOW_ABOUT_KEY: 'sidebar-show-about',
     SHOW_DOWNLOAD_KEY: 'sidebar-show-download',
     SHOW_DISCORD_KEY: 'sidebar-show-discord',
+    SHOW_GITHUB_KEY: 'sidebar-show-github',
     ORDER_KEY: 'sidebar-menu-order',
     DEFAULT_ORDER: [
         'sidebar-nav-home',
@@ -1718,6 +1750,7 @@ export const sidebarSectionSettings = {
         'sidebar-nav-about-bottom',
         'sidebar-nav-download-bottom',
         'sidebar-nav-discordbtn',
+        'sidebar-nav-githubbtn',
     ],
 
     getBottomNavIds(): string[] {
@@ -1842,6 +1875,19 @@ export const sidebarSectionSettings = {
         localStorage.setItem(this.SHOW_DISCORD_KEY, enabled ? 'true' : 'false');
     },
 
+    shouldShowGithub(): boolean {
+        try {
+            const val = localStorage.getItem(this.SHOW_GITHUB_KEY);
+            return val === null ? true : val === 'true';
+        } catch {
+            return true;
+        }
+    },
+
+    setShowGithub(enabled: boolean) {
+        localStorage.setItem(this.SHOW_GITHUB_KEY, enabled ? 'true' : 'false');
+    },
+
     normalizeOrder(order: string[]): string[] {
         const baseOrder = this.DEFAULT_ORDER;
         const safeOrder = Array.isArray(order) ? order.filter((id) => baseOrder.includes(id)) : [];
@@ -1902,6 +1948,7 @@ export const sidebarSectionSettings = {
             { id: 'sidebar-nav-about-bottom', check: this.shouldShowAbout() },
             { id: 'sidebar-nav-download-bottom', check: this.shouldShowDownload() },
             { id: 'sidebar-nav-discordbtn', check: this.shouldShowDiscord() },
+            { id: 'sidebar-nav-githubbtn', check: this.shouldShowGithub() },
         ];
 
         items.forEach(({ id, check }) => {
@@ -2562,5 +2609,73 @@ export const contentBlockingSettings = {
         localStorage.removeItem(this.BLOCKED_ARTISTS_KEY);
         localStorage.removeItem(this.BLOCKED_TRACKS_KEY);
         localStorage.removeItem(this.BLOCKED_ALBUMS_KEY);
+    },
+};
+
+export const keyboardShortcuts = {
+    STORAGE_KEY: 'keyboard-shortcuts',
+
+    DEFAULT_SHORTCUTS: {
+        playPause: { key: ' ', shift: false, ctrl: false, alt: false, description: 'Play / Pause' },
+        seekForward: { key: 'arrowright', shift: false, ctrl: false, alt: false, description: 'Seek forward 10s' },
+        seekBackward: { key: 'arrowleft', shift: false, ctrl: false, alt: false, description: 'Seek backward 10s' },
+        nextTrack: { key: 'arrowright', shift: true, ctrl: false, alt: false, description: 'Next track' },
+        previousTrack: { key: 'arrowleft', shift: true, ctrl: false, alt: false, description: 'Previous track' },
+        volumeUp: { key: 'arrowup', shift: false, ctrl: false, alt: false, description: 'Volume up' },
+        volumeDown: { key: 'arrowdown', shift: false, ctrl: false, alt: false, description: 'Volume down' },
+        mute: { key: 'm', shift: false, ctrl: false, alt: false, description: 'Mute / Unmute' },
+        shuffle: { key: 's', shift: false, ctrl: false, alt: false, description: 'Toggle shuffle' },
+        repeat: { key: 'r', shift: false, ctrl: false, alt: false, description: 'Toggle repeat' },
+        queue: { key: 'q', shift: false, ctrl: false, alt: false, description: 'Open queue' },
+        lyrics: { key: 'l', shift: false, ctrl: false, alt: false, description: 'Toggle lyrics' },
+        search: { key: '/', shift: false, ctrl: false, alt: false, description: 'Focus search' },
+        escape: { key: 'escape', shift: false, ctrl: false, alt: false, description: 'Close modals' },
+        visualizerNext: { key: ']', shift: false, ctrl: false, alt: false, description: 'Next visualizer preset' },
+        visualizerPrev: { key: '[', shift: false, ctrl: false, alt: false, description: 'Previous visualizer preset' },
+        visualizerCycle: {
+            key: '\\',
+            shift: false,
+            ctrl: false,
+            alt: false,
+            description: 'Toggle visualizer auto-cycle',
+        },
+    },
+
+    getShortcuts() {
+        try {
+            const saved = localStorage.getItem(this.STORAGE_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+                    return parsed;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load keyboard shortcuts:', e);
+        }
+        return this.getDefaultShortcuts();
+    },
+
+    getDefaultShortcuts() {
+        return { ...this.DEFAULT_SHORTCUTS };
+    },
+
+    setShortcut(action, shortcut) {
+        const shortcuts = this.getShortcuts();
+        const defaults = this.DEFAULT_SHORTCUTS;
+        shortcuts[action] = {
+            ...(defaults[action] || {}),
+            ...shortcut,
+        };
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(shortcuts));
+    },
+
+    resetShortcuts() {
+        localStorage.removeItem(this.STORAGE_KEY);
+    },
+
+    getShortcutForAction(action) {
+        const shortcuts = this.getShortcuts();
+        return shortcuts[action] || this.DEFAULT_SHORTCUTS[action];
     },
 };

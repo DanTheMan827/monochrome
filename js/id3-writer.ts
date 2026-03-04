@@ -1,4 +1,4 @@
-import { getCoverBlob } from './utils.ts';
+import { getCoverBlob, getTrackTitle } from './utils.ts';
 
 interface CoverApi {
     getCoverUrl(id: string, size?: string): string;
@@ -8,7 +8,7 @@ async function writeID3v2Tag(mp3Blob: Blob, metadata: TrackData, coverBlob: Blob
     const frames: Uint8Array[] = [];
 
     if (metadata.title) {
-        frames.push(createTextFrame('TIT2', metadata.title));
+        frames.push(createTextFrame('TIT2', getTrackTitle(metadata)));
     }
 
     const artistName: string | undefined = metadata.artist?.name || metadata.artists?.[0]?.name;
