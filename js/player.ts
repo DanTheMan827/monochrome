@@ -190,8 +190,8 @@ export class Player {
         const speed = audioEffectsSettings.getSpeed();
 
         if (this.dashInitialized && this.dashPlayer) {
-            if (this.dashPlayer.getPlaybackRate() !== speed) {
-                this.dashPlayer.setPlaybackRate(speed);
+            if ((this.dashPlayer as any).getPlaybackRate() !== speed) {
+                (this.dashPlayer as any).setPlaybackRate(speed);
             }
         } else {
             if (this.audio.playbackRate !== speed) {
@@ -203,8 +203,8 @@ export class Player {
         if (this.audio.preservesPitch !== preservePitch) {
             this.audio.preservesPitch = preservePitch;
             // Firefox support
-            if (this.audio.mozPreservesPitch !== undefined) {
-                this.audio.mozPreservesPitch = preservePitch;
+            if ((this.audio as any).mozPreservesPitch !== undefined) {
+                (this.audio as any).mozPreservesPitch = preservePitch;
             }
         }
     }

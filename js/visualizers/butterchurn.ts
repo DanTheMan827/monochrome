@@ -110,6 +110,8 @@ export class ButterchurnPreset {
     presetKeys: string[];
     blendProgress: number;
     blendDuration: number;
+    shuffledQueue: number[];
+    shuffledIndex: number;
     private _unregisterGraphChange: (() => void) | null = null;
 
     constructor() {
@@ -186,7 +188,7 @@ export class ButterchurnPreset {
     /**
      * Set the current preset index based on mode
      */
-    setCurrentIndex(index) {
+    setCurrentIndex(index: number) {
         const randomize = visualizerSettings.isButterchurnRandomizeEnabled();
         if (randomize && this.shuffledQueue.length > 0) {
             this.shuffledIndex = this.shuffledQueue.indexOf(index);

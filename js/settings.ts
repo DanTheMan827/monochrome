@@ -63,6 +63,7 @@ interface Player {
     setQuality(quality: string): void;
     applyReplayGain(): void;
     setPlaybackSpeed(speed: number): void;
+    setPreservePitch(enabled: boolean): void;
 }
 
 interface VisualizerPresets {
@@ -978,12 +979,12 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     // ========================================
     // Preserve Pitch Toggle
     // ========================================
-    const preservePitchToggle = document.getElementById('preserve-pitch-toggle');
+    const preservePitchToggle = document.getElementById('preserve-pitch-toggle') as HTMLInputElement | null;
     if (preservePitchToggle) {
         preservePitchToggle.checked = audioEffectsSettings.isPreservePitchEnabled();
 
         preservePitchToggle.addEventListener('change', (e) => {
-            player.setPreservePitch(e.target.checked);
+            player.setPreservePitch((e.target as HTMLInputElement).checked);
         });
     }
 
@@ -2037,11 +2038,11 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     }
 
     // Fullscreen Cover Click Action
-    const fullscreenCoverClickAction = document.getElementById('fullscreen-cover-click-action');
+    const fullscreenCoverClickAction = document.getElementById('fullscreen-cover-click-action') as HTMLSelectElement | null;
     if (fullscreenCoverClickAction) {
         fullscreenCoverClickAction.value = fullscreenCoverClickSettings.getAction();
         fullscreenCoverClickAction.addEventListener('change', (e) => {
-            fullscreenCoverClickSettings.setAction(e.target.value);
+            fullscreenCoverClickSettings.setAction((e.target as HTMLSelectElement).value);
         });
     }
 
@@ -2490,11 +2491,11 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const sidebarShowGithubToggle = document.getElementById('sidebar-show-githubbtn-toggle');
+    const sidebarShowGithubToggle = document.getElementById('sidebar-show-githubbtn-toggle') as HTMLInputElement | null;
     if (sidebarShowGithubToggle) {
         sidebarShowGithubToggle.checked = sidebarSectionSettings.shouldShowGithub();
         sidebarShowGithubToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowGithub(e.target.checked);
+            sidebarSectionSettings.setShowGithub((e.target as HTMLInputElement).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }

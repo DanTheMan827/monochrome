@@ -500,7 +500,7 @@ export const fullscreenCoverClickSettings = {
         }
     },
 
-    setAction(action) {
+    setAction(action: string) {
         localStorage.setItem(this.STORAGE_KEY, action);
     },
 };
@@ -1430,7 +1430,7 @@ export const audioEffectsSettings = {
         }
     },
 
-    setPreservePitch(enabled) {
+    setPreservePitch(enabled: boolean) {
         localStorage.setItem(this.PITCH_PRESERVE_KEY, enabled ? 'true' : 'false');
     },
 };
@@ -2612,6 +2612,14 @@ export const contentBlockingSettings = {
     },
 };
 
+export interface KeyboardShortcutEntry {
+    key?: string | null;
+    shift?: boolean;
+    ctrl?: boolean;
+    alt?: boolean;
+    description?: string;
+}
+
 export const keyboardShortcuts = {
     STORAGE_KEY: 'keyboard-shortcuts',
 
@@ -2641,7 +2649,7 @@ export const keyboardShortcuts = {
         },
     },
 
-    getShortcuts() {
+    getShortcuts(): Record<string, KeyboardShortcutEntry> {
         try {
             const saved = localStorage.getItem(this.STORAGE_KEY);
             if (saved) {
@@ -2660,9 +2668,9 @@ export const keyboardShortcuts = {
         return { ...this.DEFAULT_SHORTCUTS };
     },
 
-    setShortcut(action, shortcut) {
+    setShortcut(action: string, shortcut: KeyboardShortcutEntry) {
         const shortcuts = this.getShortcuts();
-        const defaults = this.DEFAULT_SHORTCUTS;
+        const defaults = this.DEFAULT_SHORTCUTS as Record<string, KeyboardShortcutEntry>;
         shortcuts[action] = {
             ...(defaults[action] || {}),
             ...shortcut,
@@ -2674,8 +2682,8 @@ export const keyboardShortcuts = {
         localStorage.removeItem(this.STORAGE_KEY);
     },
 
-    getShortcutForAction(action) {
+    getShortcutForAction(action: string) {
         const shortcuts = this.getShortcuts();
-        return shortcuts[action] || this.DEFAULT_SHORTCUTS[action];
+        return shortcuts[action] || (this.DEFAULT_SHORTCUTS as Record<string, KeyboardShortcutEntry>)[action];
     },
 };

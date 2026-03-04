@@ -278,9 +278,9 @@ export const isTrackUnavailable = (track: TrackData | null | undefined): boolean
     return track.allowStreaming === false || track.streamReady === false || track.title === 'Unavailable';
 };
 
-export const debounce = (func: (...args: unknown[]) => void, wait: number): ((...args: unknown[]) => void) => {
+export const debounce = <T extends unknown[]>(func: (...args: T) => void, wait: number): ((...args: T) => void) => {
     let timeout: ReturnType<typeof setTimeout> | undefined;
-    return function executedFunction(...args: unknown[]): void {
+    return function executedFunction(...args: T): void {
         const later = (): void => {
             clearTimeout(timeout);
             func(...args);

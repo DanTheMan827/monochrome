@@ -10,6 +10,7 @@ import {
     pwaUpdateSettings,
     modalSettings,
     keyboardShortcuts,
+    type KeyboardShortcutEntry,
 } from './storage.ts';
 import { UIRenderer } from './ui.ts';
 import { Player } from './player.ts';
@@ -258,7 +259,7 @@ function initializeKeyboardShortcuts(player: Player, audioPlayer: HTMLAudioEleme
         },
         lyrics: () => {
             trackKeyboardShortcut('L');
-            document.querySelector('.now-playing-bar .cover')?.click();
+            document.querySelector<HTMLElement>('.now-playing-bar .cover')?.click();
         },
         search: () => {
             trackKeyboardShortcut('/');
@@ -294,7 +295,7 @@ function initializeKeyboardShortcuts(player: Player, audioPlayer: HTMLAudioEleme
     };
 
     document.addEventListener('keydown', (e) => {
-        if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
+        if ((e.target as HTMLElement | null)?.matches('input, textarea, [contenteditable="true"]')) return;
 
         const shortcuts = keyboardShortcuts.getShortcuts();
         const pressedKey = e.key.toLowerCase();
@@ -2576,14 +2577,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const donateBtnAbout = document.getElementById('donate-btn');
     const donateBtnPage = document.getElementById('donate-btn-page');
 
-    const openDonateModal = (e) => {
+    const openDonateModal = (e: Event | null) => {
         if (e) e.preventDefault();
         trackOpenModal('Donate');
-        donateModal.classList.add('active');
+        donateModal?.classList.add('active');
     };
 
     const closeDonateModal = () => {
-        donateModal.classList.remove('active');
+        donateModal?.classList.remove('active');
         trackCloseModal('Donate');
     };
 
@@ -2804,7 +2805,7 @@ function showMissingTracksNotification(missingTracks: (string | { title?: string
 
     if (copyBtn) {
         const newCopyBtn = copyBtn.cloneNode(true);
-        copyBtn.parentNode.replaceChild(newCopyBtn, copyBtn);
+        copyBtn.parentNode?.replaceChild(newCopyBtn, copyBtn);
 
         newCopyBtn.addEventListener('click', () => {
             const textToCopy = missingTracks
@@ -2943,12 +2944,12 @@ function showKeyboardShortcuts(): void {
 function showCustomizeShortcutsModal() {
     const modal = document.getElementById('customize-shortcuts-modal');
     const shortcutsList = document.getElementById('shortcuts-list');
-    let recordingAction = null;
-    let recordingTimeout = null;
+    let recordingAction: string | null = null;
+    let recordingTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const shortcuts = keyboardShortcuts.getShortcuts();
 
-    const formatKey = (key) => {
+    const formatKey = (key: string | null | undefined) => {
         if (!key) return 'none';
         const keyMap = {
             ' ': 'Space',
@@ -2976,10 +2977,11 @@ function showCustomizeShortcutsModal() {
             meta: 'Meta',
             contextmenu: 'Context Menu',
         };
-        return keyMap[key.toLowerCase()] || key.toUpperCase();
+        return (keyMap as Record<string, string>)[key.toLowerCase()] || key.toUpperCase();
     };
 
     const renderShortcuts = () => {
+        if (!shortcutsList) return;
         shortcutsList.innerHTML = '';
         const currentShortcuts = keyboardShortcuts.getShortcuts();
 
@@ -3009,11 +3011,11 @@ function showCustomizeShortcutsModal() {
             `;
 
             const kbd = item.querySelector('kbd');
-            kbd.addEventListener('click', (e) => {
+            kbd?.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (recordingAction === action) {
                     recordingAction = null;
-                    clearTimeout(recordingTimeout);
+                    clearTimeout(recordingTimeout!);
                 } else {
                     recordingAction = action;
                     recordingTimeout = setTimeout(() => {
@@ -3032,10 +3034,10 @@ function showCustomizeShortcutsModal() {
             });
 
             const resetBtn = item.querySelector('.shortcut-btn');
-            resetBtn.addEventListener('click', (e) => {
+            resetBtn?.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const defaults = keyboardShortcuts.getDefaultShortcuts();
-                keyboardShortcuts.setShortcut(action, defaults[action]);
+                keyboardShortcuts.setShortcut(action, (defaults as Record<string, KeyboardShortcutEntry>)[action]);
                 renderShortcuts();
             });
 
@@ -3043,7 +3045,7 @@ function showCustomizeShortcutsModal() {
         }
     };
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
         if (!recordingAction) return;
 
         e.preventDefault();
@@ -3062,25 +3064,26 @@ function showCustomizeShortcutsModal() {
             alt: e.altKey,
         });
 
-        clearTimeout(recordingTimeout);
+        clearTimeout(recordingTimeout!);
         recordingAction = null;
         renderShortcuts();
     };
 
     const closeModal = () => {
-        modal.classList.remove('active');
+        modal?.classList.remove('active');
         recordingAction = null;
-        clearTimeout(recordingTimeout);
+        clearTimeout(recordingTimeout!);
         document.removeEventListener('keydown', handleKeyDown);
-        modal.removeEventListener('click', handleClose);
+        modal?.removeEventListener('click', handleClose);
     };
 
-    const handleClose = (e) => {
+    const handleClose = (e: MouseEvent) => {
+        const target = e.target as HTMLElement | null;
         if (
             e.target === modal ||
-            e.target.classList.contains('close-customize-shortcuts') ||
-            e.target.id === 'close-customize-shortcuts-btn' ||
-            e.target.classList.contains('modal-overlay')
+            target?.classList.contains('close-customize-shortcuts') ||
+            (target as HTMLElement | null)?.id === 'close-customize-shortcuts-btn' ||
+            target?.classList.contains('modal-overlay')
         ) {
             closeModal();
         }
@@ -3092,7 +3095,7 @@ function showCustomizeShortcutsModal() {
     });
 
     document.addEventListener('keydown', handleKeyDown);
-    modal.addEventListener('click', handleClose);
+    modal?.addEventListener('click', handleClose);
     renderShortcuts();
-    modal.classList.add('active');
+    modal?.classList.add('active');
 }

@@ -185,6 +185,7 @@ interface Window {
     __FIREBASE_CONFIG__?: Record<string, string>;
     __POCKETBASE_URL__?: string;
     monochromePlayer?: any;
+    monochromeUi?: any;
     renderQueueFunction?: () => void;
     Kuroshiro?: new () => {
         init(analyzer: unknown): Promise<void>;
@@ -264,7 +265,12 @@ interface TrackData {
     allowStreaming?: boolean;
     streamReady?: boolean;
     url?: string;
-    replayGain?: number;
+    replayGain?: {
+        trackReplayGain?: unknown;
+        trackPeakAmplitude?: unknown;
+        albumReplayGain?: unknown;
+        albumPeakAmplitude?: unknown;
+    };
     peak?: number;
     quality?: string;
     editable?: boolean;

@@ -1548,7 +1548,7 @@ function getAtomHeader(size: number, type: string, truncate: boolean = false): U
  * @param {boolean} [truncate=true] - Whether to truncate the atom header. Defaults to true.
  * @returns {void}
  */
-function writeAtomHeader(buf, offset, size, type, truncate = true) {
+function writeAtomHeader(buf: Uint8Array, offset: number, size: number, type: string, truncate = true) {
     buf.set(getAtomHeader(size, type, truncate), offset);
 }
 

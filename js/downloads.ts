@@ -20,7 +20,7 @@ import { ffmpeg } from './ffmpeg.ts';
 
 interface DownloadAPI {
     getTrackMetadata(id: string | number): Promise<TrackData>;
-    getTrack(id: string | number, quality: string): Promise<{ originalTrackUrl?: string; info: { manifest: string } }>;
+    getTrack(id: string | number, quality: string): Promise<{ originalTrackUrl?: string; info: { manifest: string; trackReplayGain?: unknown; trackPeakAmplitude?: unknown; albumReplayGain?: unknown; albumPeakAmplitude?: unknown } }>;
     extractStreamUrlFromManifest(manifest: string): string | null;
     getCoverUrl(coverId: string | undefined, size?: string): string;
     getAlbum(id: string | number): Promise<{ album: TrackAlbum; tracks: TrackData[] }>;

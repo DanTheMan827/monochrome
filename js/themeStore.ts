@@ -235,9 +235,9 @@ export class ThemeStore {
                 this.deleteTheme(theme.id);
                 return;
             }
-            if (e.target.closest('.edit-theme-btn')) {
+            if ((e.target as Element).closest('.edit-theme-btn')) {
                 e.stopPropagation();
-                this.startEditTheme(theme);
+                this.startEditTheme(theme as unknown as ThemeInput);
                 return;
             }
             this.openThemeDetails(theme);
@@ -658,7 +658,7 @@ export class ThemeStore {
 
     resetEditState(): void {
         this.editingThemeId = null;
-        document.getElementById('theme-upload-form')?.reset();
+        (document.getElementById('theme-upload-form') as HTMLFormElement | null)?.reset();
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Upload Theme';
