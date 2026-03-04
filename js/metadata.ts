@@ -1,14 +1,11 @@
 import { getCoverBlob, detectAudioFormat, getTrackTitle } from './utils.ts';
+import type { CoverApi } from './utils.ts';
 import { addMp3Metadata } from './id3-writer.ts';
 
 const VENDOR_STRING = 'Monochrome';
 const DEFAULT_TITLE = 'Unknown Title';
 const DEFAULT_ARTIST = 'Unknown Artist';
 const DEFAULT_ALBUM = 'Unknown Album';
-
-interface CoverApi {
-    getCoverUrl(coverId: string, size: string): string;
-}
 
 interface FlacBlock {
     type: number;

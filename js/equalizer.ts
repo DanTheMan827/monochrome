@@ -2,18 +2,7 @@
 // Parametric Equalizer with Web Audio API - Supports 3-32 bands
 
 import { equalizerSettings } from './storage.ts';
-
-interface EqPreset {
-    name: string;
-    gains: number[];
-}
-
-interface ParsedFilter {
-    type: string;
-    freq: number;
-    gain: number;
-    q: number;
-}
+import type { EQPreset, ParsedFilter } from './audio-context.ts';
 
 // Standard 16-band ISO center frequencies (Hz) - kept for reference
 const DEFAULT_EQ_FREQUENCIES: number[] = [25, 40, 63, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000, 16000, 20000];
@@ -68,7 +57,7 @@ function generateFrequencyLabels(frequencies: number[]): string[] {
 }
 
 // EQ Presets (gain values in dB for each of the 16 bands)
-const EQ_PRESETS_16BAND: Record<string, EqPreset> = {
+const EQ_PRESETS_16BAND: Record<string, EQPreset> = {
     flat: {
         name: 'Flat',
         gains: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -155,8 +144,8 @@ function interpolatePreset(preset16: number[], targetBands: number): number[] {
 }
 
 // Get presets for given band count
-function getPresetsForBandCount(bandCount: number): Record<string, EqPreset> {
-    const presets: Record<string, EqPreset> = {};
+function getPresetsForBandCount(bandCount: number): Record<string, EQPreset> {
+    const presets: Record<string, EQPreset> = {};
     for (const [key, preset] of Object.entries(EQ_PRESETS_16BAND)) {
         presets[key] = {
             name: preset.name,
@@ -508,8 +497,8 @@ export class Equalizer {
      * @param {string} presetKey - Key from EQ_PRESETS
      */
     applyPreset(presetKey: string): void {
-        const presets: Record<string, EqPreset> = getPresetsForBandCount(this.bandCount);
-        const preset: EqPreset | undefined = presets[presetKey];
+        const presets: Record<string, EQPreset> = getPresetsForBandCount(this.bandCount);
+        const preset: EQPreset | undefined = presets[presetKey];
         if (!preset) return;
 
         this.setAllGains(preset.gains);
@@ -559,7 +548,7 @@ export class Equalizer {
     /**
      * Get available presets (static method for default 16 bands)
      */
-    static getPresets(bandCount: number = 16): Record<string, EqPreset> {
+    static getPresets(bandCount: number = 16): Record<string, EQPreset> {
         return getPresetsForBandCount(bandCount);
     }
 

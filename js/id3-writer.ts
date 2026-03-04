@@ -1,8 +1,5 @@
 import { getCoverBlob, getTrackTitle } from './utils.ts';
-
-interface CoverApi {
-    getCoverUrl(id: string, size?: string): string;
-}
+import type { CoverApi } from './utils.ts';
 
 async function writeID3v2Tag(mp3Blob: Blob, metadata: TrackData, coverBlob: Blob | null = null): Promise<Blob> {
     const frames: Uint8Array[] = [];

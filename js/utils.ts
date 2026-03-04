@@ -407,8 +407,8 @@ function resizeImageBlob(blob: Blob, size: number): Promise<Blob> {
     });
 }
 
-interface CoverApi {
-    getCoverUrl(coverId: string, size: string): string;
+export interface CoverApi {
+    getCoverUrl(coverId: string, size?: string): string;
 }
 
 /**

@@ -1,15 +1,14 @@
 //js/accounts/config.ts
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+import type { FirebaseApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import { getAuth, GoogleAuthProvider } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import type { FirebaseAuth } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import { getDatabase } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
+import type { FirebaseDatabase } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js';
 
-type FirebaseAppInstance = ReturnType<typeof initializeApp>;
-type FirebaseAuthInstance = ReturnType<typeof getAuth>;
-type FirebaseDatabaseInstance = ReturnType<typeof getDatabase>;
-
-let app: FirebaseAppInstance | null = null;
-let auth: FirebaseAuthInstance | null = null;
-let database: FirebaseDatabaseInstance | null = null;
+let app: FirebaseApp | null = null;
+let auth: FirebaseAuth | null = null;
+let database: FirebaseDatabase | null = null;
 let provider: GoogleAuthProvider | null = null;
 
 const STORAGE_KEY: string = 'monochrome-firebase-config';

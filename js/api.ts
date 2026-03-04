@@ -16,13 +16,13 @@ import { ffmpeg } from './ffmpeg.ts';
 export const DASH_MANIFEST_UNAVAILABLE_CODE = 'DASH_MANIFEST_UNAVAILABLE';
 const TIDAL_V2_TOKEN = 'txNoH4kkV41MfH25';
 
-interface ApiInstance {
+interface ApiServerInstance {
     url: string;
     version?: string;
 }
 
 interface ApiSettingsProvider {
-    getInstances(type: string): Promise<ApiInstance[]>;
+    getInstances(type: string): Promise<ApiServerInstance[]>;
 }
 
 interface FetchRetryOptions {
@@ -106,7 +106,7 @@ export class LosslessAPI {
         }
 
         if (options.minVersion) {
-            instances = instances.filter((instance: ApiInstance) => {
+            instances = instances.filter((instance: ApiServerInstance) => {
                 if (!instance.version) return false;
                 return parseFloat(instance.version) >= parseFloat(options.minVersion!);
             });

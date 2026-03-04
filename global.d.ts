@@ -7,7 +7,7 @@
 // Firebase dynamic imports (loaded from CDN)
 declare module 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js' {
     export function initializeApp(config: Record<string, string>): FirebaseApp;
-    interface FirebaseApp {
+    export interface FirebaseApp {
         name: string;
     }
 }
@@ -41,7 +41,7 @@ declare module 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js' {
         user: FirebaseUser,
         profile: { displayName?: string; photoURL?: string }
     ): Promise<void>;
-    interface FirebaseAuth {
+    export interface FirebaseAuth {
         currentUser: FirebaseUser | null;
     }
     interface FirebaseUser {
@@ -66,7 +66,7 @@ declare module 'https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js' 
     export function child(ref: FirebaseDatabaseRef, path: string): FirebaseDatabaseRef;
     export function update(ref: FirebaseDatabaseRef, value: Record<string, any>): Promise<void>;
     export function remove(ref: FirebaseDatabaseRef): Promise<void>;
-    interface FirebaseDatabase {
+    export interface FirebaseDatabase {
         app: any;
     }
     interface FirebaseDatabaseRef {

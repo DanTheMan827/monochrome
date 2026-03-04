@@ -4,7 +4,7 @@
 
 import { equalizerSettings, monoAudioSettings } from './storage.ts';
 
-interface EQPreset {
+export interface EQPreset {
     name: string;
     gains: number[];
 }
@@ -14,7 +14,7 @@ interface FreqRange {
     max: number;
 }
 
-interface ParsedFilter {
+export interface ParsedFilter {
     type: string;
     freq: number;
     gain: number;
