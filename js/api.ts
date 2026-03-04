@@ -70,7 +70,6 @@ interface DownloadTrackOptions {
     signal?: AbortSignal;
 }
 
-
 export class LosslessAPI {
     private settings: ApiSettingsProvider;
     private cache: APICache;
