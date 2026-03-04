@@ -80,7 +80,8 @@ export function generateM3U(
         content += `#EXTINF:${duration},${displayName}\n`;
 
         const filename: string = getTrackFilename(track, index + 1, audioExtension);
-        const relativePath: string = typeof pathResolver === 'function' ? pathResolver(track, filename, index) : filename;
+        const relativePath: string =
+            typeof pathResolver === 'function' ? pathResolver(track, filename, index) : filename;
         const path: string = useRelativePaths ? relativePath : relativePath;
 
         content += `${path}\n\n`;
@@ -126,7 +127,8 @@ export function generateM3U8(
         content += `#EXTINF:${duration}.000,${displayName}\n`;
 
         const filename: string = getTrackFilename(track, index + 1, audioExtension);
-        const relativePath: string = typeof pathResolver === 'function' ? pathResolver(track, filename, index) : filename;
+        const relativePath: string =
+            typeof pathResolver === 'function' ? pathResolver(track, filename, index) : filename;
         const path: string = useRelativePaths ? relativePath : relativePath;
 
         content += `${path}\n\n`;

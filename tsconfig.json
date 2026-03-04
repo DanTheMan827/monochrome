@@ -20,6 +20,14 @@
             "pocketbase": ["/node_modules/pocketbase/dist/pocketbase.es.js"]
         }
     },
-    "include": ["js/**/*.ts", "functions/**/*.ts", "scripts/**/*.ts", "vite.config.ts", "vite-plugin-auth-gate.ts", "eslint.config.ts", "*.d.ts"],
+    "include": [
+        "js/**/*.ts",
+        "functions/**/*.ts",
+        "scripts/**/*.ts",
+        "vite.config.ts",
+        "vite-plugin-auth-gate.ts",
+        "eslint.config.ts",
+        "*.d.ts"
+    ],
     "exclude": ["node_modules", "dist", "public"]
 }

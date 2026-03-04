@@ -885,7 +885,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     }
 
     // Track Date Settings
-    const useAlbumReleaseYearToggle = document.getElementById('use-album-release-year-toggle') as HTMLInputElement | null;
+    const useAlbumReleaseYearToggle = document.getElementById(
+        'use-album-release-year-toggle'
+    ) as HTMLInputElement | null;
     if (useAlbumReleaseYearToggle) {
         useAlbumReleaseYearToggle.checked = trackDateSettings.useAlbumYear();
         useAlbumReleaseYearToggle.addEventListener('change', (e) => {
@@ -893,7 +895,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const zippedBulkDownloadsToggle = document.getElementById('zipped-bulk-downloads-toggle') as HTMLInputElement | null;
+    const zippedBulkDownloadsToggle = document.getElementById(
+        'zipped-bulk-downloads-toggle'
+    ) as HTMLInputElement | null;
     if (zippedBulkDownloadsToggle) {
         zippedBulkDownloadsToggle.checked = !bulkDownloadSettings.shouldForceIndividual();
         zippedBulkDownloadsToggle.addEventListener('change', (e) => {
@@ -1025,7 +1029,11 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     /**
      * Generate frequency labels for given band count and frequency range
      */
-    const generateFreqLabels = (count: number, minFreq: number = currentFreqRange.min, maxFreq: number = currentFreqRange.max): string[] => {
+    const generateFreqLabels = (
+        count: number,
+        minFreq: number = currentFreqRange.min,
+        maxFreq: number = currentFreqRange.max
+    ): string[] => {
         const labels = [];
         const safeMin = Math.max(10, minFreq);
         const safeMax = Math.min(96000, maxFreq);
@@ -1389,7 +1397,7 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
 
                 // Double-click to reset individual band to 0
                 slider.addEventListener('dblclick', () => {
-                    slider.value = "0";
+                    slider.value = '0';
                     audioContextManager.setBandGain(bandIndex, 0);
                     updateBandValueDisplay(bandEl, 0);
                     drawEQCurve();
@@ -2038,7 +2046,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     }
 
     // Fullscreen Cover Click Action
-    const fullscreenCoverClickAction = document.getElementById('fullscreen-cover-click-action') as HTMLSelectElement | null;
+    const fullscreenCoverClickAction = document.getElementById(
+        'fullscreen-cover-click-action'
+    ) as HTMLSelectElement | null;
     if (fullscreenCoverClickAction) {
         fullscreenCoverClickAction.value = fullscreenCoverClickSettings.getAction();
         fullscreenCoverClickAction.addEventListener('change', (e) => {
@@ -2047,7 +2057,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     }
 
     // Close Modals on Navigation Toggle
-    const closeModalsOnNavigationToggle = document.getElementById('close-modals-on-navigation-toggle') as HTMLInputElement | null;
+    const closeModalsOnNavigationToggle = document.getElementById(
+        'close-modals-on-navigation-toggle'
+    ) as HTMLInputElement | null;
     if (closeModalsOnNavigationToggle) {
         closeModalsOnNavigationToggle.checked = modalSettings.shouldCloseOnNavigation();
         closeModalsOnNavigationToggle.addEventListener('change', (e) => {
@@ -2056,7 +2068,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     }
 
     // Intercept Back to Close Modals Toggle
-    const interceptBackToCloseToggle = document.getElementById('intercept-back-to-close-modals-toggle') as HTMLInputElement | null;
+    const interceptBackToCloseToggle = document.getElementById(
+        'intercept-back-to-close-modals-toggle'
+    ) as HTMLInputElement | null;
     if (interceptBackToCloseToggle) {
         interceptBackToCloseToggle.checked = modalSettings.shouldInterceptBackToClose();
         interceptBackToCloseToggle.addEventListener('change', (e) => {
@@ -2129,7 +2143,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         waveformToggle.addEventListener('change', (e) => {
             waveformSettings.setEnabled((e.target as HTMLInputElement).checked);
 
-            window.dispatchEvent(new CustomEvent('waveform-toggle', { detail: { enabled: (e.target as HTMLInputElement).checked } }));
+            window.dispatchEvent(
+                new CustomEvent('waveform-toggle', { detail: { enabled: (e.target as HTMLInputElement).checked } })
+            );
         });
     }
 
@@ -2140,12 +2156,18 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         smoothScrollingToggle.addEventListener('change', (e) => {
             smoothScrollingSettings.setEnabled((e.target as HTMLInputElement).checked);
 
-            window.dispatchEvent(new CustomEvent('smooth-scrolling-toggle', { detail: { enabled: (e.target as HTMLInputElement).checked } }));
+            window.dispatchEvent(
+                new CustomEvent('smooth-scrolling-toggle', {
+                    detail: { enabled: (e.target as HTMLInputElement).checked },
+                })
+            );
         });
     }
 
     // Visualizer Sensitivity
-    const visualizerSensitivitySlider = document.getElementById('visualizer-sensitivity-slider') as HTMLInputElement | null;
+    const visualizerSensitivitySlider = document.getElementById(
+        'visualizer-sensitivity-slider'
+    ) as HTMLInputElement | null;
     const visualizerSensitivityValue = document.getElementById('visualizer-sensitivity-value');
     if (visualizerSensitivitySlider && visualizerSensitivityValue) {
         const currentSensitivity = visualizerSettings.getSensitivity();
@@ -2193,10 +2215,14 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     const butterchurnDurationSetting = document.getElementById('butterchurn-duration-setting');
     const butterchurnRandomizeSetting = document.getElementById('butterchurn-randomize-setting');
     const butterchurnSpecificPresetSetting = document.getElementById('butterchurn-specific-preset-setting');
-    const butterchurnSpecificPresetSelect = document.getElementById('butterchurn-specific-preset-select') as HTMLSelectElement | null;
+    const butterchurnSpecificPresetSelect = document.getElementById(
+        'butterchurn-specific-preset-select'
+    ) as HTMLSelectElement | null;
     const butterchurnCycleToggle = document.getElementById('butterchurn-cycle-toggle') as HTMLInputElement | null;
     const butterchurnDurationInput = document.getElementById('butterchurn-duration-input') as HTMLInputElement | null;
-    const butterchurnRandomizeToggle = document.getElementById('butterchurn-randomize-toggle') as HTMLInputElement | null;
+    const butterchurnRandomizeToggle = document.getElementById(
+        'butterchurn-randomize-toggle'
+    ) as HTMLInputElement | null;
 
     const updateButterchurnSettingsVisibility = (): void => {
         const isEnabled = visualizerEnabledToggle ? visualizerEnabledToggle.checked : false;
@@ -2218,7 +2244,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         const select = butterchurnSpecificPresetSelect;
 
         if (select && presetNames.length > 0) {
-            const currentNames = Array.from((select as HTMLSelectElement).options).map((opt: HTMLOptionElement) => opt.value);
+            const currentNames = Array.from((select as HTMLSelectElement).options).map(
+                (opt: HTMLOptionElement) => opt.value
+            );
             // Check if dropdown only has "Loading..." or needs full update
             const hasOnlyLoadingOption = currentNames.length === 1 && currentNames[0] === '';
             const needsUpdate =
@@ -2363,7 +2391,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
     }
 
     // Home Page Section Toggles
-    const showRecommendedSongsToggle = document.getElementById('show-recommended-songs-toggle') as HTMLInputElement | null;
+    const showRecommendedSongsToggle = document.getElementById(
+        'show-recommended-songs-toggle'
+    ) as HTMLInputElement | null;
     if (showRecommendedSongsToggle) {
         showRecommendedSongsToggle.checked = homePageSettings.shouldShowRecommendedSongs();
         showRecommendedSongsToggle.addEventListener('change', (e) => {
@@ -2371,7 +2401,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const showRecommendedAlbumsToggle = document.getElementById('show-recommended-albums-toggle') as HTMLInputElement | null;
+    const showRecommendedAlbumsToggle = document.getElementById(
+        'show-recommended-albums-toggle'
+    ) as HTMLInputElement | null;
     if (showRecommendedAlbumsToggle) {
         showRecommendedAlbumsToggle.checked = homePageSettings.shouldShowRecommendedAlbums();
         showRecommendedAlbumsToggle.addEventListener('change', (e) => {
@@ -2379,7 +2411,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const showRecommendedArtistsToggle = document.getElementById('show-recommended-artists-toggle') as HTMLInputElement | null;
+    const showRecommendedArtistsToggle = document.getElementById(
+        'show-recommended-artists-toggle'
+    ) as HTMLInputElement | null;
     if (showRecommendedArtistsToggle) {
         showRecommendedArtistsToggle.checked = homePageSettings.shouldShowRecommendedArtists();
         showRecommendedArtistsToggle.addEventListener('change', (e) => {
@@ -2403,7 +2437,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const shuffleEditorsPicksToggle = document.getElementById('shuffle-editors-picks-toggle') as HTMLInputElement | null;
+    const shuffleEditorsPicksToggle = document.getElementById(
+        'shuffle-editors-picks-toggle'
+    ) as HTMLInputElement | null;
     if (shuffleEditorsPicksToggle) {
         shuffleEditorsPicksToggle.checked = homePageSettings.shouldShuffleEditorsPicks();
         shuffleEditorsPicksToggle.addEventListener('change', (e) => {
@@ -2439,7 +2475,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const sidebarShowUnreleasedToggle = document.getElementById('sidebar-show-unreleased-toggle') as HTMLInputElement | null;
+    const sidebarShowUnreleasedToggle = document.getElementById(
+        'sidebar-show-unreleased-toggle'
+    ) as HTMLInputElement | null;
     if (sidebarShowUnreleasedToggle) {
         sidebarShowUnreleasedToggle.checked = sidebarSectionSettings.shouldShowUnreleased();
         sidebarShowUnreleasedToggle.addEventListener('change', (e) => {
@@ -2457,14 +2495,18 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const sidebarShowSettingsToggle = document.getElementById('sidebar-show-settings-toggle') as HTMLInputElement | null;
+    const sidebarShowSettingsToggle = document.getElementById(
+        'sidebar-show-settings-toggle'
+    ) as HTMLInputElement | null;
     if (sidebarShowSettingsToggle) {
         sidebarShowSettingsToggle.checked = true;
         sidebarShowSettingsToggle.disabled = true;
         sidebarSectionSettings.setShowSettings(true);
     }
 
-    const sidebarShowAboutToggle = document.getElementById('sidebar-show-about-bottom-toggle') as HTMLInputElement | null;
+    const sidebarShowAboutToggle = document.getElementById(
+        'sidebar-show-about-bottom-toggle'
+    ) as HTMLInputElement | null;
     if (sidebarShowAboutToggle) {
         sidebarShowAboutToggle.checked = sidebarSectionSettings.shouldShowAbout();
         sidebarShowAboutToggle.addEventListener('change', (e) => {
@@ -2473,7 +2515,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const sidebarShowDownloadToggle = document.getElementById('sidebar-show-download-bottom-toggle') as HTMLInputElement | null;
+    const sidebarShowDownloadToggle = document.getElementById(
+        'sidebar-show-download-bottom-toggle'
+    ) as HTMLInputElement | null;
     if (sidebarShowDownloadToggle) {
         sidebarShowDownloadToggle.checked = sidebarSectionSettings.shouldShowDownload();
         sidebarShowDownloadToggle.addEventListener('change', (e) => {
@@ -2482,7 +2526,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         });
     }
 
-    const sidebarShowDiscordToggle = document.getElementById('sidebar-show-discordbtn-toggle') as HTMLInputElement | null;
+    const sidebarShowDiscordToggle = document.getElementById(
+        'sidebar-show-discordbtn-toggle'
+    ) as HTMLInputElement | null;
     if (sidebarShowDiscordToggle) {
         sidebarShowDiscordToggle.checked = sidebarSectionSettings.shouldShowDiscord();
         sidebarShowDiscordToggle.addEventListener('change', (e) => {
@@ -2526,8 +2572,12 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         const bottomContainer = sidebarSettingsGroup.querySelector('.sidebar-settings-bottom') as HTMLElement | null;
 
         const getSidebarItems = (): HTMLElement[] => [
-            ...Array.from(mainContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []) as HTMLElement[],
-            ...Array.from(bottomContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []) as HTMLElement[],
+            ...(Array.from(
+                mainContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []
+            ) as HTMLElement[]),
+            ...(Array.from(
+                bottomContainer?.querySelectorAll('.sidebar-setting-item[data-sidebar-id]') ?? []
+            ) as HTMLElement[]),
         ];
 
         const applySidebarSettingsOrder = (): void => {
@@ -2553,7 +2603,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         let draggedItem: HTMLElement | null = null;
 
         const saveSidebarOrder = (): void => {
-            const order = getSidebarItems().map((item) => item.dataset.sidebarId).filter((id): id is string => !!id);
+            const order = getSidebarItems()
+                .map((item) => item.dataset.sidebarId)
+                .filter((id): id is string => !!id);
             sidebarSectionSettings.setOrder(order);
             sidebarSectionSettings.applySidebarVisibility();
         };
@@ -2597,7 +2649,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
             const container = draggedItem.parentElement;
             if (!container) return;
             if (container !== mainContainer && container !== bottomContainer) return;
-            const sectionItems = Array.from(container.querySelectorAll('.sidebar-setting-item[data-sidebar-id]')) as HTMLElement[];
+            const sectionItems = Array.from(
+                container.querySelectorAll('.sidebar-setting-item[data-sidebar-id]')
+            ) as HTMLElement[];
             const afterElement = getDragAfterElement(sectionItems, e.clientY);
             if (afterElement === (draggedItem as HTMLElement | null)) return;
             if (afterElement) {
@@ -2884,7 +2938,8 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
         }
 
         // Hide individual fields in the modal
-        if (pbFromEnv && customPbUrlInput) (customPbUrlInput.closest('div[style]') as HTMLElement)!.style.display = 'none';
+        if (pbFromEnv && customPbUrlInput)
+            (customPbUrlInput.closest('div[style]') as HTMLElement)!.style.display = 'none';
         if (fbFromEnv && customFirebaseConfigInput)
             (customFirebaseConfigInput.closest('div[style]') as HTMLElement)!.style.display = 'none';
 
@@ -2998,7 +3053,9 @@ export function initializeSettings(scrobbler: Scrobbler, player: Player, api: Se
                         const stores = ['tracks', 'albums', 'artists', 'playlists', 'settings', 'history'];
                         for (const storeName of stores) {
                             try {
-                                await db.performTransaction(storeName, 'readwrite', (store: IDBObjectStore) => store.clear());
+                                await db.performTransaction(storeName, 'readwrite', (store: IDBObjectStore) =>
+                                    store.clear()
+                                );
                             } catch {
                                 // Store might not exist, continue
                             }
@@ -3138,7 +3195,7 @@ function initializeFontSettings(): void {
         if (!file) return;
 
         try {
-            const font = await fontSettings.saveUploadedFont(file) as { id: string };
+            const font = (await fontSettings.saveUploadedFont(file)) as { id: string };
             await fontSettings.loadUploadedFont(font.id);
             renderUploadedFontsList();
             if (fontUploadInput) fontUploadInput.value = '';

@@ -163,7 +163,9 @@ export const apiSettings = {
             let groupedInstances: InstancesData = { api: [], streaming: [] };
 
             if (data.api && Array.isArray(data.api)) {
-                groupedInstances.api = data.api.filter((instance: InstanceEntry) => !instance.url.includes('spotisaver.net'));
+                groupedInstances.api = data.api.filter(
+                    (instance: InstanceEntry) => !instance.url.includes('spotisaver.net')
+                );
             }
 
             if (data.streaming && Array.isArray(data.streaming)) {
@@ -2582,7 +2584,12 @@ export const contentBlockingSettings = {
         if (!album) return true;
         if (this.isAlbumBlocked(album.id)) return true;
         if (album.artist?.id && this.isArtistBlocked(album.artist.id)) return true;
-        if ((album as TrackAlbum & { artists?: TrackArtist[] }).artists?.some((a: TrackArtist) => this.isArtistBlocked(a.id))) return true;
+        if (
+            (album as TrackAlbum & { artists?: TrackArtist[] }).artists?.some((a: TrackArtist) =>
+                this.isArtistBlocked(a.id)
+            )
+        )
+            return true;
         return false;
     },
 

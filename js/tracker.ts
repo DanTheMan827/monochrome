@@ -202,7 +202,13 @@ function getDirectUrl(rawUrl: string | undefined | null): string | null {
 }
 
 // Convert tracker song to standard track format
-export function createTrackFromSong(song: TrackerSong, era: TrackerEra, artistName: string, index: number, sheetId: string = ''): TrackerTrack {
+export function createTrackFromSong(
+    song: TrackerSong,
+    era: TrackerEra,
+    artistName: string,
+    index: number,
+    sheetId: string = ''
+): TrackerTrack {
     const isValidUrl = (u: string | undefined): boolean => !!u && typeof u === 'string' && u.trim().length > 0;
     const rawUrl = (isValidUrl(song.url) ? song.url : null) || (song.urls ? song.urls.find(isValidUrl) : null);
     const directUrl = getDirectUrl(rawUrl);
@@ -291,7 +297,9 @@ function renderTrackerTracks(container: HTMLElement, tracks: TrackerTrack[]): vo
     `;
 
     // Add tracks
-    const tracksHTML: string = tracks.map((track: TrackerTrack, i: number) => createTrackerTrackItemHTML(track, i)).join('');
+    const tracksHTML: string = tracks
+        .map((track: TrackerTrack, i: number) => createTrackerTrackItemHTML(track, i))
+        .join('');
 
     tempDiv.insertAdjacentHTML('beforeend', tracksHTML);
 
@@ -313,7 +321,12 @@ function renderTrackerTracks(container: HTMLElement, tracks: TrackerTrack[]): vo
 }
 
 // Create project card HTML - EXACTLY like album cards
-export function createProjectCardHTML(era: TrackerEra, artist: TrackerArtistEntry, sheetId: string, trackCount: number): string {
+export function createProjectCardHTML(
+    era: TrackerEra,
+    artist: TrackerArtistEntry,
+    sheetId: string,
+    trackCount: number
+): string {
     const playBtnHTML = `
         <button class="play-btn card-play-btn" data-action="play-card" data-type="tracker-project" data-id="${encodeURIComponent(era.name)}" title="Play">
             ${SVG_PLAY}
@@ -478,7 +491,13 @@ export async function renderTrackerArtistPage(sheetId: string, container: HTMLEl
                         Object.values(era.data).forEach((songs: TrackerSong[]) => {
                             if (songs && songs.length) {
                                 songs.forEach((song: TrackerSong) => {
-                                    const track = createTrackFromSong(song, era, artist.name, eraTracks.length, sheetId);
+                                    const track = createTrackFromSong(
+                                        song,
+                                        era,
+                                        artist.name,
+                                        eraTracks.length,
+                                        sheetId
+                                    );
                                     eraTracks.push(track);
                                 });
                             }
@@ -546,7 +565,9 @@ export async function renderTrackerArtistPage(sheetId: string, container: HTMLEl
 
                 const tracklist = document.getElementById('unreleased-search-tracklist');
                 if (tracklist) {
-                    const searchTracks: TrackerTrack[] = matches.map((m: SongMatch, i: number) => createTrackFromSong(m.song, m.era, artist.name, i, sheetId));
+                    const searchTracks: TrackerTrack[] = matches.map((m: SongMatch, i: number) =>
+                        createTrackFromSong(m.song, m.era, artist.name, i, sheetId)
+                    );
                     renderTrackerTracks(tracklist, searchTracks);
 
                     // Add click handlers
@@ -574,7 +595,12 @@ export async function renderTrackerArtistPage(sheetId: string, container: HTMLEl
 }
 
 // Render individual tracker project page
-export async function renderTrackerProjectPage(sheetId: string, projectName: string, container: HTMLElement, _ui: unknown): Promise<void> {
+export async function renderTrackerProjectPage(
+    sheetId: string,
+    projectName: string,
+    container: HTMLElement,
+    _ui: unknown
+): Promise<void> {
     if (!artistsData.length) {
         await loadArtistsData();
     }
@@ -698,7 +724,9 @@ export async function renderTrackerProjectPage(sheetId: string, projectName: str
     const moreAlbumsTitle = document.getElementById('album-title-more-albums');
 
     if (moreAlbumsSection && moreAlbumsContainer) {
-        const otherEras: TrackerEra[] = Object.values(trackerData.eras).filter((e: TrackerEra) => e.name !== projectName);
+        const otherEras: TrackerEra[] = Object.values(trackerData.eras).filter(
+            (e: TrackerEra) => e.name !== projectName
+        );
         if (otherEras.length > 0) {
             moreAlbumsContainer.innerHTML = otherEras
                 .map((e: TrackerEra) => {
@@ -1058,7 +1086,9 @@ export function findTrackerArtistByName(artistName: string): TrackerArtistEntry 
 }
 
 // Helper function to get artist's unreleased projects (for use in normal artist pages)
-export async function getArtistUnreleasedProjects(artistName: string): Promise<{ artist: TrackerArtistEntry; sheetId: string; eras: TrackerEra[] } | null> {
+export async function getArtistUnreleasedProjects(
+    artistName: string
+): Promise<{ artist: TrackerArtistEntry; sheetId: string; eras: TrackerEra[] } | null> {
     const artist = findTrackerArtistByName(artistName);
     if (!artist) return null;
 

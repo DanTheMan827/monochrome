@@ -127,7 +127,8 @@ export class LastFMScrobbler {
 
         const sortedKeys: string[] = Object.keys(filteredParams).sort();
 
-        const signatureString: string = sortedKeys.map((key: string) => `${key}${filteredParams[key]}`).join('') + this.API_SECRET;
+        const signatureString: string =
+            sortedKeys.map((key: string) => `${key}${filteredParams[key]}`).join('') + this.API_SECRET;
 
         console.log('Signature string:', signatureString);
 
@@ -140,7 +141,11 @@ export class LastFMScrobbler {
         }
     }
 
-    async makeRequest(method: string, params: Record<string, string | number> = {}, requiresAuth: boolean = false): Promise<LastFMResponse> {
+    async makeRequest(
+        method: string,
+        params: Record<string, string | number> = {},
+        requiresAuth: boolean = false
+    ): Promise<LastFMResponse> {
         const requestParams: Record<string, string | number> = {
             method,
             api_key: this.API_KEY,
@@ -216,7 +221,10 @@ export class LastFMScrobbler {
         }
     }
 
-    async authenticateWithCredentials(username: string, password: string): Promise<{ success: boolean; username: string }> {
+    async authenticateWithCredentials(
+        username: string,
+        password: string
+    ): Promise<{ success: boolean; username: string }> {
         try {
             const params: Record<string, string> = {
                 username: username,

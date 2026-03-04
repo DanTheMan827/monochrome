@@ -36,22 +36,34 @@ export class MusicAPI {
     }
 
     // Search methods
-    async searchTracks(query: string, options: SearchOptions = {}): Promise<{ items: TrackData[]; limit: number; offset: number; totalNumberOfItems: number }> {
+    async searchTracks(
+        query: string,
+        options: SearchOptions = {}
+    ): Promise<{ items: TrackData[]; limit: number; offset: number; totalNumberOfItems: number }> {
         const provider = options.provider || this.getCurrentProvider();
         return this.getAPI(provider).searchTracks(query, options);
     }
 
-    async searchArtists(query: string, options: SearchOptions = {}): Promise<{ items: ArtistData[]; limit: number; offset: number; totalNumberOfItems: number }> {
+    async searchArtists(
+        query: string,
+        options: SearchOptions = {}
+    ): Promise<{ items: ArtistData[]; limit: number; offset: number; totalNumberOfItems: number }> {
         const provider = options.provider || this.getCurrentProvider();
         return this.getAPI(provider).searchArtists(query, options);
     }
 
-    async searchAlbums(query: string, options: SearchOptions = {}): Promise<{ items: TrackAlbum[]; limit: number; offset: number; totalNumberOfItems: number }> {
+    async searchAlbums(
+        query: string,
+        options: SearchOptions = {}
+    ): Promise<{ items: TrackAlbum[]; limit: number; offset: number; totalNumberOfItems: number }> {
         const provider = options.provider || this.getCurrentProvider();
         return this.getAPI(provider).searchAlbums(query, options);
     }
 
-    async searchPlaylists(query: string, options: SearchOptions = {}): Promise<{ items: PlaylistData[]; limit: number; offset: number; totalNumberOfItems: number }> {
+    async searchPlaylists(
+        query: string,
+        options: SearchOptions = {}
+    ): Promise<{ items: PlaylistData[]; limit: number; offset: number; totalNumberOfItems: number }> {
         const provider = options.provider || this.getCurrentProvider();
         if (provider === 'qobuz') {
             // Qobuz doesn't support playlist search, return empty
@@ -61,7 +73,11 @@ export class MusicAPI {
     }
 
     // Get methods
-    async getTrack(id: string | number, quality: string, provider: string | null = null): Promise<{ originalTrackUrl?: string; info: { manifest: string } }> {
+    async getTrack(
+        id: string | number,
+        quality: string,
+        provider: string | null = null
+    ): Promise<{ originalTrackUrl?: string; info: { manifest: string } }> {
         const p = provider || this.getProviderFromId(id) || this.getCurrentProvider();
         const cleanId = String(this.stripProviderPrefix(id));
         if (p === 'qobuz') return this.qobuzAPI.getTrack(cleanId);
@@ -75,7 +91,10 @@ export class MusicAPI {
         return this.tidalAPI.getTrackMetadata(cleanId);
     }
 
-    async getAlbum(id: string | number, provider: string | null = null): Promise<{ album: TrackAlbum; tracks: TrackData[] }> {
+    async getAlbum(
+        id: string | number,
+        provider: string | null = null
+    ): Promise<{ album: TrackAlbum; tracks: TrackData[] }> {
         const p = provider || this.getProviderFromId(id) || this.getCurrentProvider();
         const api = this.getAPI(p);
         const cleanId = String(this.stripProviderPrefix(id));
@@ -89,7 +108,10 @@ export class MusicAPI {
         return api.getArtist(cleanId);
     }
 
-    async getArtistBiography(id: string | number, provider: string | null = null): Promise<{ text: string; source: string } | null> {
+    async getArtistBiography(
+        id: string | number,
+        provider: string | null = null
+    ): Promise<{ text: string; source: string } | null> {
         const p = provider || this.getProviderFromId(id) || this.getCurrentProvider();
         if (p !== 'tidal') return null; // Biography only supported for Tidal
 
@@ -143,7 +165,11 @@ export class MusicAPI {
         return this.tidalAPI.getCoverUrl(String(id), size);
     }
 
-    getVideoCoverUrl(videoCoverId: string | number | null, fallbackCoverId: string | number, size: string = '1280'): string {
+    getVideoCoverUrl(
+        videoCoverId: string | number | null,
+        fallbackCoverId: string | number,
+        size: string = '1280'
+    ): string {
         if (videoCoverId) {
             const videoUrl = this.tidalAPI.getVideoCoverUrl(String(videoCoverId), size);
             if (videoUrl) return videoUrl;
@@ -181,7 +207,12 @@ export class MusicAPI {
     }
 
     // Download methods
-    async downloadTrack(id: string | number, quality: string, filename: string, options: Record<string, unknown> = {}): Promise<void> {
+    async downloadTrack(
+        id: string | number,
+        quality: string,
+        filename: string,
+        options: Record<string, unknown> = {}
+    ): Promise<void> {
         const provider = this.getProviderFromId(id) || this.getCurrentProvider();
         const cleanId = String(this.stripProviderPrefix(id));
         return this.tidalAPI.downloadTrack(cleanId, quality, filename, options);
@@ -202,7 +233,11 @@ export class MusicAPI {
         return api.getSimilarAlbums(cleanId);
     }
 
-    async getRecommendedTracksForPlaylist(tracks: TrackData[], limit: number = 20, options: Record<string, unknown> = {}): Promise<unknown[]> {
+    async getRecommendedTracksForPlaylist(
+        tracks: TrackData[],
+        limit: number = 20,
+        options: Record<string, unknown> = {}
+    ): Promise<unknown[]> {
         // Use Tidal for recommendations
         return this.tidalAPI.getRecommendedTracksForPlaylist(tracks, limit, options);
     }

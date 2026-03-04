@@ -67,7 +67,13 @@ interface GeniusReferentsResponse {
 
 interface SidePanelLike {
     panel: LyricsContainerElement;
-    open(view: string, title: string, renderControls: (container: HTMLElement) => void, renderContent: (container: LyricsContainerElement) => Promise<void>, forceOpen?: boolean): void;
+    open(
+        view: string,
+        title: string,
+        renderControls: (container: HTMLElement) => void,
+        renderContent: (container: LyricsContainerElement) => Promise<void>,
+        forceOpen?: boolean
+    ): void;
     close(): void;
 }
 
@@ -301,7 +307,13 @@ export class LyricsManager {
             // Kuromoji uses XHR, not fetch, for loading dictionary files
             if (!window._originalXHROpen) {
                 window._originalXHROpen = XMLHttpRequest.prototype.open;
-                XMLHttpRequest.prototype.open = function (method: string, url: string | URL, async_?: boolean, username?: string | null, password?: string | null) {
+                XMLHttpRequest.prototype.open = function (
+                    method: string,
+                    url: string | URL,
+                    async_?: boolean,
+                    username?: string | null,
+                    password?: string | null
+                ) {
                     const urlStr = url.toString();
                     if (urlStr.includes('/dict/') && urlStr.includes('.dat.gz')) {
                         // Extract just the filename
@@ -342,8 +354,10 @@ export class LyricsManager {
             }
 
             // Initialize Kuroshiro (CDN version exports as .default)
-            const KuroshiroClass = (window.Kuroshiro as unknown as Record<string, unknown>)?.default || window.Kuroshiro;
-            const KuromojiAnalyzerClass = (window.KuromojiAnalyzer as unknown as Record<string, unknown>)?.default || window.KuromojiAnalyzer;
+            const KuroshiroClass =
+                (window.Kuroshiro as unknown as Record<string, unknown>)?.default || window.Kuroshiro;
+            const KuromojiAnalyzerClass =
+                (window.KuromojiAnalyzer as unknown as Record<string, unknown>)?.default || window.KuromojiAnalyzer;
 
             this.kuroshiro = new (KuroshiroClass as new () => KuroshiroInstance)();
 
@@ -484,7 +498,10 @@ export class LyricsManager {
         });
     }
 
-    async fetchLyrics(trackId: string | number, track: TrackData | null = null): Promise<LyricsData | null | undefined> {
+    async fetchLyrics(
+        trackId: string | number,
+        track: TrackData | null = null
+    ): Promise<LyricsData | null | undefined> {
         if (track) {
             if (this.lyricsCache.has(trackId)) {
                 return this.lyricsCache.get(trackId);
@@ -613,7 +630,10 @@ export class LyricsManager {
                     let relevant = false;
                     if (mutation.addedNodes.length > 0) {
                         for (const node of mutation.addedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).classList.contains('genius-indicator'))
+                            if (
+                                node.nodeType === Node.ELEMENT_NODE &&
+                                (node as HTMLElement).classList.contains('genius-indicator')
+                            )
                                 continue;
                             relevant = true;
                             break;
@@ -621,7 +641,10 @@ export class LyricsManager {
                     }
                     if (!relevant && mutation.removedNodes.length > 0) {
                         for (const node of mutation.removedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).classList.contains('genius-indicator'))
+                            if (
+                                node.nodeType === Node.ELEMENT_NODE &&
+                                (node as HTMLElement).classList.contains('genius-indicator')
+                            )
                                 continue;
                             relevant = true;
                             break;
@@ -780,7 +803,9 @@ export class LyricsManager {
 
         const root = amLyricsElement.shadowRoot || amLyricsElement;
 
-        const lineElements = Array.from(root.querySelectorAll('p, .line, .lyric-line, .lrc-line')) as AnnotatedElement[];
+        const lineElements = Array.from(
+            root.querySelectorAll('p, .line, .lyric-line, .lrc-line')
+        ) as AnnotatedElement[];
 
         if (lineElements.length === 0) return;
 
@@ -853,7 +878,12 @@ export class LyricsManager {
     }
 }
 
-export function openLyricsPanel(track: TrackData, audioPlayer: HTMLAudioElement, lyricsManager: LyricsManager | null, forceOpen: boolean = false): void {
+export function openLyricsPanel(
+    track: TrackData,
+    audioPlayer: HTMLAudioElement,
+    lyricsManager: LyricsManager | null,
+    forceOpen: boolean = false
+): void {
     const manager = lyricsManager || new LyricsManager(null);
     const sidePanel = sidePanelManager as unknown as SidePanelLike;
 
@@ -992,7 +1022,9 @@ export function openLyricsPanel(track: TrackData, audioPlayer: HTMLAudioElement,
                     const amLyrics = sidePanel.panel.querySelector('am-lyrics') as HTMLElement | null;
                     if (amLyrics) {
                         const root = amLyrics.shadowRoot || amLyrics;
-                        const lineElements = Array.from(root.querySelectorAll('.genius-annotated')) as AnnotatedElement[];
+                        const lineElements = Array.from(
+                            root.querySelectorAll('.genius-annotated')
+                        ) as AnnotatedElement[];
                         lineElements.forEach((el: AnnotatedElement) => {
                             el.classList.remove(
                                 'genius-annotated',
@@ -1045,7 +1077,12 @@ themeObserver.observe(document.documentElement, {
     attributeFilter: ['data-theme', 'style'],
 });
 
-async function renderLyricsComponent(container: LyricsContainerElement, track: TrackData, audioPlayer: HTMLAudioElement, lyricsManager: LyricsManager): Promise<HTMLElement | null> {
+async function renderLyricsComponent(
+    container: LyricsContainerElement,
+    track: TrackData,
+    audioPlayer: HTMLAudioElement,
+    lyricsManager: LyricsManager
+): Promise<HTMLElement | null> {
     container.innerHTML = '<div class="lyrics-loading">Loading lyrics...</div>';
 
     try {
@@ -1160,7 +1197,12 @@ async function renderLyricsComponent(container: LyricsContainerElement, track: T
     }
 }
 
-function setupSync(track: TrackData, audioPlayer: HTMLAudioElement, amLyrics: HTMLElement, lyricsManager: LyricsManager): () => void {
+function setupSync(
+    track: TrackData,
+    audioPlayer: HTMLAudioElement,
+    amLyrics: HTMLElement,
+    lyricsManager: LyricsManager
+): () => void {
     let baseTimeMs = 0;
     let lastTimestamp = performance.now();
     let animationFrameId: number | null = null;
@@ -1205,7 +1247,8 @@ function setupSync(track: TrackData, audioPlayer: HTMLAudioElement, amLyrics: HT
     const onLineClick = (e: Event): void => {
         const detail = (e as CustomEvent<{ timestamp?: number }>).detail;
         if (detail && detail.timestamp !== undefined) {
-            const panelLyricsManager = ((sidePanelManager as unknown as SidePanelLike).panel as LyricsContainerElement)?.lyricsManager;
+            const panelLyricsManager = ((sidePanelManager as unknown as SidePanelLike).panel as LyricsContainerElement)
+                ?.lyricsManager;
             const manager = lyricsManager || panelLyricsManager;
             if (manager && manager.isGeniusMode) {
                 const timestampSeconds = detail.timestamp! / 1000;
@@ -1299,7 +1342,12 @@ function showGeniusAnnotations(annotations: GeniusReferent[], lineText: string):
     });
 }
 
-export async function renderLyricsInFullscreen(track: TrackData, audioPlayer: HTMLAudioElement, lyricsManager: LyricsManager, container: LyricsContainerElement): Promise<HTMLElement | null> {
+export async function renderLyricsInFullscreen(
+    track: TrackData,
+    audioPlayer: HTMLAudioElement,
+    lyricsManager: LyricsManager,
+    container: LyricsContainerElement
+): Promise<HTMLElement | null> {
     return renderLyricsComponent(container, track, audioPlayer, lyricsManager);
 }
 

@@ -73,7 +73,9 @@ export class BaseServerAPI {
 
         let lastError: unknown = null;
         for (const baseUrl of instances) {
-            const url: string = baseUrl.endsWith('/') ? `${baseUrl}${relativePath.substring(1)}` : `${baseUrl}${relativePath}`;
+            const url: string = baseUrl.endsWith('/')
+                ? `${baseUrl}${relativePath.substring(1)}`
+                : `${baseUrl}${relativePath}`;
             try {
                 const response: Response = await fetch(url);
                 if (response.ok) {

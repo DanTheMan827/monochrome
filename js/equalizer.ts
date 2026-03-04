@@ -5,7 +5,9 @@ import { equalizerSettings } from './storage.ts';
 import type { EQPreset, ParsedFilter } from './audio-context.ts';
 
 // Standard 16-band ISO center frequencies (Hz) - kept for reference
-const DEFAULT_EQ_FREQUENCIES: number[] = [25, 40, 63, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000, 16000, 20000];
+const DEFAULT_EQ_FREQUENCIES: number[] = [
+    25, 40, 63, 100, 160, 250, 400, 630, 1000, 1600, 2500, 4000, 6300, 10000, 16000, 20000,
+];
 
 // Frequency labels for UI display
 const DEFAULT_FREQUENCY_LABELS: string[] = [

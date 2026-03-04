@@ -103,12 +103,16 @@ export class DashDownloader {
         adaptationSets.sort((a: Element, b: Element) => {
             const getMaxBandwidth = (set: Element): number => {
                 const reps: Element[] = Array.from(set.querySelectorAll('Representation'));
-                return reps.length ? Math.max(...reps.map((r: Element) => parseInt(r.getAttribute('bandwidth') || '0', 10))) : 0;
+                return reps.length
+                    ? Math.max(...reps.map((r: Element) => parseInt(r.getAttribute('bandwidth') || '0', 10)))
+                    : 0;
             };
             return getMaxBandwidth(b) - getMaxBandwidth(a);
         });
 
-        let audioSet: Element | undefined = adaptationSets.find((as: Element) => as.getAttribute('mimeType')?.startsWith('audio'));
+        let audioSet: Element | undefined = adaptationSets.find((as: Element) =>
+            as.getAttribute('mimeType')?.startsWith('audio')
+        );
 
         // Fallback: look for any adaptation set if mimeType is missing (rare)
         if (!audioSet && adaptationSets.length > 0) audioSet = adaptationSets[0];
@@ -116,11 +120,13 @@ export class DashDownloader {
 
         // Find Representation
         // Get all representations and sort by bandwidth descending
-        const representations: Element[] = Array.from(audioSet.querySelectorAll('Representation')).sort((a: Element, b: Element) => {
-            const bwA: number = parseInt(a.getAttribute('bandwidth') || '0');
-            const bwB: number = parseInt(b.getAttribute('bandwidth') || '0');
-            return bwB - bwA;
-        });
+        const representations: Element[] = Array.from(audioSet.querySelectorAll('Representation')).sort(
+            (a: Element, b: Element) => {
+                const bwA: number = parseInt(a.getAttribute('bandwidth') || '0');
+                const bwB: number = parseInt(b.getAttribute('bandwidth') || '0');
+                return bwB - bwA;
+            }
+        );
 
         if (representations.length === 0) throw new Error('No Representation found');
         const rep = representations[0];

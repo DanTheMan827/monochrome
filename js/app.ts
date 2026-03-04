@@ -878,7 +878,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('download-current-btn')?.addEventListener('click', () => {
         if (player.currentTrack) {
-            handleTrackAction('download', player.currentTrack, player as never, api as never, lyricsManager, 'track', ui as never);
+            handleTrackAction(
+                'download',
+                player.currentTrack,
+                player as never,
+                api as never,
+                lyricsManager,
+                'track',
+                ui as never
+            );
         }
     });
 
@@ -938,7 +946,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!albumId) return;
 
             try {
-                const { tracks } = await api.getAlbum(albumId) as { tracks: TrackData[] };
+                const { tracks } = (await api.getAlbum(albumId)) as { tracks: TrackData[] };
                 if (tracks && tracks.length > 0) {
                     // Sort tracks by disc and track number for consistent playback
                     const sortedTracks = [...tracks].sort((a, b) => {
@@ -976,7 +984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!albumId) return;
 
             try {
-                const { tracks } = await api.getAlbum(albumId) as { tracks: TrackData[] };
+                const { tracks } = (await api.getAlbum(albumId)) as { tracks: TrackData[] };
                 if (tracks && tracks.length > 0) {
                     const shuffledTracks = [...tracks].sort(() => Math.random() - 0.5);
                     player.setQueue(shuffledTracks, 0);
@@ -1007,7 +1015,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Shuffling...</span>';
 
             try {
-                const artist = await api.getArtist(artistId) as ArtistData & { eps?: TrackAlbum[] };
+                const artist = (await api.getArtist(artistId)) as ArtistData & { eps?: TrackAlbum[] };
                 const allReleases = [...(artist.albums || []), ...(artist.eps || [])];
                 const trackSet = new Set<string | number>();
                 const allTracks: TrackData[] = [];
@@ -1019,7 +1027,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await Promise.all(
                         chunk.map(async (album: TrackAlbum) => {
                             try {
-                                const { tracks } = await api.getAlbum(album.id) as { tracks: TrackData[] };
+                                const { tracks } = (await api.getAlbum(album.id)) as { tracks: TrackData[] };
                                 tracks.forEach((track: TrackData) => {
                                     if (!trackSet.has(track.id)) {
                                         trackSet.add(track.id);
@@ -1080,9 +1088,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Downloading...</span>';
 
             try {
-                const { mix, tracks } = await api.getMix(mixId) as { mix: MixData; tracks: TrackData[] };
+                const { mix, tracks } = (await api.getMix(mixId)) as { mix: MixData; tracks: TrackData[] };
                 const { downloadPlaylistAsZip } = await loadDownloadsModule();
-                await downloadPlaylistAsZip(mix, tracks, api, downloadQualitySettings.getQuality(), lyricsManager as never);
+                await downloadPlaylistAsZip(
+                    mix,
+                    tracks,
+                    api,
+                    downloadQualitySettings.getQuality(),
+                    lyricsManager as never
+                );
             } catch (error) {
                 console.error('Mix download failed:', error);
                 alert('Failed to download mix: ' + (error instanceof Error ? error.message : String(error)));
@@ -1110,23 +1124,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (!userPlaylist) {
                     try {
-                        userPlaylist = await syncManager.getPublicPlaylist(playlistId) ?? undefined;
+                        userPlaylist = (await syncManager.getPublicPlaylist(playlistId)) ?? undefined;
                     } catch {
                         // Not a public playlist
                     }
                 }
 
                 if (userPlaylist) {
-                    playlist = { ...(userPlaylist as PlaylistData), title: (userPlaylist as PlaylistData & { name?: string }).name || (userPlaylist as PlaylistData).title } as PlaylistData;
+                    playlist = {
+                        ...(userPlaylist as PlaylistData),
+                        title:
+                            (userPlaylist as PlaylistData & { name?: string }).name ||
+                            (userPlaylist as PlaylistData).title,
+                    } as PlaylistData;
                     tracks = ((userPlaylist as PlaylistData).tracks || []) as TrackData[];
                 } else {
-                    const data = await api.getPlaylist(playlistId) as { playlist: PlaylistData; tracks: TrackData[] };
+                    const data = (await api.getPlaylist(playlistId)) as { playlist: PlaylistData; tracks: TrackData[] };
                     playlist = data.playlist;
                     tracks = data.tracks;
                 }
 
                 const { downloadPlaylistAsZip } = await loadDownloadsModule();
-                await downloadPlaylistAsZip(playlist, tracks, api, downloadQualitySettings.getQuality(), lyricsManager as never);
+                await downloadPlaylistAsZip(
+                    playlist,
+                    tracks,
+                    api,
+                    downloadQualitySettings.getQuality(),
+                    lyricsManager as never
+                );
             } catch (error) {
                 console.error('Playlist download failed:', error);
                 alert('Failed to download playlist: ' + (error instanceof Error ? error.message : String(error)));
@@ -1236,7 +1261,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const modal = document.getElementById('playlist-modal') as HTMLElement;
                 const editingId = modal.dataset.editingId;
 
-                const handlePublicStatus = async (playlist: PlaylistData & { isPublic?: boolean }): Promise<PlaylistData & { isPublic?: boolean }> => {
+                const handlePublicStatus = async (
+                    playlist: PlaylistData & { isPublic?: boolean }
+                ): Promise<PlaylistData & { isPublic?: boolean }> => {
                     playlist.isPublic = isPublic;
                     if (isPublic) {
                         try {
@@ -1264,7 +1291,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                             playlist.cover = cover;
                             playlist.description = description;
                             await handlePublicStatus(playlist);
-                            await db.performTransaction('user_playlists', 'readwrite', (store: { put: (item: unknown) => void }) => store.put(playlist));
+                            await db.performTransaction(
+                                'user_playlists',
+                                'readwrite',
+                                (store: { put: (item: unknown) => void }) => store.put(playlist)
+                            );
                             syncManager.syncUserPlaylist(playlist as unknown as Record<string, unknown>, 'update');
                             ui.renderLibraryPage();
                             // Also update current page if we are on it
@@ -1295,8 +1326,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const progressFill = document.getElementById('csv-progress-fill');
                         const progressCurrent = document.getElementById('csv-progress-current');
                         const progressTotal = document.getElementById('csv-progress-total');
-                        const currentTrackElement = progressElement!.querySelector('.current-track') as HTMLElement | null;
-                        const currentArtistElement = progressElement!.querySelector('.current-artist') as HTMLElement | null;
+                        const currentTrackElement = progressElement!.querySelector(
+                            '.current-track'
+                        ) as HTMLElement | null;
+                        const currentArtistElement = progressElement!.querySelector(
+                            '.current-artist'
+                        ) as HTMLElement | null;
                         return {
                             progressElement,
                             progressFill,
@@ -1421,15 +1456,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             const jspfText = await file.text();
 
-                            const result = await parseJSPF(jspfText, api, (progress: { current: number; total: number; currentTrack: string; currentArtist?: string }) => {
-                                const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
-                                progressFill!.style.width = `${Math.min(percentage, 100)}%`;
-                                progressCurrent!.textContent = progress.current.toString();
-                                progressTotal!.textContent = progress.total.toString();
-                                currentTrackElement!.textContent = progress.currentTrack;
-                                if (currentArtistElement)
-                                    currentArtistElement.textContent = progress.currentArtist || '';
-                            });
+                            const result = await parseJSPF(
+                                jspfText,
+                                api,
+                                (progress: {
+                                    current: number;
+                                    total: number;
+                                    currentTrack: string;
+                                    currentArtist?: string;
+                                }) => {
+                                    const percentage =
+                                        progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+                                    progressFill!.style.width = `${Math.min(percentage, 100)}%`;
+                                    progressCurrent!.textContent = progress.current.toString();
+                                    progressTotal!.textContent = progress.total.toString();
+                                    currentTrackElement!.textContent = progress.currentTrack;
+                                    if (currentArtistElement)
+                                        currentArtistElement.textContent = progress.currentArtist || '';
+                                }
+                            );
 
                             tracks = result.tracks;
                             const missingTracks = result.missingTracks;
@@ -1476,7 +1521,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } catch (error) {
                             console.error('Failed to parse JSPF!', error);
-                            alert('Failed to parse JSPF file! ' + (error instanceof Error ? error.message : String(error)));
+                            alert(
+                                'Failed to parse JSPF file! ' + (error instanceof Error ? error.message : String(error))
+                            );
                             progressElement!.style.display = 'none';
                             return;
                         } finally {
@@ -1530,13 +1577,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (hasMultipleTypes) {
                                 currentTrackElement!.textContent = 'Adding to library...';
 
-                                const importResults = await importToLibrary(result, db, (progress: { action: string; item: string }) => {
-                                    if (progress.action === 'playlist') {
-                                        currentTrackElement!.textContent = `Creating playlist: ${progress.item}`;
-                                    } else {
-                                        currentTrackElement!.textContent = `Adding ${progress.action}: ${progress.item}`;
+                                const importResults = await importToLibrary(
+                                    result,
+                                    db,
+                                    (progress: { action: string; item: string }) => {
+                                        if (progress.action === 'playlist') {
+                                            currentTrackElement!.textContent = `Creating playlist: ${progress.item}`;
+                                        } else {
+                                            currentTrackElement!.textContent = `Adding ${progress.action}: ${progress.item}`;
+                                        }
                                     }
-                                });
+                                );
 
                                 console.log('Import results:', importResults);
 
@@ -1580,7 +1631,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } catch (error) {
                             console.error('Failed to parse CSV!', error);
-                            alert('Failed to parse CSV file! ' + (error instanceof Error ? error.message : String(error)));
+                            alert(
+                                'Failed to parse CSV file! ' + (error instanceof Error ? error.message : String(error))
+                            );
                             progressElement!.style.display = 'none';
                             return;
                         } finally {
@@ -1610,15 +1663,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             const xspfText = await file.text();
 
-                            const result = await parseXSPF(xspfText, api, (progress: { current: number; total: number; currentTrack: string; currentArtist?: string }) => {
-                                const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
-                                progressFill!.style.width = `${Math.min(percentage, 100)}%`;
-                                progressCurrent!.textContent = progress.current.toString();
-                                progressTotal!.textContent = progress.total.toString();
-                                currentTrackElement!.textContent = progress.currentTrack;
-                                if (currentArtistElement)
-                                    currentArtistElement.textContent = progress.currentArtist || '';
-                            });
+                            const result = await parseXSPF(
+                                xspfText,
+                                api,
+                                (progress: {
+                                    current: number;
+                                    total: number;
+                                    currentTrack: string;
+                                    currentArtist?: string;
+                                }) => {
+                                    const percentage =
+                                        progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+                                    progressFill!.style.width = `${Math.min(percentage, 100)}%`;
+                                    progressCurrent!.textContent = progress.current.toString();
+                                    progressTotal!.textContent = progress.total.toString();
+                                    currentTrackElement!.textContent = progress.currentTrack;
+                                    if (currentArtistElement)
+                                        currentArtistElement.textContent = progress.currentArtist || '';
+                                }
+                            );
 
                             tracks = result.tracks;
                             const missingTracks = result.missingTracks;
@@ -1639,7 +1702,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } catch (error) {
                             console.error('Failed to parse XSPF!', error);
-                            alert('Failed to parse XSPF file! ' + (error instanceof Error ? error.message : String(error)));
+                            alert(
+                                'Failed to parse XSPF file! ' + (error instanceof Error ? error.message : String(error))
+                            );
                             progressElement!.style.display = 'none';
                             return;
                         } finally {
@@ -1669,15 +1734,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             const xmlText = await file.text();
 
-                            const result = await parseXML(xmlText, api, (progress: { current: number; total: number; currentTrack: string; currentArtist?: string }) => {
-                                const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
-                                progressFill!.style.width = `${Math.min(percentage, 100)}%`;
-                                progressCurrent!.textContent = progress.current.toString();
-                                progressTotal!.textContent = progress.total.toString();
-                                currentTrackElement!.textContent = progress.currentTrack;
-                                if (currentArtistElement)
-                                    currentArtistElement.textContent = progress.currentArtist || '';
-                            });
+                            const result = await parseXML(
+                                xmlText,
+                                api,
+                                (progress: {
+                                    current: number;
+                                    total: number;
+                                    currentTrack: string;
+                                    currentArtist?: string;
+                                }) => {
+                                    const percentage =
+                                        progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+                                    progressFill!.style.width = `${Math.min(percentage, 100)}%`;
+                                    progressCurrent!.textContent = progress.current.toString();
+                                    progressTotal!.textContent = progress.total.toString();
+                                    currentTrackElement!.textContent = progress.currentTrack;
+                                    if (currentArtistElement)
+                                        currentArtistElement.textContent = progress.currentArtist || '';
+                                }
+                            );
 
                             tracks = result.tracks;
                             const missingTracks = result.missingTracks;
@@ -1698,7 +1773,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } catch (error) {
                             console.error('Failed to parse XML!', error);
-                            alert('Failed to parse XML file! ' + (error instanceof Error ? error.message : String(error)));
+                            alert(
+                                'Failed to parse XML file! ' + (error instanceof Error ? error.message : String(error))
+                            );
                             progressElement!.style.display = 'none';
                             return;
                         } finally {
@@ -1728,15 +1805,25 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             const m3uText = await file.text();
 
-                            const result = await parseM3U(m3uText, api, (progress: { current: number; total: number; currentTrack: string; currentArtist?: string }) => {
-                                const percentage = progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
-                                progressFill!.style.width = `${Math.min(percentage, 100)}%`;
-                                progressCurrent!.textContent = progress.current.toString();
-                                progressTotal!.textContent = progress.total.toString();
-                                currentTrackElement!.textContent = progress.currentTrack;
-                                if (currentArtistElement)
-                                    currentArtistElement.textContent = progress.currentArtist || '';
-                            });
+                            const result = await parseM3U(
+                                m3uText,
+                                api,
+                                (progress: {
+                                    current: number;
+                                    total: number;
+                                    currentTrack: string;
+                                    currentArtist?: string;
+                                }) => {
+                                    const percentage =
+                                        progress.total > 0 ? (progress.current / progress.total) * 100 : 0;
+                                    progressFill!.style.width = `${Math.min(percentage, 100)}%`;
+                                    progressCurrent!.textContent = progress.current.toString();
+                                    progressTotal!.textContent = progress.total.toString();
+                                    currentTrackElement!.textContent = progress.currentTrack;
+                                    if (currentArtistElement)
+                                        currentArtistElement.textContent = progress.currentArtist || '';
+                                }
+                            );
 
                             tracks = result.tracks;
                             const missingTracks = result.missingTracks;
@@ -1757,7 +1844,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         } catch (error) {
                             console.error('Failed to parse M3U!', error);
-                            alert('Failed to parse M3U file! ' + (error instanceof Error ? error.message : String(error)));
+                            alert(
+                                'Failed to parse M3U file! ' + (error instanceof Error ? error.message : String(error))
+                            );
                             progressElement!.style.display = 'none';
                             return;
                         } finally {
@@ -1769,17 +1858,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                     // Check for pending tracks (from Add to Playlist -> New Playlist)
                     const modal = document.getElementById('playlist-modal');
-                    if ((modal as PlaylistModalElement)._pendingTracks && Array.isArray((modal as PlaylistModalElement)._pendingTracks)) {
+                    if (
+                        (modal as PlaylistModalElement)._pendingTracks &&
+                        Array.isArray((modal as PlaylistModalElement)._pendingTracks)
+                    ) {
                         tracks = [...tracks, ...(modal as PlaylistModalElement)._pendingTracks!];
                         delete (modal as PlaylistModalElement)._pendingTracks;
                         // Also clear CSV input if we came from there? No, keep it separate.
                         console.log(`Added ${tracks.length} tracks (including pending)`);
                     }
 
-                    (db.createPlaylist(name, tracks as never, cover, description) as Promise<PlaylistData & { isPublic?: boolean }>).then(async (playlist) => {
+                    (
+                        db.createPlaylist(name, tracks as never, cover, description) as Promise<
+                            PlaylistData & { isPublic?: boolean }
+                        >
+                    ).then(async (playlist) => {
                         await handlePublicStatus(playlist);
                         // Update DB again with isPublic flag
-                        await db.performTransaction('user_playlists', 'readwrite', (store: { put: (item: unknown) => void }) => store.put(playlist));
+                        await db.performTransaction(
+                            'user_playlists',
+                            'readwrite',
+                            (store: { put: (item: unknown) => void }) => store.put(playlist)
+                        );
                         await syncManager.syncUserPlaylist(playlist as unknown as Record<string, unknown>, 'create');
                         trackCreatePlaylist(playlist, importSource);
                         ui.renderLibraryPage();
@@ -1803,7 +1903,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('playlist-modal-title')!.textContent = 'Edit Playlist';
                     (document.getElementById('playlist-name-input') as HTMLInputElement).value = playlist.name;
                     (document.getElementById('playlist-cover-input') as HTMLInputElement).value = playlist.cover || '';
-                    (document.getElementById('playlist-description-input') as HTMLInputElement).value = playlist.description || '';
+                    (document.getElementById('playlist-description-input') as HTMLInputElement).value =
+                        playlist.description || '';
 
                     // Set Public Toggle
                     const publicToggle = document.getElementById('playlist-public-toggle');
@@ -1871,7 +1972,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     document.getElementById('playlist-modal-title')!.textContent = 'Edit Playlist';
                     (document.getElementById('playlist-name-input') as HTMLInputElement).value = playlist.name;
                     (document.getElementById('playlist-cover-input') as HTMLInputElement).value = playlist.cover || '';
-                    (document.getElementById('playlist-description-input') as HTMLInputElement).value = playlist.description || '';
+                    (document.getElementById('playlist-description-input') as HTMLInputElement).value =
+                        playlist.description || '';
 
                     const publicToggle = document.getElementById('playlist-public-toggle');
                     const shareBtn = document.getElementById('playlist-share-btn');
@@ -1931,28 +2033,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btn = (e.target as HTMLElement).closest('.remove-from-playlist-btn') as HTMLElement;
             const playlistId = window.location.pathname.split('/')[2];
 
-            (db.getPlaylist(playlistId) as Promise<(PlaylistData & { tracks: TrackData[] }) | undefined>).then(async (playlist) => {
-                let trackId: string | number | null = null;
+            (db.getPlaylist(playlistId) as Promise<(PlaylistData & { tracks: TrackData[] }) | undefined>).then(
+                async (playlist) => {
+                    let trackId: string | number | null = null;
 
-                // Prefer ID if available (from sorted view)
-                if (btn.dataset.trackId) {
-                    trackId = btn.dataset.trackId;
-                } else if (btn.dataset.trackIndex) {
-                    // Fallback to index (legacy/unsorted)
-                    const index = parseInt(btn.dataset.trackIndex);
-                    if (playlist && playlist.tracks[index]) {
-                        trackId = playlist.tracks[index].id;
+                    // Prefer ID if available (from sorted view)
+                    if (btn.dataset.trackId) {
+                        trackId = btn.dataset.trackId;
+                    } else if (btn.dataset.trackIndex) {
+                        // Fallback to index (legacy/unsorted)
+                        const index = parseInt(btn.dataset.trackIndex);
+                        if (playlist && playlist.tracks[index]) {
+                            trackId = playlist.tracks[index].id;
+                        }
+                    }
+
+                    if (trackId) {
+                        const updatedPlaylist = await db.removeTrackFromPlaylist(playlistId, trackId);
+                        syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
+                        const scrollTop = (document.querySelector('.main-content') as HTMLElement).scrollTop;
+                        await ui.renderPlaylistPage(playlistId, 'user');
+                        (document.querySelector('.main-content') as HTMLElement).scrollTop = scrollTop;
                     }
                 }
-
-                if (trackId) {
-                    const updatedPlaylist = await db.removeTrackFromPlaylist(playlistId, trackId);
-                    syncManager.syncUserPlaylist(updatedPlaylist as Record<string, unknown>, 'update');
-                    const scrollTop = (document.querySelector('.main-content') as HTMLElement).scrollTop;
-                    await ui.renderPlaylistPage(playlistId, 'user');
-                    (document.querySelector('.main-content') as HTMLElement).scrollTop = scrollTop;
-                }
-            });
+            );
         }
 
         if ((e.target as HTMLElement)?.closest('#play-playlist-btn')) {
@@ -1970,7 +2074,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else {
                     // Try API, if fail, try Public Pocketbase
                     try {
-                        const { tracks: apiTracks } = await api.getPlaylist(playlistId) as { tracks: TrackData[] };
+                        const { tracks: apiTracks } = (await api.getPlaylist(playlistId)) as { tracks: TrackData[] };
                         tracks = apiTracks;
                     } catch (e) {
                         const publicPlaylist = await syncManager.getPublicPlaylist(playlistId);
@@ -2005,9 +2109,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Downloading...</span>';
 
             try {
-                const { album, tracks } = await api.getAlbum(albumId) as { album: TrackAlbum; tracks: TrackData[] };
+                const { album, tracks } = (await api.getAlbum(albumId)) as { album: TrackAlbum; tracks: TrackData[] };
                 const { downloadAlbumAsZip } = await loadDownloadsModule();
-                await downloadAlbumAsZip(album, tracks, api, downloadQualitySettings.getQuality(), lyricsManager as never);
+                await downloadAlbumAsZip(
+                    album,
+                    tracks,
+                    api,
+                    downloadQualitySettings.getQuality(),
+                    lyricsManager as never
+                );
             } catch (error) {
                 console.error('Album download failed:', error);
                 alert('Failed to download album: ' + (error instanceof Error ? error.message : String(error)));
@@ -2025,7 +2135,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!albumId) return;
 
             try {
-                const { tracks } = await api.getAlbum(albumId) as { tracks: TrackData[] };
+                const { tracks } = (await api.getAlbum(albumId)) as { tracks: TrackData[] };
 
                 if (!tracks || tracks.length === 0) {
                     const { showNotification } = await loadDownloadsModule();
@@ -2038,7 +2148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const cancelBtn = document.getElementById('playlist-select-cancel') as HTMLElement;
                 const overlay = modal.querySelector('.modal-overlay') as HTMLElement;
 
-                const playlists = await db.getPlaylists(false) as PlaylistData[];
+                const playlists = (await db.getPlaylists(false)) as PlaylistData[];
 
                 list.innerHTML =
                     `
@@ -2129,7 +2239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg><span>Loading...</span>';
 
             try {
-                const artist = await api.getArtist(artistId) as ArtistData & { eps?: TrackAlbum[] };
+                const artist = (await api.getArtist(artistId)) as ArtistData & { eps?: TrackAlbum[] };
 
                 const allReleases = [...(artist.albums || []), ...(artist.eps || [])];
                 if (allReleases.length === 0) {
@@ -2151,7 +2261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await Promise.all(
                         chunk.map(async (album) => {
                             try {
-                                const { tracks } = await api.getAlbum(album.id) as { tracks: TrackData[] };
+                                const { tracks } = (await api.getAlbum(album.id)) as { tracks: TrackData[] };
                                 tracks.forEach((track: TrackData) => {
                                     if (!trackSet.has(track.id)) {
                                         trackSet.add(track.id);
@@ -2192,7 +2302,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (btn.disabled) return;
 
             try {
-                const likedTracks = await db.getFavorites('track') as TrackData[];
+                const likedTracks = (await db.getFavorites('track')) as TrackData[];
                 if (likedTracks.length > 0) {
                     // Shuffle array
                     for (let i = likedTracks.length - 1; i > 0; i--) {
@@ -2218,13 +2328,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 '<svg class="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>';
 
             try {
-                const likedTracks = await db.getFavorites('track') as TrackData[];
+                const likedTracks = (await db.getFavorites('track')) as TrackData[];
                 if (likedTracks.length === 0) {
                     alert('No liked tracks to download.');
                     return;
                 }
                 const { downloadLikedTracks } = await loadDownloadsModule();
-                await downloadLikedTracks(likedTracks as TrackData[], api, downloadQualitySettings.getQuality(), lyricsManager as never);
+                await downloadLikedTracks(
+                    likedTracks as TrackData[],
+                    api,
+                    downloadQualitySettings.getQuality(),
+                    lyricsManager as never
+                );
             } catch (error) {
                 console.error('Liked tracks download failed:', error);
                 alert('Failed to download liked tracks: ' + (error instanceof Error ? error.message : String(error)));
@@ -2242,7 +2357,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!artistId) return;
 
             try {
-                const artist = await api.getArtist(artistId) as ArtistData & { eps?: TrackAlbum[] };
+                const artist = (await api.getArtist(artistId)) as ArtistData & { eps?: TrackAlbum[] };
                 showDiscographyDownloadModal(artist, api, downloadQualitySettings.getQuality(), lyricsManager, btn);
             } catch (error) {
                 console.error('Failed to load artist for discography download:', error);
@@ -2251,7 +2366,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Local Files Logic lollll
-        if ((e.target as HTMLElement)?.closest('#select-local-folder-btn') || (e.target as HTMLElement)?.closest('#change-local-folder-btn')) {
+        if (
+            (e.target as HTMLElement)?.closest('#select-local-folder-btn') ||
+            (e.target as HTMLElement)?.closest('#change-local-folder-btn')
+        ) {
             const isChange = (e.target as HTMLElement)?.closest('#change-local-folder-btn') !== null;
             try {
                 const isNeutralino =
@@ -2309,7 +2427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         const file = new File([buffer], entry.entry, {
                                             lastModified: (stats as { mtime?: number }).mtime,
                                         });
-                                        const metadata = await readTrackMetadata(file) as unknown as TrackData;
+                                        const metadata = (await readTrackMetadata(file)) as unknown as TrackData;
                                         metadata.id = `local-${idCounter++}-${entry.entry}`;
                                         tracks.push(metadata);
                                     } catch (e) {
@@ -2335,7 +2453,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     name.endsWith('.ogg')
                                 ) {
                                     const file = await entry.getFile();
-                                    const metadata = await readTrackMetadata(file) as unknown as TrackData;
+                                    const metadata = (await readTrackMetadata(file)) as unknown as TrackData;
                                     metadata.id = `local-${idCounter++}-${file.name}`;
                                     tracks.push(metadata);
                                 }
@@ -2627,7 +2745,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
                     if (contextMenu.style.display === 'block') {
                         const track = (contextMenu as HTMLElement & { _contextTrack?: TrackData })._contextTrack;
-                        const albumItem = contextMenu.querySelector('[data-action="go-to-album"]') as HTMLElement | null;
+                        const albumItem = contextMenu.querySelector(
+                            '[data-action="go-to-album"]'
+                        ) as HTMLElement | null;
 
                         if (track) {
                             if (albumItem) {
@@ -2742,7 +2862,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
-function showUpdateNotification(updateCallback: (() => void) | { postMessage: (msg: Record<string, string>) => void }): void {
+function showUpdateNotification(
+    updateCallback: (() => void) | { postMessage: (msg: Record<string, string>) => void }
+): void {
     // Remove any existing update notification
     const existingNotification = document.querySelector('.update-notification');
     if (existingNotification) {
@@ -2844,13 +2966,23 @@ function showMissingTracksNotification(missingTracks: (string | { title?: string
     modal.classList.add('active');
 }
 
-function showDiscographyDownloadModal(artist: ArtistData & { eps?: TrackAlbum[] }, api: MusicAPI, quality: string, lyricsManager: LyricsManager, triggerBtn: HTMLButtonElement): void {
+function showDiscographyDownloadModal(
+    artist: ArtistData & { eps?: TrackAlbum[] },
+    api: MusicAPI,
+    quality: string,
+    lyricsManager: LyricsManager,
+    triggerBtn: HTMLButtonElement
+): void {
     const modal = document.getElementById('discography-download-modal') as HTMLElement;
 
     document.getElementById('discography-artist-name')!.textContent = artist.name;
     document.getElementById('albums-count')!.textContent = String(artist.albums?.length || 0);
-    document.getElementById('eps-count')!.textContent = String((artist.eps || []).filter((a: TrackAlbum) => a.type === 'EP').length);
-    document.getElementById('singles-count')!.textContent = String((artist.eps || []).filter((a: TrackAlbum) => a.type === 'SINGLE').length);
+    document.getElementById('eps-count')!.textContent = String(
+        (artist.eps || []).filter((a: TrackAlbum) => a.type === 'EP').length
+    );
+    document.getElementById('singles-count')!.textContent = String(
+        (artist.eps || []).filter((a: TrackAlbum) => a.type === 'SINGLE').length
+    );
 
     // Reset checkboxes
     (document.getElementById('download-albums') as HTMLInputElement).checked = true;
@@ -2895,7 +3027,9 @@ function showDiscographyDownloadModal(artist: ArtistData & { eps?: TrackAlbum[] 
             selectedReleases = selectedReleases.concat((artist.eps || []).filter((a: TrackAlbum) => a.type === 'EP'));
         }
         if (includeSingles) {
-            selectedReleases = selectedReleases.concat((artist.eps || []).filter((a: TrackAlbum) => a.type === 'SINGLE'));
+            selectedReleases = selectedReleases.concat(
+                (artist.eps || []).filter((a: TrackAlbum) => a.type === 'SINGLE')
+            );
         }
 
         triggerBtn.disabled = true;

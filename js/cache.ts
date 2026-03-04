@@ -183,7 +183,8 @@ export class APICache {
                 const request: IDBRequest = index.openCursor(range);
 
                 request.onsuccess = (event: Event) => {
-                    const cursor: IDBCursorWithValue | null = (event.target as IDBRequest<IDBCursorWithValue | null>).result;
+                    const cursor: IDBCursorWithValue | null = (event.target as IDBRequest<IDBCursorWithValue | null>)
+                        .result;
                     if (cursor) {
                         cursor.delete();
                         cursor.continue();

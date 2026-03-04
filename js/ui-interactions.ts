@@ -61,7 +61,10 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
                 const folderId = folderCard.dataset.folderId;
 
                 if (playlistId && folderId) {
-                    const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId) as Record<string, unknown> & { playlists: string[] };
+                    const updatedFolder = (await db.addPlaylistToFolder(folderId, playlistId)) as Record<
+                        string,
+                        unknown
+                    > & { playlists: string[] };
                     syncManager.syncUserFolder(updatedFolder, 'update');
                     const subtitle = folderCard.querySelector('.card-subtitle');
                     if (subtitle) {
@@ -160,7 +163,7 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
         const addToPlaylistBtn = container.querySelector('#add-queue-to-playlist-btn');
         if (addToPlaylistBtn) {
             addToPlaylistBtn.addEventListener('click', async () => {
-                const playlists = await db.getPlaylists() as { id: string; name: string }[];
+                const playlists = (await db.getPlaylists()) as { id: string; name: string }[];
                 if (playlists.length === 0) {
                     showNotification('No playlists yet. Create one first.');
                     return;
@@ -212,7 +215,7 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
                                 addedCount++;
                             }
 
-                            const updatedPlaylist = await db.getPlaylist(playlistId!) as Record<string, unknown>;
+                            const updatedPlaylist = (await db.getPlaylist(playlistId!)) as Record<string, unknown>;
                             syncManager.syncUserPlaylist(updatedPlaylist, 'update');
 
                             showNotification(`Added ${addedCount} tracks to playlist: ${playlistName}`);
@@ -350,7 +353,9 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
                             likeItem.textContent = isLiked ? 'Unlike' : 'Like';
                         }
 
-                        const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]') as HTMLElement | null;
+                        const trackMixItem = contextMenu.querySelector(
+                            'li[data-action="track-mix"]'
+                        ) as HTMLElement | null;
                         if (trackMixItem) {
                             const hasMix = track.mixes && track.mixes.TRACK_MIX;
                             trackMixItem.style.display = hasMix ? 'block' : 'none';
@@ -427,7 +432,10 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
             const folderId = window.location.pathname.split('/')[2];
             if (playlistId && folderId) {
                 try {
-                    const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId) as Record<string, unknown>;
+                    const updatedFolder = (await db.addPlaylistToFolder(folderId, playlistId)) as Record<
+                        string,
+                        unknown
+                    >;
                     syncManager.syncUserFolder(updatedFolder, 'update');
                     window.dispatchEvent(new HashChangeEvent('hashchange'));
                     showNotification('Playlist added to folder');

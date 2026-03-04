@@ -115,7 +115,11 @@ export class LibreFmScrobbler {
         }
     }
 
-    async makeRequest(method: string, params: Record<string, string> = {}, requiresAuth: boolean = false): Promise<LibreFmApiResponse> {
+    async makeRequest(
+        method: string,
+        params: Record<string, string> = {},
+        requiresAuth: boolean = false
+    ): Promise<LibreFmApiResponse> {
         const requestParams: Record<string, string> = {
             method,
             api_key: this.API_KEY,

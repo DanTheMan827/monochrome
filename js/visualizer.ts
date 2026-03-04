@@ -24,10 +24,20 @@ interface VisualizerStats {
 interface VisualizerPreset {
     name?: string;
     contextType?: string;
-    draw(ctx: RenderingCtx, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, params: VisualizerStats): void;
+    draw(
+        ctx: RenderingCtx,
+        canvas: HTMLCanvasElement,
+        analyser: AnalyserNode,
+        dataArray: Uint8Array,
+        params: VisualizerStats
+    ): void;
     resize?(width: number, height: number): void;
     destroy?(): void;
-    lazyInit?(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: MediaElementAudioSourceNode | null): void;
+    lazyInit?(
+        canvas: HTMLCanvasElement,
+        audioContext: AudioContext,
+        sourceNode: MediaElementAudioSourceNode | null
+    ): void;
 }
 
 export class Visualizer {
@@ -302,7 +312,8 @@ export class Visualizer {
         stats.sensitivity = sensitivity;
 
         // ===== COLORS (CACHED) =====
-        const color: string = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#ffffff';
+        const color: string =
+            getComputedStyle(document.documentElement).getPropertyValue('--primary').trim() || '#ffffff';
 
         if (color !== this._lastPrimaryColor) {
             stats.primaryColor = color;

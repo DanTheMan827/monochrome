@@ -118,7 +118,9 @@ export function createRouter(ui: RouterUI): () => Promise<void> {
                 if (param) {
                     const unreleasedParts: string[] = param.split('/');
                     const sheetId: string = unreleasedParts[0];
-                    const projectName: string | null = unreleasedParts[1] ? decodeURIComponent(unreleasedParts[1]) : null;
+                    const projectName: string | null = unreleasedParts[1]
+                        ? decodeURIComponent(unreleasedParts[1])
+                        : null;
                     if (projectName) {
                         await ui.renderTrackerProjectPage(sheetId, projectName);
                     } else {

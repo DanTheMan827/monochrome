@@ -166,7 +166,10 @@ export class QobuzAPI {
     }
 
     // Search tracks
-    async searchTracks(query: string, options: QobuzSearchOptions = {}): Promise<QobuzPaginatedResult<QobuzTransformedTrack>> {
+    async searchTracks(
+        query: string,
+        options: QobuzSearchOptions = {}
+    ): Promise<QobuzPaginatedResult<QobuzTransformedTrack>> {
         try {
             const offset = options.offset || 0;
             const limit = options.limit || 10;
@@ -194,7 +197,10 @@ export class QobuzAPI {
     }
 
     // Search albums
-    async searchAlbums(query: string, options: QobuzSearchOptions = {}): Promise<QobuzPaginatedResult<QobuzTransformedAlbum>> {
+    async searchAlbums(
+        query: string,
+        options: QobuzSearchOptions = {}
+    ): Promise<QobuzPaginatedResult<QobuzTransformedAlbum>> {
         try {
             const offset = options.offset || 0;
             const limit = options.limit || 10;
@@ -222,7 +228,10 @@ export class QobuzAPI {
     }
 
     // Search artists
-    async searchArtists(query: string, options: QobuzSearchOptions = {}): Promise<QobuzPaginatedResult<QobuzTransformedArtist>> {
+    async searchArtists(
+        query: string,
+        options: QobuzSearchOptions = {}
+    ): Promise<QobuzPaginatedResult<QobuzTransformedArtist>> {
         try {
             const offset = options.offset || 0;
             const limit = options.limit || 10;
@@ -234,7 +243,9 @@ export class QobuzAPI {
                 return { items: [], limit: 0, offset: 0, totalNumberOfItems: 0 };
             }
 
-            const artists = (data.data.artists?.items || []).map((artist: QobuzRawArtist) => this.transformArtist(artist));
+            const artists = (data.data.artists?.items || []).map((artist: QobuzRawArtist) =>
+                this.transformArtist(artist)
+            );
 
             return {
                 items: artists,
@@ -267,7 +278,9 @@ export class QobuzAPI {
             }
 
             const album = this.transformAlbum(data.data as QobuzRawAlbum);
-            const tracks = (data.data.tracks?.items || []).map((track: QobuzRawTrack) => this.transformTrack(track, data.data as QobuzRawAlbum));
+            const tracks = (data.data.tracks?.items || []).map((track: QobuzRawTrack) =>
+                this.transformTrack(track, data.data as QobuzRawAlbum)
+            );
 
             return { album, tracks };
         } catch (error: unknown) {
@@ -297,12 +310,16 @@ export class QobuzAPI {
             let eps: QobuzTransformedAlbum[] = [];
             if (Array.isArray(artistData.data.releases)) {
                 // Find album releases
-                const albumReleases = (artistData.data.releases as QobuzReleaseGroup[]).find((r: QobuzReleaseGroup) => r.type === 'album');
+                const albumReleases = (artistData.data.releases as QobuzReleaseGroup[]).find(
+                    (r: QobuzReleaseGroup) => r.type === 'album'
+                );
                 if (albumReleases?.items) {
                     albums = albumReleases.items.map((album: QobuzRawAlbum) => this.transformAlbum(album));
                 }
                 // Find EP/single releases
-                const epReleases = (artistData.data.releases as QobuzReleaseGroup[]).find((r: QobuzReleaseGroup) => r.type === 'epSingle');
+                const epReleases = (artistData.data.releases as QobuzReleaseGroup[]).find(
+                    (r: QobuzReleaseGroup) => r.type === 'epSingle'
+                );
                 if (epReleases?.items) {
                     eps = epReleases.items.map((album: QobuzRawAlbum) => this.transformAlbum(album));
                 }
@@ -311,7 +328,9 @@ export class QobuzAPI {
             // Get top tracks
             let tracks: QobuzTransformedTrack[] = [];
             if (Array.isArray(artistData.data.top_tracks)) {
-                tracks = (artistData.data.top_tracks as QobuzRawTrack[]).map((track: QobuzRawTrack) => this.transformTrack(track));
+                tracks = (artistData.data.top_tracks as QobuzRawTrack[]).map((track: QobuzRawTrack) =>
+                    this.transformTrack(track)
+                );
             }
 
             return { ...artist, albums, eps, tracks };
@@ -496,7 +515,9 @@ export class QobuzAPI {
 
             const tracks = (data.data.tracks?.items || []).map((track: QobuzRawTrack) => this.transformTrack(track));
             const albums = (data.data.albums?.items || []).map((album: QobuzRawAlbum) => this.transformAlbum(album));
-            const artists = (data.data.artists?.items || []).map((artist: QobuzRawArtist) => this.transformArtist(artist));
+            const artists = (data.data.artists?.items || []).map((artist: QobuzRawArtist) =>
+                this.transformArtist(artist)
+            );
 
             return {
                 tracks: {

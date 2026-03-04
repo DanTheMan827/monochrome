@@ -94,7 +94,12 @@ function getFullArtistString(track: TrackData): string | null {
  * @param {string} quality - Audio quality
  * @returns {Promise<Blob>} - Audio blob with embedded metadata
  */
-export async function addMetadataToAudio(audioBlob: Blob, track: TrackData, api: CoverApi, _quality: string): Promise<Blob> {
+export async function addMetadataToAudio(
+    audioBlob: Blob,
+    track: TrackData,
+    api: CoverApi,
+    _quality: string
+): Promise<Blob> {
     // Always check actual file signature, not just quality setting
     // DASH Hi-Res streams may return fragmented MP4 instead of raw FLAC
     const buffer = await audioBlob.slice(0, 12).arrayBuffer();
@@ -213,7 +218,9 @@ async function readFlacMetadata(file: File, metadata: LocalTrackMetadata): Promi
     }
 
     if (artists.length > 0) {
-        metadata.artists = artists.flatMap((a: string) => a.split(/; |\/|\\/)).map((name: string) => ({ name: name.trim() }));
+        metadata.artists = artists
+            .flatMap((a: string) => a.split(/; |\/|\\/))
+            .map((name: string) => ({ name: name.trim() }));
     }
 
     if (pictureBlock) {
@@ -801,7 +808,12 @@ async function createFlacPictureBlock(coverId: string, api: CoverApi): Promise<U
     }
 }
 
-function rebuildFlacWithMetadata(dataView: DataView, blocks: FlacBlockList, vorbisCommentBlock: Uint8Array, pictureBlock: Uint8Array | null): Uint8Array {
+function rebuildFlacWithMetadata(
+    dataView: DataView,
+    blocks: FlacBlockList,
+    vorbisCommentBlock: Uint8Array,
+    pictureBlock: Uint8Array | null
+): Uint8Array {
     const originalArray = new Uint8Array(dataView.buffer);
 
     // Remove old Vorbis comment and picture blocks
@@ -1086,7 +1098,9 @@ function rebuildMp4WithMetadata(dataView: DataView, atoms: Mp4Atom[], metadataAt
     // A robust implementation would parse moov children, remove existing udta, and add new one.
 
     // Let's try to do it right: parse moov children
-    const moovChildren: Mp4Atom[] = parseMp4Atoms(new DataView(originalArray.buffer, moovAtom.offset + 8, moovAtom.size - 8));
+    const moovChildren: Mp4Atom[] = parseMp4Atoms(
+        new DataView(originalArray.buffer, moovAtom.offset + 8, moovAtom.size - 8)
+    );
 
     // Filter out existing udta to replace it
     const filteredMoovChildren: Mp4Atom[] = moovChildren.filter((a: Mp4Atom) => a.type !== 'udta');

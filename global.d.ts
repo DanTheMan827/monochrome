@@ -86,9 +86,7 @@ declare module 'https://cdn.jsdelivr.net/npm/client-zip@2.4.5/+esm' {
         name: string;
         input: Blob | ReadableStream | ArrayBuffer | string;
     }
-    export function downloadZip(
-        files: Iterable<ZipInput> | AsyncIterable<ZipInput>
-    ): Response;
+    export function downloadZip(files: Iterable<ZipInput> | AsyncIterable<ZipInput>): Response;
 }
 
 // Butterchurn & presets

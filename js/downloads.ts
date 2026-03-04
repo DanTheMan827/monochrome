@@ -20,15 +20,32 @@ import { ffmpeg } from './ffmpeg.ts';
 
 interface DownloadAPI {
     getTrackMetadata(id: string | number): Promise<TrackData>;
-    getTrack(id: string | number, quality: string): Promise<{ originalTrackUrl?: string; info: { manifest: string; trackReplayGain?: unknown; trackPeakAmplitude?: unknown; albumReplayGain?: unknown; albumPeakAmplitude?: unknown } }>;
+    getTrack(
+        id: string | number,
+        quality: string
+    ): Promise<{
+        originalTrackUrl?: string;
+        info: {
+            manifest: string;
+            trackReplayGain?: unknown;
+            trackPeakAmplitude?: unknown;
+            albumReplayGain?: unknown;
+            albumPeakAmplitude?: unknown;
+        };
+    }>;
     extractStreamUrlFromManifest(manifest: string): string | null;
     getCoverUrl(coverId: string | undefined, size?: string): string;
     getAlbum(id: string | number): Promise<{ album: TrackAlbum; tracks: TrackData[] }>;
-    downloadTrack(id: string | number, quality: string, filename: string, options: {
-        signal: AbortSignal;
-        track: TrackData;
-        onProgress: (progress: DownloadProgress) => void;
-    }): Promise<void>;
+    downloadTrack(
+        id: string | number,
+        quality: string,
+        filename: string,
+        options: {
+            signal: AbortSignal;
+            track: TrackData;
+            onProgress: (progress: DownloadProgress) => void;
+        }
+    ): Promise<void>;
 }
 
 interface LyricsManager {
@@ -147,7 +164,12 @@ function getDiscFolderName(discNumber: number): string {
     return `Disc ${discNumber}`;
 }
 
-function buildZipTrackPath(rootFolder: string, filename: string, separateByDisc: boolean, discNumber: number = 1): string {
+function buildZipTrackPath(
+    rootFolder: string,
+    filename: string,
+    separateByDisc: boolean,
+    discNumber: number = 1
+): string {
     if (!separateByDisc) return `${rootFolder}/${filename}`;
     return `${rootFolder}/${getDiscFolderName(discNumber)}/${filename}`;
 }
@@ -186,7 +208,13 @@ export function showNotification(message: string): void {
     }, 1500);
 }
 
-export function addDownloadTask(trackId: string | number, track: TrackData, filename: string, api: DownloadAPI, abortController: AbortController) {
+export function addDownloadTask(
+    trackId: string | number,
+    track: TrackData,
+    filename: string,
+    api: DownloadAPI,
+    abortController: AbortController
+) {
     const container = createDownloadNotification();
 
     const taskEl = document.createElement('div');
@@ -244,7 +272,11 @@ export function updateDownloadProgress(trackId: string | number, progress: Downl
     }
 }
 
-export function completeDownloadTask(trackId: string | number, success: boolean = true, message: string | null = null): void {
+export function completeDownloadTask(
+    trackId: string | number,
+    success: boolean = true,
+    message: string | null = null
+): void {
     const task = downloadTasks.get(trackId);
     if (!task) return;
 
@@ -309,7 +341,13 @@ function removeBulkDownloadTask(notifEl: HTMLElement): void {
     }, 300);
 }
 
-async function downloadTrackBlob(track: TrackData, quality: string, api: DownloadAPI, lyricsManager: LyricsManager | null = null, signal: AbortSignal | null = null): Promise<{ blob: Blob; extension: string }> {
+async function downloadTrackBlob(
+    track: TrackData,
+    quality: string,
+    api: DownloadAPI,
+    lyricsManager: LyricsManager | null = null,
+    signal: AbortSignal | null = null
+): Promise<{ blob: Blob; extension: string }> {
     let enrichedTrack: TrackData = {
         ...track,
         artist: track.artist || (track.artists && track.artists.length > 0 ? track.artists[0] : undefined),
@@ -326,8 +364,8 @@ async function downloadTrackBlob(track: TrackData, quality: string, api: Downloa
                 ...enrichedTrack,
                 artist: enrichedTrack.artist || fullTrack.artist,
                 album: {
-                    ...(fullTrack.album || {} as TrackAlbum),
-                    ...(enrichedTrack.album || {} as TrackAlbum),
+                    ...(fullTrack.album || ({} as TrackAlbum)),
+                    ...(enrichedTrack.album || ({} as TrackAlbum)),
                 } as TrackAlbum,
                 // Preserve explicit disc fields from either source
                 discNumber: enrichedTrack.discNumber ?? fullTrack.discNumber,
@@ -458,7 +496,13 @@ function triggerDownload(blob: Blob, filename: string): void {
     URL.revokeObjectURL(url);
 }
 
-async function bulkDownloadSequentially(tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null, notification: HTMLElement): Promise<void> {
+async function bulkDownloadSequentially(
+    tracks: TrackData[],
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null,
+    notification: HTMLElement
+): Promise<void> {
     const { abortController } = bulkDownloadTasks.get(notification)!;
     const signal = abortController.signal;
 
@@ -526,7 +570,8 @@ async function bulkDownloadToZipStream(
         const discLayout = await createDiscLayoutContext(tracks, api);
         const separateByDisc = discLayout.separateByDisc;
         const playlistPathResolver = separateByDisc
-            ? (_track: TrackData, filename: string, index: number) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
+            ? (_track: TrackData, filename: string, index: number) =>
+                  `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
             : null;
 
         if (playlistSettings.shouldGenerateM3U()) {
@@ -668,7 +713,8 @@ async function bulkDownloadToZipBlob(
         const discLayout = await createDiscLayoutContext(tracks, api);
         const separateByDisc = discLayout.separateByDisc;
         const playlistPathResolver = separateByDisc
-            ? (_track: TrackData, filename: string, index: number) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
+            ? (_track: TrackData, filename: string, index: number) =>
+                  `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
             : null;
 
         if (playlistSettings.shouldGenerateM3U()) {
@@ -811,7 +857,8 @@ async function bulkDownloadToZipNeutralino(
         const discLayout = await createDiscLayoutContext(tracks, api);
         const separateByDisc = discLayout.separateByDisc;
         const playlistPathResolver = separateByDisc
-            ? (_track: TrackData, filename: string, index: number) => `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
+            ? (_track: TrackData, filename: string, index: number) =>
+                  `${getDiscFolderName(discLayout.resolveDiscNumber(index))}/${filename}`
             : null;
 
         if (playlistSettings.shouldGenerateM3U()) {
@@ -921,10 +968,10 @@ async function bulkDownloadToZipNeutralino(
         const bridge = await import('./desktop/neutralino-bridge.ts');
 
         // Native Save Dialog via Bridge
-        const savePath = await bridge.os.showSaveDialog(`Select save location for ${folderName}.zip`, {
+        const savePath = (await bridge.os.showSaveDialog(`Select save location for ${folderName}.zip`, {
             defaultPath: `${folderName}.zip`,
             filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
-        }) as string | null;
+        })) as string | null;
 
         if (!savePath) {
             // Cancelled
@@ -1055,14 +1102,25 @@ async function startBulkDownload(
     }
 }
 
-export async function downloadTracks(tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
+export async function downloadTracks(
+    tracks: TrackData[],
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null = null
+): Promise<void> {
     const folderName = `Queue - ${new Date().toISOString().slice(0, 10)}`;
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'queue', 'Queue', null, {
         title: 'Queue',
     });
 }
 
-export async function downloadAlbumAsZip(album: TrackAlbum, tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
+export async function downloadAlbumAsZip(
+    album: TrackAlbum,
+    tracks: TrackData[],
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null = null
+): Promise<void> {
     const releaseDateStr =
         album.releaseDate || (tracks[0]?.streamStartDate ? tracks[0].streamStartDate.split('T')[0] : '');
     const releaseDate = releaseDateStr ? new Date(releaseDateStr) : null;
@@ -1074,11 +1132,22 @@ export async function downloadAlbumAsZip(album: TrackAlbum, tracks: TrackData[],
         year: String(year),
     });
 
-    const coverBlob = await getCoverBlob(api, album.cover || ((album as unknown as Record<string, unknown>).album as TrackAlbum)?.cover || (album as unknown as Record<string, unknown>).coverId as string | undefined);
+    const coverBlob = await getCoverBlob(
+        api,
+        album.cover ||
+            ((album as unknown as Record<string, unknown>).album as TrackAlbum)?.cover ||
+            ((album as unknown as Record<string, unknown>).coverId as string | undefined)
+    );
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'album', album.title, coverBlob, album);
 }
 
-export async function downloadPlaylistAsZip(playlist: PlaylistData, tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
+export async function downloadPlaylistAsZip(
+    playlist: PlaylistData,
+    tracks: TrackData[],
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null = null
+): Promise<void> {
     const folderName = formatTemplate(localStorage.getItem('zip-folder-template') || '{albumTitle} - {albumArtist}', {
         albumTitle: playlist.title,
         albumArtist: 'Playlist',
@@ -1100,7 +1169,13 @@ export async function downloadPlaylistAsZip(playlist: PlaylistData, tracks: Trac
     );
 }
 
-export async function downloadDiscography(artist: ArtistData, selectedReleases: TrackAlbum[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
+export async function downloadDiscography(
+    artist: ArtistData,
+    selectedReleases: TrackAlbum[],
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null = null
+): Promise<void> {
     const rootFolder = `${sanitizeForFilename(artist.name)} discography`;
     const notification = createBulkDownloadNotification('discography', artist.name, selectedReleases.length);
     const { abortController } = bulkDownloadTasks.get(notification)!;
@@ -1379,7 +1454,13 @@ function completeBulkDownload(notifEl: HTMLElement, success: boolean = true, mes
     }
 }
 
-export async function downloadTrackWithMetadata(track: TrackData | null, quality: string, api: DownloadAPI, lyricsManager: LyricsManager | null = null, abortController: AbortController | null = null): Promise<void> {
+export async function downloadTrackWithMetadata(
+    track: TrackData | null,
+    quality: string,
+    api: DownloadAPI,
+    lyricsManager: LyricsManager | null = null,
+    abortController: AbortController | null = null
+): Promise<void> {
     if (!track) {
         alert('No track is currently playing');
         return;
@@ -1404,8 +1485,8 @@ export async function downloadTrackWithMetadata(track: TrackData | null, quality
                 ...enrichedTrack,
                 artist: enrichedTrack.artist || fullTrack.artist,
                 album: {
-                    ...(fullTrack.album || {} as TrackAlbum),
-                    ...(enrichedTrack.album || {} as TrackAlbum),
+                    ...(fullTrack.album || ({} as TrackAlbum)),
+                    ...(enrichedTrack.album || ({} as TrackAlbum)),
                 } as TrackAlbum,
                 discNumber: enrichedTrack.discNumber ?? fullTrack.discNumber,
                 volumeNumber: enrichedTrack.volumeNumber ?? fullTrack.volumeNumber,
@@ -1460,7 +1541,9 @@ export async function downloadTrackWithMetadata(track: TrackData | null, quality
     } catch (error: unknown) {
         if ((error as Error).name !== 'AbortError') {
             const errorMsg =
-                (error as Error).message === RATE_LIMIT_ERROR_MESSAGE ? (error as Error).message : 'Download failed. Please try again.';
+                (error as Error).message === RATE_LIMIT_ERROR_MESSAGE
+                    ? (error as Error).message
+                    : 'Download failed. Please try again.';
             completeDownloadTask(track.id, false, errorMsg);
         }
     } finally {
@@ -1468,7 +1551,12 @@ export async function downloadTrackWithMetadata(track: TrackData | null, quality
     }
 }
 
-export async function downloadLikedTracks(tracks: TrackData[], api: DownloadAPI, quality: string, lyricsManager: LyricsManager | null = null): Promise<void> {
+export async function downloadLikedTracks(
+    tracks: TrackData[],
+    api: DownloadAPI,
+    quality: string,
+    lyricsManager: LyricsManager | null = null
+): Promise<void> {
     const folderName = `Liked Tracks - ${new Date().toISOString().slice(0, 10)}`;
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'liked', 'Liked Tracks');
 }

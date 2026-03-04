@@ -218,14 +218,20 @@ export function trackDeletePlaylist(playlistName: string): void {
     trackEvent('Delete Playlist', { playlist_name: playlistName });
 }
 
-export function trackAddToPlaylist(track: TrackData | null | undefined, playlist: PlaylistData | null | undefined): void {
+export function trackAddToPlaylist(
+    track: TrackData | null | undefined,
+    playlist: PlaylistData | null | undefined
+): void {
     trackEvent('Add to Playlist', {
         track_title: track?.title || 'Unknown',
         playlist_name: playlist?.name || 'Unknown',
     });
 }
 
-export function trackRemoveFromPlaylist(track: TrackData | null | undefined, playlist: PlaylistData | null | undefined): void {
+export function trackRemoveFromPlaylist(
+    track: TrackData | null | undefined,
+    playlist: PlaylistData | null | undefined
+): void {
     trackEvent('Remove from Playlist', {
         track_title: track?.title || 'Unknown',
         playlist_name: playlist?.name || 'Unknown',
@@ -315,7 +321,10 @@ export function trackDownloadLikedTracks(count: number, quality: string): void {
     });
 }
 
-export function trackDownloadDiscography(artist: ArtistData | null | undefined, selection: { includeAlbums?: boolean; includeEPs?: boolean; includeSingles?: boolean } | null | undefined): void {
+export function trackDownloadDiscography(
+    artist: ArtistData | null | undefined,
+    selection: { includeAlbums?: boolean; includeEPs?: boolean; includeSingles?: boolean } | null | undefined
+): void {
     trackEvent('Download Discography', {
         artist_id: artist?.id || 'unknown',
         artist_name: artist?.name || 'Unknown',
@@ -356,7 +365,11 @@ export function trackShuffleQueue(): void {
 }
 
 // Context Menu Actions
-export function trackContextMenuAction(action: string, itemType: string, item: { title?: string; name?: string } | null | undefined): void {
+export function trackContextMenuAction(
+    action: string,
+    itemType: string,
+    item: { title?: string; name?: string } | null | undefined
+): void {
     trackEvent('Context Menu Action', {
         action,
         item_type: itemType,

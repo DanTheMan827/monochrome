@@ -60,8 +60,11 @@ export class ThemeStore {
         tabs?.forEach((tab: Element) => {
             tab.addEventListener('click', () => {
                 tabs.forEach((t: Element) => t.classList.remove('active'));
-                this.modal?.querySelectorAll('.search-tab-content').forEach((c: Element) => c.classList.remove('active'));
-                const contentId = (tab as HTMLElement).dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
+                this.modal
+                    ?.querySelectorAll('.search-tab-content')
+                    .forEach((c: Element) => c.classList.remove('active'));
+                const contentId =
+                    (tab as HTMLElement).dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
                 document.getElementById(contentId)?.classList.add('active');
                 if ((tab as HTMLElement).dataset.tab === 'upload') {
                     this.checkAuth();
@@ -405,7 +408,10 @@ export class ThemeStore {
             id: themeObj.id,
             name: themeObj.name,
             author:
-                themeObj.authorName || themeObj.expand?.author?.username || themeObj.expand?.author?.display_name || 'Unknown',
+                themeObj.authorName ||
+                themeObj.expand?.author?.username ||
+                themeObj.expand?.author?.display_name ||
+                'Unknown',
         };
         localStorage.setItem('community-theme', JSON.stringify(metadata));
 
@@ -643,7 +649,8 @@ export class ThemeStore {
         if (uploadTab) (uploadTab as HTMLElement).click();
 
         (document.getElementById('theme-upload-name') as HTMLInputElement).value = theme.name ?? '';
-        (document.getElementById('theme-upload-desc') as HTMLTextAreaElement).value = (theme as unknown as { description?: string }).description || '';
+        (document.getElementById('theme-upload-desc') as HTMLTextAreaElement).value =
+            (theme as unknown as { description?: string }).description || '';
         (document.getElementById('theme-upload-website') as HTMLInputElement).value = theme.authorUrl || '';
         (document.getElementById('theme-upload-css') as HTMLTextAreaElement).value = theme.css;
 

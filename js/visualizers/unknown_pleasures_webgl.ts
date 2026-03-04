@@ -203,11 +203,7 @@ export class UnknownPleasuresWebGL {
 
         this.quadBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
-        gl.bufferData(
-            gl.ARRAY_BUFFER,
-            new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]),
-            gl.STATIC_DRAW
-        );
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 
         this.lineBuffer = gl.createBuffer();
 
@@ -531,7 +527,14 @@ export class UnknownPleasuresWebGL {
         this._paletteColor = color;
     }
 
-    _generateLineQuads(points: Point[], thickness: number, width: number, height: number, outBuffer: Float32Array, offset: number): number {
+    _generateLineQuads(
+        points: Point[],
+        thickness: number,
+        width: number,
+        height: number,
+        outBuffer: Float32Array,
+        offset: number
+    ): number {
         if (points.length < 2) return 0;
 
         const n = points.length;
@@ -651,7 +654,13 @@ export class UnknownPleasuresWebGL {
         return ptr - offset;
     }
 
-    draw(ctx: WebGLRenderingContext, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, params: UPDrawParams): void {
+    draw(
+        ctx: WebGLRenderingContext,
+        canvas: HTMLCanvasElement,
+        analyser: AnalyserNode,
+        dataArray: Uint8Array,
+        params: UPDrawParams
+    ): void {
         const gl = ctx;
         const { width, height } = canvas;
         const isDark = document.documentElement.getAttribute('data-theme') !== 'white';

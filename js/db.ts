@@ -151,7 +151,11 @@ export class MusicDatabase {
     }
 
     // Generic Helper
-    async performTransaction<T = unknown>(storeName: string, mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest | void): Promise<T | undefined> {
+    async performTransaction<T = unknown>(
+        storeName: string,
+        mode: IDBTransactionMode,
+        callback: (store: IDBObjectStore) => IDBRequest | void
+    ): Promise<T | undefined> {
         const db = await this.open();
         return new Promise<T | undefined>((resolve, reject) => {
             const transaction = db.transaction(storeName, mode);
@@ -306,7 +310,11 @@ export class MusicDatabase {
                 explicit: item.explicit || false,
                 // Keep minimal artist info
                 artist: item.artist || (item.artists && item.artists.length > 0 ? item.artists[0] : null) || null,
-                artists: item.artists?.map((a: { id: string | number; name?: string | null }) => ({ id: a.id, name: a.name || null })) || [],
+                artists:
+                    item.artists?.map((a: { id: string | number; name?: string | null }) => ({
+                        id: a.id,
+                        name: a.name || null,
+                    })) || [],
                 // Keep minimal album info
                 album: item.album
                     ? {
@@ -396,7 +404,10 @@ export class MusicDatabase {
         if (!item) return null;
 
         const id = item.id || item.uuid;
-        let name: string | null | undefined, cover: string | null | undefined, href: string, images: string[] | undefined;
+        let name: string | null | undefined,
+            cover: string | null | undefined,
+            href: string,
+            images: string[] | undefined;
 
         switch (type) {
             case 'album':
@@ -448,8 +459,12 @@ export class MusicDatabase {
         } else {
             const allPinned = await this.getPinned();
             if (allPinned.length >= 3) {
-                const oldest = allPinned.sort((a: PinnedRecord, b: PinnedRecord) => (a.pinnedAt ?? 0) - (b.pinnedAt ?? 0))[0];
-                await this.performTransaction(storeName, 'readwrite', (store) => store.delete(oldest.id as IDBValidKey));
+                const oldest = allPinned.sort(
+                    (a: PinnedRecord, b: PinnedRecord) => (a.pinnedAt ?? 0) - (b.pinnedAt ?? 0)
+                )[0];
+                await this.performTransaction(storeName, 'readwrite', (store) =>
+                    store.delete(oldest.id as IDBValidKey)
+                );
             }
             const entry: PinnedRecord = { ...minifiedItem, pinnedAt: Date.now() };
             await this.performTransaction(storeName, 'readwrite', (store) => store.put(entry));
@@ -493,7 +508,10 @@ export class MusicDatabase {
     async importData(data: ImportDataShape, clear = false): Promise<boolean> {
         const db = await this.open();
 
-        const importStore = async (storeName: string, items: DBRecord[] | Record<string, DBRecord> | undefined): Promise<boolean> => {
+        const importStore = async (
+            storeName: string,
+            items: DBRecord[] | Record<string, DBRecord> | undefined
+        ): Promise<boolean> => {
             if (items === undefined) return false;
 
             const itemsArray: DBRecord[] = Array.isArray(items) ? items : Object.values(items || {});
@@ -551,7 +569,11 @@ export class MusicDatabase {
                         console.warn(`Item missing keyPath "${keyPath}" in ${storeName}, generating fallback.`);
                         if (keyPath === 'uuid') item.uuid = crypto.randomUUID();
                         else if (keyPath === 'id')
-                            item.id = (item.trackId as string | number) || (item.albumId as string | number) || (item.artistId as string | number) || Date.now() + Math.random();
+                            item.id =
+                                (item.trackId as string | number) ||
+                                (item.albumId as string | number) ||
+                                (item.artistId as string | number) ||
+                                Date.now() + Math.random();
                         else if (keyPath === 'timestamp') item.timestamp = Date.now() + Math.random();
                     }
 
@@ -648,7 +670,9 @@ export class MusicDatabase {
     }
 
     async addTrackToPlaylist(playlistId: string, track: DBRecord): Promise<DBRecord | undefined> {
-        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) =>
+            store.get(playlistId)
+        );
         if (!playlist) throw new Error('Playlist not found');
         playlist.tracks = playlist.tracks || [];
         const trackWithDate: DBRecord = { ...track, addedAt: Date.now() };
@@ -665,7 +689,9 @@ export class MusicDatabase {
     }
 
     async addTracksToPlaylist(playlistId: string, tracks: DBRecord[]): Promise<DBRecord | undefined> {
-        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) =>
+            store.get(playlistId)
+        );
         if (!playlist) throw new Error('Playlist not found');
         playlist.tracks = playlist.tracks || [];
 
@@ -689,7 +715,9 @@ export class MusicDatabase {
     }
 
     async removeTrackFromPlaylist(playlistId: string, trackId: string | number): Promise<DBRecord | undefined> {
-        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) =>
+            store.get(playlistId)
+        );
         if (!playlist) throw new Error('Playlist not found');
         playlist.tracks = playlist.tracks || [];
         playlist.tracks = playlist.tracks.filter((t: DBRecord) => t.id != trackId);
@@ -837,7 +865,9 @@ export class MusicDatabase {
     }
 
     async updatePlaylistName(playlistId: string, newName: string): Promise<DBRecord | undefined> {
-        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) =>
+            store.get(playlistId)
+        );
         if (!playlist) throw new Error('Playlist not found');
         playlist.name = newName;
         playlist.updatedAt = Date.now();
@@ -846,7 +876,9 @@ export class MusicDatabase {
     }
 
     async updatePlaylistDescription(playlistId: string, newDescription: string): Promise<DBRecord | undefined> {
-        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) => store.get(playlistId));
+        const playlist = await this.performTransaction<DBRecord>('user_playlists', 'readonly', (store) =>
+            store.get(playlistId)
+        );
         if (!playlist) throw new Error('Playlist not found');
         playlist.description = newDescription;
         playlist.updatedAt = Date.now();

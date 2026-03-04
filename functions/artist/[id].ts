@@ -34,9 +34,10 @@ class ServerAPI extends BaseServerAPI {
 export async function onRequest(context: CFContext): Promise<Response> {
     const { request, params, env } = context;
     const userAgent: string = request.headers.get('User-Agent') || '';
-    const isBot: boolean = /discordbot|twitterbot|facebookexternalhit|bingbot|googlebot|slurp|whatsapp|pinterest|slackbot/i.test(
-        userAgent
-    );
+    const isBot: boolean =
+        /discordbot|twitterbot|facebookexternalhit|bingbot|googlebot|slurp|whatsapp|pinterest|slackbot/i.test(
+            userAgent
+        );
     const artistId: string = params.id;
 
     if (isBot && artistId) {

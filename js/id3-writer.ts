@@ -17,7 +17,8 @@ async function writeID3v2Tag(mp3Blob: Blob, metadata: TrackData, coverBlob: Blob
         frames.push(createTextFrame('TALB', metadata.album.title));
     }
 
-    const albumArtistName: string | undefined = metadata.album?.artist?.name || metadata.artist?.name || metadata.artists?.[0]?.name;
+    const albumArtistName: string | undefined =
+        metadata.album?.artist?.name || metadata.artist?.name || metadata.artists?.[0]?.name;
     if (albumArtistName) {
         frames.push(createTextFrame('TPE2', albumArtistName));
     }

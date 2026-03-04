@@ -209,7 +209,12 @@ export class ButterchurnPreset {
     /**
      * Initialize Butterchurn with the given WebGL context
      */
-    init(canvas: HTMLCanvasElement, _gl: WebGLRenderingContext | WebGL2RenderingContext, audioContext: AudioContext, sourceNode: AudioNode | null): void {
+    init(
+        canvas: HTMLCanvasElement,
+        _gl: WebGLRenderingContext | WebGL2RenderingContext,
+        audioContext: AudioContext,
+        sourceNode: AudioNode | null
+    ): void {
         if (this.isInitialized) return;
 
         try {
@@ -436,7 +441,13 @@ export class ButterchurnPreset {
     /**
      * Main draw function called each animation frame
      */
-    draw(_ctx: WebGLRenderingContext | WebGL2RenderingContext | null, canvas: HTMLCanvasElement, _analyser: AnalyserNode, _dataArray: Uint8Array, params: { mode: string }): void {
+    draw(
+        _ctx: WebGLRenderingContext | WebGL2RenderingContext | null,
+        canvas: HTMLCanvasElement,
+        _analyser: AnalyserNode,
+        _dataArray: Uint8Array,
+        params: { mode: string }
+    ): void {
         if (!this.isInitialized) {
             return;
         }

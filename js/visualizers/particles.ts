@@ -34,7 +34,13 @@ export class ParticlesPreset {
         // No cleanup needed
     }
 
-    draw(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, _analyser: AnalyserNode, _dataArray: Uint8Array, params: DrawParams): void {
+    draw(
+        ctx: CanvasRenderingContext2D,
+        canvas: HTMLCanvasElement,
+        _analyser: AnalyserNode,
+        _dataArray: Uint8Array,
+        params: DrawParams
+    ): void {
         const { width, height } = canvas;
         const { kick, intensity, primaryColor, mode } = params;
         const sensitivity: number = params.sensitivity || 1.0;

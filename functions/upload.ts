@@ -180,7 +180,11 @@ async function handleSingle(uploadUrl: string, fileBuffer: ArrayBuffer, fileType
 /* ================= MULTIPART UPLOAD =================== */
 /* ===================================================== */
 
-async function handleMultipart(fileInfo: FileInfo, fileBuffer: ArrayBuffer, sessionCookie: string): Promise<CompleteResponse> {
+async function handleMultipart(
+    fileInfo: FileInfo,
+    fileBuffer: ArrayBuffer,
+    sessionCookie: string
+): Promise<CompleteResponse> {
     const { partUrls, partSize, uploadId, fileId } = fileInfo;
 
     if (!partUrls || !uploadId) {

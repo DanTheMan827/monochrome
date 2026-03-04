@@ -18,7 +18,13 @@ export class SidePanelManager {
         this.currentView = null;
     }
 
-    open(view: SidePanelView, title: string, renderControlsCallback: RenderCallback | null, renderContentCallback: RenderCallback | null, forceOpen: boolean = false): void {
+    open(
+        view: SidePanelView,
+        title: string,
+        renderControlsCallback: RenderCallback | null,
+        renderContentCallback: RenderCallback | null,
+        forceOpen: boolean = false
+    ): void {
         // If clicking the same view that is already open, close it
         if (!forceOpen && this.currentView === view && this.panel.classList.contains('active')) {
             this.close();
@@ -48,7 +54,9 @@ export class SidePanelManager {
                 trackCloseQueue();
             } else if (this.currentView === 'lyrics') {
                 // Get current track from audio player context
-                const audioPlayer = document.getElementById('audio-player') as HTMLElement & { _currentTrack?: TrackData } | null;
+                const audioPlayer = document.getElementById('audio-player') as
+                    | (HTMLElement & { _currentTrack?: TrackData })
+                    | null;
                 if (audioPlayer && audioPlayer._currentTrack) {
                     trackCloseLyrics(audioPlayer._currentTrack);
                 }
@@ -70,7 +78,11 @@ export class SidePanelManager {
         return this.currentView === view && this.panel.classList.contains('active');
     }
 
-    refresh(view: SidePanelView, renderControlsCallback: RenderCallback | null, renderContentCallback: RenderCallback | null): void {
+    refresh(
+        view: SidePanelView,
+        renderControlsCallback: RenderCallback | null,
+        renderContentCallback: RenderCallback | null
+    ): void {
         if (this.isActive(view)) {
             if (renderControlsCallback) {
                 this.controlsElement.innerHTML = '';

@@ -130,7 +130,9 @@ export class Player {
     }
 
     private getVideoCoverUrl(videoCoverId: string): string | null {
-        return (this.api as MusicAPI & { tidalAPI: { getVideoCoverUrl(id: string): string | null } }).tidalAPI.getVideoCoverUrl(videoCoverId);
+        return (
+            this.api as MusicAPI & { tidalAPI: { getVideoCoverUrl(id: string): string | null } }
+        ).tidalAPI.getVideoCoverUrl(videoCoverId);
     }
 
     setVolume(value: number): void {
@@ -630,7 +632,16 @@ export class Player {
                     }
                 } else {
                     // Tidal: Get track data for ReplayGain (should be cached by API)
-                    const trackData = await this.api.getTrack(track.id, this.quality) as { info?: { trackReplayGain?: number; trackPeakAmplitude?: number; albumReplayGain?: number; albumPeakAmplitude?: number; manifest?: string }; originalTrackUrl?: string } | null;
+                    const trackData = (await this.api.getTrack(track.id, this.quality)) as {
+                        info?: {
+                            trackReplayGain?: number;
+                            trackPeakAmplitude?: number;
+                            albumReplayGain?: number;
+                            albumPeakAmplitude?: number;
+                            manifest?: string;
+                        };
+                        originalTrackUrl?: string;
+                    } | null;
 
                     if (trackData && trackData.info) {
                         this.currentRgValues = {
@@ -1021,7 +1032,6 @@ export class Player {
 
         // Force a refresh for picky Bluetooth systems by clearing metadata first
         navigator.mediaSession.metadata = null;
-
 
         const coverId = track.album?.cover;
         const trackTitle = getTrackTitle(track);

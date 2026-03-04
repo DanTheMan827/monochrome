@@ -300,12 +300,18 @@ export const escapeHtml = (unsafe: unknown): string => {
         .replace(/'/g, '&#039;');
 };
 
-export const getTrackTitle = (track: TrackData | null | undefined, { fallback = 'Unknown Title' }: { fallback?: string } = {}): string => {
+export const getTrackTitle = (
+    track: TrackData | null | undefined,
+    { fallback = 'Unknown Title' }: { fallback?: string } = {}
+): string => {
     if (!track?.title) return fallback;
     return track?.version ? `${track.title} (${track.version})` : track.title;
 };
 
-export const getTrackArtists = (track: Partial<TrackData> = {}, { fallback = 'Unknown Artist' }: { fallback?: string } = {}): string => {
+export const getTrackArtists = (
+    track: Partial<TrackData> = {},
+    { fallback = 'Unknown Artist' }: { fallback?: string } = {}
+): string => {
     if (track?.artists?.length) {
         return track.artists.map((artist) => artist?.name).join(', ');
     }
@@ -313,7 +319,10 @@ export const getTrackArtists = (track: Partial<TrackData> = {}, { fallback = 'Un
     return fallback;
 };
 
-export const getTrackArtistsHTML = (track: Partial<TrackData> = {}, { fallback = 'Unknown Artist' }: { fallback?: string } = {}): string => {
+export const getTrackArtistsHTML = (
+    track: Partial<TrackData> = {},
+    { fallback = 'Unknown Artist' }: { fallback?: string } = {}
+): string => {
     if (track?.artists?.length) {
         return track.artists
             .map((artist) => {
@@ -386,7 +395,10 @@ function resizeImageBlob(blob: Blob, size: number): Promise<Blob> {
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
-            if (!ctx) { reject(new Error('Canvas 2D context unavailable')); return; }
+            if (!ctx) {
+                reject(new Error('Canvas 2D context unavailable'));
+                return;
+            }
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, size, size);

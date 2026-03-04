@@ -248,7 +248,7 @@ export async function loadProfile(username: string): Promise<void> {
 
     editProfileBtn.style.display = 'none';
 
-    const profile = await syncManager.getProfile(username) as ProfileData | null;
+    const profile = (await syncManager.getProfile(username)) as ProfileData | null;
 
     if (!profile) {
         (document.getElementById('profile-display-name') as HTMLElement).textContent = 'User not found';
@@ -256,7 +256,8 @@ export async function loadProfile(username: string): Promise<void> {
     }
 
     (document.getElementById('profile-display-name') as HTMLElement).textContent = profile.display_name || username;
-    if (profile.banner) (document.getElementById('profile-banner') as HTMLElement).style.backgroundImage = `url('${profile.banner}')`;
+    if (profile.banner)
+        (document.getElementById('profile-banner') as HTMLElement).style.backgroundImage = `url('${profile.banner}')`;
     if (profile.avatar_url) (document.getElementById('profile-avatar') as HTMLImageElement).src = profile.avatar_url;
 
     if (profile.status) {
@@ -520,7 +521,7 @@ export async function loadProfile(username: string): Promise<void> {
         });
     }
 
-    const currentUser = await syncManager.getUserData() as UserData | null;
+    const currentUser = (await syncManager.getUserData()) as UserData | null;
     const isOwner: boolean = !!(currentUser && currentUser.profile && currentUser.profile.username === username);
 
     if (isOwner) {
@@ -608,7 +609,7 @@ async function saveProfile(): Promise<void> {
         return;
     }
 
-    const currentUser = await syncManager.getUserData() as UserData | null;
+    const currentUser = (await syncManager.getUserData()) as UserData | null;
     if (currentUser?.profile?.username !== newUsername) {
         const taken = await syncManager.isUsernameTaken(newUsername);
         if (taken) {
@@ -707,7 +708,16 @@ const performStatusSearch = debounce(async (query: unknown) => {
 
         statusSearchResults.innerHTML = '';
 
-        const createItem = (item: { id: string | number; title: string; artist?: { name?: string }; album?: { cover?: string }; cover?: string }, type: string): HTMLDivElement => {
+        const createItem = (
+            item: {
+                id: string | number;
+                title: string;
+                artist?: { name?: string };
+                album?: { cover?: string };
+                cover?: string;
+            },
+            type: string
+        ): HTMLDivElement => {
             const div = document.createElement('div');
             div.className = 'search-result-item';
             const title: string = item.title;
@@ -749,7 +759,9 @@ const performStatusSearch = debounce(async (query: unknown) => {
     }
 }, 300);
 
-editStatusSearch.addEventListener('input', (e: Event) => performStatusSearch((e.target as HTMLInputElement).value.trim()));
+editStatusSearch.addEventListener('input', (e: Event) =>
+    performStatusSearch((e.target as HTMLInputElement).value.trim())
+);
 document.addEventListener('click', (e: MouseEvent) => {
     if (!(e.target as HTMLElement).closest('.status-picker-container')) {
         statusSearchResults.style.display = 'none';
@@ -851,7 +863,9 @@ const performFavoriteAlbumSearch = debounce(async (query: unknown) => {
     }
 }, 300);
 
-editFavoriteAlbumsSearch.addEventListener('input', (e: Event) => performFavoriteAlbumSearch((e.target as HTMLInputElement).value.trim()));
+editFavoriteAlbumsSearch.addEventListener('input', (e: Event) =>
+    performFavoriteAlbumSearch((e.target as HTMLInputElement).value.trim())
+);
 
 function getLastFmImage(images: LastFmImage[] | undefined): string | null {
     if (!images) return null;
@@ -946,7 +960,11 @@ async function fetchFallbackCover(title: string, artist: string | undefined, img
     }
 }
 
-async function fetchFallbackAlbumCover(title: string, artist: string | undefined, imgId: string | undefined): Promise<void> {
+async function fetchFallbackAlbumCover(
+    title: string,
+    artist: string | undefined,
+    imgId: string | undefined
+): Promise<void> {
     try {
         const query: string = `${title} ${artist}`;
         await new Promise((r: (value: void) => void) => setTimeout(r, 100));

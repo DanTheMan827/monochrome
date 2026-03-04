@@ -194,11 +194,13 @@ export class AuthManager {
                 const title: Element | null = accountPage.querySelector('.section-title');
                 if (title) title.textContent = 'Account';
                 // Hide description + privacy paragraphs, keep only status
-                accountPage.querySelectorAll<HTMLElement>('.account-content > p, .account-content > div').forEach((el: HTMLElement) => {
-                    if (el.id !== 'firebase-status' && el.id !== 'auth-buttons-container') {
-                        el.style.display = 'none';
-                    }
-                });
+                accountPage
+                    .querySelectorAll<HTMLElement>('.account-content > p, .account-content > div')
+                    .forEach((el: HTMLElement) => {
+                        if (el.id !== 'firebase-status' && el.id !== 'auth-buttons-container') {
+                            el.style.display = 'none';
+                        }
+                    });
             }
 
             // Settings page: hide custom DB/Auth config when fully server-configured

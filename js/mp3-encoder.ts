@@ -21,7 +21,10 @@ export async function encodeToMp3(
             const args: string[] = ['-map_metadata', '-1', '-c:a', 'libmp3lame', '-b:a', '320k', '-ar', '44100'];
 
             const encode = ffmpeg as (
-                input: Blob, opts: { args: string[] }, name: string, mime: string,
+                input: Blob,
+                opts: { args: string[] },
+                name: string,
+                mime: string,
                 progress: ((info: { stage: string; message: string; progress: number }) => void) | null,
                 sig: AbortSignal | null
             ) => Promise<Blob>;

@@ -848,8 +848,8 @@ export class LosslessAPI {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const isAlbum = (v: any): boolean => v?.id && 'numberOfTracks' in v;
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const scan = (value: any, visited: Set<object> = new Set()): void => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const scan = (value: any, visited: Set<object> = new Set()): void => {
             if (!value || typeof value !== 'object' || visited.has(value)) return;
             visited.add(value);
 
@@ -878,7 +878,8 @@ export class LosslessAPI {
                         const itemArtistId = item.artist?.id;
                         const matchesArtist =
                             itemArtistId === numericArtistId ||
-                            (Array.isArray(item.artists) && item.artists.some((a: TrackArtist) => a.id === numericArtistId));
+                            (Array.isArray(item.artists) &&
+                                item.artists.some((a: TrackArtist) => a.id === numericArtistId));
 
                         if (matchesArtist && !albumMap.has(item.id)) {
                             albumMap.set(item.id, item);
@@ -990,7 +991,11 @@ export class LosslessAPI {
         }
     }
 
-    async getRecommendedTracksForPlaylist(tracks: TrackData[], limit: number = 20, options: RecommendOptions = {}): Promise<TrackData[]> {
+    async getRecommendedTracksForPlaylist(
+        tracks: TrackData[],
+        limit: number = 20,
+        options: RecommendOptions = {}
+    ): Promise<TrackData[]> {
         const artistMap = new Map();
 
         // Check if tracks already have artist info (some might)
@@ -1189,7 +1194,12 @@ export class LosslessAPI {
         return streamUrl;
     }
 
-    async downloadTrack(id: string | number, quality: string = 'HI_RES_LOSSLESS', filename: string, options: DownloadTrackOptions = {}): Promise<void> {
+    async downloadTrack(
+        id: string | number,
+        quality: string = 'HI_RES_LOSSLESS',
+        filename: string,
+        options: DownloadTrackOptions = {}
+    ): Promise<void> {
         const { onProgress, track } = options;
 
         try {

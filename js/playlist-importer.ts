@@ -329,7 +329,12 @@ function detectCSVFormat(mappedHeaders: Partial<Record<HeaderKey, number>>): CSV
     };
 }
 
-export async function parseDynamicCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: DynamicCSVProgress) => void, options: MatchOptions = {}): Promise<DynamicCSVResult> {
+export async function parseDynamicCSV(
+    csvText: string,
+    api: PlaylistImporterApi,
+    onProgress?: (progress: DynamicCSVProgress) => void,
+    options: MatchOptions = {}
+): Promise<DynamicCSVResult> {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) {
         return {
@@ -521,7 +526,11 @@ export async function parseDynamicCSV(csvText: string, api: PlaylistImporterApi,
     };
 }
 
-export async function importToLibrary(csvResult: DynamicCSVResult, db: PlaylistImporterDb, onProgress?: (progress: ImportProgress) => void): Promise<ImportResults> {
+export async function importToLibrary(
+    csvResult: DynamicCSVResult,
+    db: PlaylistImporterDb,
+    onProgress?: (progress: ImportProgress) => void
+): Promise<ImportResults> {
     const results = {
         tracks: { added: 0, failed: 0 },
         albums: { added: 0, failed: 0 },
@@ -588,7 +597,12 @@ export async function importToLibrary(csvResult: DynamicCSVResult, db: PlaylistI
     return results;
 }
 
-export async function parseCSV(csvText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void, options: MatchOptions = {}): Promise<ParseResult> {
+export async function parseCSV(
+    csvText: string,
+    api: PlaylistImporterApi,
+    onProgress?: (progress: ParseProgress) => void,
+    options: MatchOptions = {}
+): Promise<ParseResult> {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) return { tracks: [], missingTracks: [] };
 
@@ -697,7 +711,11 @@ export async function parseCSV(csvText: string, api: PlaylistImporterApi, onProg
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseJSPF(jspfText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
+export async function parseJSPF(
+    jspfText: string,
+    api: PlaylistImporterApi,
+    onProgress?: (progress: ParseProgress) => void
+): Promise<ParseResult> {
     try {
         const jspfData: JSPFData = JSON.parse(jspfText);
 
@@ -760,7 +778,11 @@ export async function parseJSPF(jspfText: string, api: PlaylistImporterApi, onPr
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseXSPF(xspfText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
+export async function parseXSPF(
+    xspfText: string,
+    api: PlaylistImporterApi,
+    onProgress?: (progress: ParseProgress) => void
+): Promise<ParseResult> {
     // Validate input to prevent potential XXE attacks
     if (!xspfText || typeof xspfText !== 'string' || xspfText.length > 10 * 1024 * 1024) {
         throw new Error('Invalid XSPF content');
@@ -821,7 +843,11 @@ export async function parseXSPF(xspfText: string, api: PlaylistImporterApi, onPr
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseXML(xmlText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
+export async function parseXML(
+    xmlText: string,
+    api: PlaylistImporterApi,
+    onProgress?: (progress: ParseProgress) => void
+): Promise<ParseResult> {
     // Validate input to prevent potential XXE attacks
     if (!xmlText || typeof xmlText !== 'string' || xmlText.length > 10 * 1024 * 1024) {
         throw new Error('Invalid XML content');
@@ -899,7 +925,11 @@ export async function parseXML(xmlText: string, api: PlaylistImporterApi, onProg
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
-export async function parseM3U(m3uText: string, api: PlaylistImporterApi, onProgress?: (progress: ParseProgress) => void): Promise<ParseResult> {
+export async function parseM3U(
+    m3uText: string,
+    api: PlaylistImporterApi,
+    onProgress?: (progress: ParseProgress) => void
+): Promise<ParseResult> {
     const lines = m3uText.trim().split('\n');
     const tracks: TrackData[] = [];
     const missingTracks: MissingTrack[] = [];

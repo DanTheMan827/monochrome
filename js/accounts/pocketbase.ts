@@ -101,8 +101,16 @@ const syncManager = {
 
         const library = this.safeParseInternal(record.library, 'library', {} as LibraryCollection);
         const history = this.safeParseInternal(record.history, 'history', [] as unknown[]);
-        const userPlaylists = this.safeParseInternal(record.user_playlists, 'user_playlists', {} as Record<string, Record<string, unknown>>);
-        const userFolders = this.safeParseInternal(record.user_folders, 'user_folders', {} as Record<string, Record<string, unknown>>);
+        const userPlaylists = this.safeParseInternal(
+            record.user_playlists,
+            'user_playlists',
+            {} as Record<string, Record<string, unknown>>
+        );
+        const userFolders = this.safeParseInternal(
+            record.user_folders,
+            'user_folders',
+            {} as Record<string, Record<string, unknown>>
+        );
         const favoriteAlbums = this.safeParseInternal(record.favorite_albums, 'favorite_albums', [] as unknown[]);
 
         const profile = {
@@ -315,7 +323,11 @@ const syncManager = {
         const record = await this._getUserRecord(user.uid);
         if (!record) return;
 
-        let userPlaylists = this.safeParseInternal(record.user_playlists, 'user_playlists', {} as Record<string, Record<string, unknown>>);
+        let userPlaylists = this.safeParseInternal(
+            record.user_playlists,
+            'user_playlists',
+            {} as Record<string, Record<string, unknown>>
+        );
 
         if (action === 'delete') {
             delete userPlaylists[playlist.id as string];
@@ -325,7 +337,11 @@ const syncManager = {
                 id: playlist.id,
                 name: playlist.name,
                 cover: playlist.cover || null,
-                tracks: playlist.tracks ? (playlist.tracks as Record<string, unknown>[]).map((t: Record<string, unknown>) => this._minifyItem('track', t)) : [],
+                tracks: playlist.tracks
+                    ? (playlist.tracks as Record<string, unknown>[]).map((t: Record<string, unknown>) =>
+                          this._minifyItem('track', t)
+                      )
+                    : [],
                 createdAt: playlist.createdAt || Date.now(),
                 updatedAt: playlist.updatedAt || Date.now(),
                 numberOfTracks: playlist.tracks ? (playlist.tracks as unknown[]).length : 0,
@@ -348,7 +364,11 @@ const syncManager = {
         const record = await this._getUserRecord(user.uid);
         if (!record) return;
 
-        let userFolders = this.safeParseInternal(record.user_folders, 'user_folders', {} as Record<string, Record<string, unknown>>);
+        let userFolders = this.safeParseInternal(
+            record.user_folders,
+            'user_folders',
+            {} as Record<string, Record<string, unknown>>
+        );
 
         if (action === 'delete') {
             delete userFolders[folder.id as string];
@@ -376,7 +396,7 @@ const syncManager = {
             const extraData = this.safeParseInternal(record.data, 'data', {} as Record<string, unknown>);
 
             if (!rawCover && extraData && typeof extraData === 'object') {
-                rawCover = extraData.cover as string || extraData.image as string || '';
+                rawCover = (extraData.cover as string) || (extraData.image as string) || '';
             }
 
             let finalCover: string = rawCover;
@@ -404,13 +424,13 @@ const syncManager = {
 
             let finalTitle: string = record.title || record.name || record.playlist_name;
             if (!finalTitle && extraData && typeof extraData === 'object') {
-                finalTitle = extraData.title as string || extraData.name as string;
+                finalTitle = (extraData.title as string) || (extraData.name as string);
             }
             if (!finalTitle) finalTitle = 'Untitled Playlist';
 
             let finalDescription: string = record.description || '';
             if (!finalDescription && extraData && typeof extraData === 'object') {
-                finalDescription = extraData.description as string || '';
+                finalDescription = (extraData.description as string) || '';
             }
 
             return {
@@ -502,7 +522,11 @@ const syncManager = {
             return {
                 ...record,
                 privacy: this.safeParseInternal(record.privacy, 'privacy', { playlists: 'public', lastfm: 'public' }),
-                user_playlists: this.safeParseInternal(record.user_playlists, 'user_playlists', {} as Record<string, unknown>),
+                user_playlists: this.safeParseInternal(
+                    record.user_playlists,
+                    'user_playlists',
+                    {} as Record<string, unknown>
+                ),
                 favorite_albums: this.safeParseInternal(record.favorite_albums, 'favorite_albums', [] as unknown[]),
             };
         } catch {
@@ -567,8 +591,7 @@ const syncManager = {
 
                     const getAll = async (store: string): Promise<Record<string, unknown>[]> => {
                         if (database && typeof database.getAll === 'function') return database.getAll(store);
-                        if (database?.db && typeof database.db.getAll === 'function')
-                            return database.db.getAll(store);
+                        if (database?.db && typeof database.db.getAll === 'function') return database.db.getAll(store);
                         return [];
                     };
 
@@ -596,18 +619,31 @@ const syncManager = {
                     if (!userFolders) userFolders = {};
                     if (!history) history = [];
 
-                    const mergeItem = (collection: Record<string, Record<string, unknown>>, item: Record<string, unknown>, type: LibraryType): void => {
-                        const id = type === 'playlist' ? (item.uuid as string) || (item.id as string) : item.id as string;
+                    const mergeItem = (
+                        collection: Record<string, Record<string, unknown>>,
+                        item: Record<string, unknown>,
+                        type: LibraryType
+                    ): void => {
+                        const id =
+                            type === 'playlist' ? (item.uuid as string) || (item.id as string) : (item.id as string);
                         if (!collection[id]) {
                             collection[id] = this._minifyItem(type, item);
                             needsUpdate = true;
                         }
                     };
 
-                    localData.tracks.forEach((item: Record<string, unknown>) => mergeItem(library.tracks, item, 'track'));
-                    localData.albums.forEach((item: Record<string, unknown>) => mergeItem(library.albums, item, 'album'));
-                    localData.artists.forEach((item: Record<string, unknown>) => mergeItem(library.artists, item, 'artist'));
-                    localData.playlists.forEach((item: Record<string, unknown>) => mergeItem(library.playlists, item, 'playlist'));
+                    localData.tracks.forEach((item: Record<string, unknown>) =>
+                        mergeItem(library.tracks, item, 'track')
+                    );
+                    localData.albums.forEach((item: Record<string, unknown>) =>
+                        mergeItem(library.albums, item, 'album')
+                    );
+                    localData.artists.forEach((item: Record<string, unknown>) =>
+                        mergeItem(library.artists, item, 'artist')
+                    );
+                    localData.playlists.forEach((item: Record<string, unknown>) =>
+                        mergeItem(library.playlists, item, 'playlist')
+                    );
                     localData.mixes.forEach((item: Record<string, unknown>) => mergeItem(library.mixes, item, 'mix'));
 
                     localData.userPlaylists.forEach((playlist: Record<string, unknown>) => {
@@ -616,7 +652,11 @@ const syncManager = {
                                 id: playlist.id,
                                 name: playlist.name,
                                 cover: playlist.cover || null,
-                                tracks: playlist.tracks ? (playlist.tracks as Record<string, unknown>[]).map((t: Record<string, unknown>) => this._minifyItem('track', t)) : [],
+                                tracks: playlist.tracks
+                                    ? (playlist.tracks as Record<string, unknown>[]).map((t: Record<string, unknown>) =>
+                                          this._minifyItem('track', t)
+                                      )
+                                    : [],
                                 createdAt: playlist.createdAt || Date.now(),
                                 updatedAt: playlist.updatedAt || Date.now(),
                                 numberOfTracks: playlist.tracks ? (playlist.tracks as unknown[]).length : 0,

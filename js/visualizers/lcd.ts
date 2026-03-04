@@ -56,7 +56,10 @@ export class LCDPreset {
         this.glCanvas.height = height;
         this.glCanvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;mix-blend-mode:multiply;';
 
-        const gl = this.glCanvas.getContext('webgl', { alpha: true, premultipliedAlpha: false }) as WebGLRenderingContext | null;
+        const gl = this.glCanvas.getContext('webgl', {
+            alpha: true,
+            premultipliedAlpha: false,
+        }) as WebGLRenderingContext | null;
         if (!gl) {
             console.warn('WebGL not available for grid overlay');
             return;
@@ -212,7 +215,13 @@ export class LCDPreset {
 
     resize(): void {}
 
-    draw(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, params: LCDDrawParams): void {
+    draw(
+        ctx: CanvasRenderingContext2D,
+        canvas: HTMLCanvasElement,
+        analyser: AnalyserNode,
+        dataArray: Uint8Array,
+        params: LCDDrawParams
+    ): void {
         const { width, height } = canvas;
         const { kick, primaryColor, mode } = params;
 

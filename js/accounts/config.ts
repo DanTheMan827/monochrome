@@ -124,12 +124,16 @@ export function initializeFirebaseSettingsUI(): void {
     // Check for shared config in URL first
     checkAndImportConfig();
 
-    const firebaseConfigInput: HTMLTextAreaElement | null = document.getElementById('firebase-config-input') as HTMLTextAreaElement | null;
+    const firebaseConfigInput: HTMLTextAreaElement | null = document.getElementById(
+        'firebase-config-input'
+    ) as HTMLTextAreaElement | null;
     const saveFirebaseConfigBtn: HTMLElement | null = document.getElementById('save-firebase-config-btn');
     const clearFirebaseConfigBtn: HTMLElement | null = document.getElementById('clear-firebase-config-btn');
     const shareFirebaseConfigBtn: HTMLElement | null = document.getElementById('share-firebase-config-btn');
     const toggleFirebaseConfigBtn: HTMLElement | null = document.getElementById('toggle-firebase-config-btn');
-    const customFirebaseConfigContainer: HTMLElement | null = document.getElementById('custom-firebase-config-container');
+    const customFirebaseConfigContainer: HTMLElement | null = document.getElementById(
+        'custom-firebase-config-container'
+    );
 
     // Toggle Button Logic
     if (toggleFirebaseConfigBtn && customFirebaseConfigContainer) {
