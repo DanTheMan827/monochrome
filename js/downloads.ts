@@ -91,7 +91,6 @@ function getExplicitTrackDiscNumber(track: TrackData): number | null {
         ((track as unknown as Record<string, unknown>)?.volume as Record<string, unknown>)?.number,
         ((track as unknown as Record<string, unknown>)?.disc as Record<string, unknown>)?.number,
         ((track as unknown as Record<string, unknown>)?.media as Record<string, unknown>)?.number,
-        (track as unknown as Record<string, unknown>)?.disc,
         (track as unknown as Record<string, unknown>)?.disc_no,
         (track as unknown as Record<string, unknown>)?.discNo,
         (track as unknown as Record<string, unknown>)?.disc_number,
