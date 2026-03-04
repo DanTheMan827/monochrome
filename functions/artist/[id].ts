@@ -12,13 +12,11 @@ interface ArtistResponseData {
     name?: string;
     title?: string;
     picture?: string;
-    [key: string]: unknown;
 }
 
 interface ArtistApiResponse {
     artist?: ArtistResponseData;
     data?: ArtistResponseData;
-    [key: string]: unknown;
 }
 
 class ServerAPI {

@@ -7,20 +7,17 @@ interface GeniusSong {
     title: string;
     url: string;
     primary_artist: { name: string; id: number };
-    [key: string]: unknown;
 }
 
 interface GeniusAnnotation {
     id: number;
     body: { plain: string };
-    [key: string]: unknown;
 }
 
 interface GeniusReferent {
     id: number;
     fragment: string;
     annotations: GeniusAnnotation[];
-    [key: string]: unknown;
 }
 
 interface GeniusTrackData {

@@ -17,7 +17,6 @@ interface QobuzRawArtist {
     images?: {
         portrait?: { hash?: string; format?: string };
     };
-    [key: string]: unknown;
 }
 
 interface QobuzRawAlbum {
@@ -32,7 +31,6 @@ interface QobuzRawAlbum {
     parental_warning?: boolean;
     album_type?: string;
     tracks?: { items?: QobuzRawTrack[] };
-    [key: string]: unknown;
 }
 
 interface QobuzRawTrack {
@@ -48,7 +46,6 @@ interface QobuzRawTrack {
     track_number?: number;
     media_number?: number;
     isrc?: string;
-    [key: string]: unknown;
 }
 
 interface QobuzReleaseGroup {
@@ -64,7 +61,6 @@ interface QobuzResponseData {
     releases?: QobuzReleaseGroup[];
     top_tracks?: QobuzRawTrack[];
     url?: string;
-    [key: string]: unknown;
 }
 
 interface QobuzApiResponse {

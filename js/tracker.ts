@@ -10,7 +10,6 @@ interface TrackerSong {
     desc?: string;
     description?: string;
     category?: string;
-    [key: string]: unknown;
 }
 
 interface TrackerEra {
@@ -18,7 +17,6 @@ interface TrackerEra {
     image?: string;
     timeline?: string;
     data?: Record<string, TrackerSong[]>;
-    [key: string]: unknown;
 }
 
 interface TrackerApiResponse {
@@ -28,7 +26,6 @@ interface TrackerApiResponse {
 interface TrackerArtistEntry {
     name: string;
     url?: string;
-    [key: string]: unknown;
 }
 
 interface TrackerTrack {

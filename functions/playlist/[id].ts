@@ -14,13 +14,11 @@ interface PlaylistResponseData {
     numberOfTracks?: number;
     squareImage?: string;
     image?: string;
-    [key: string]: unknown;
 }
 
 interface PlaylistApiResponse {
     playlist?: PlaylistResponseData;
     data?: PlaylistResponseData;
-    [key: string]: unknown;
 }
 
 class ServerAPI {

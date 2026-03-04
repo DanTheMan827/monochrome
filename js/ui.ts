@@ -81,9 +81,9 @@ function sortTracks(tracks: TrackData[], sortType: string): TrackData[] {
     const sorted = [...tracks];
     switch (sortType) {
         case 'added-newest':
-            return sorted.sort((a: TrackData, b: TrackData) => ((b as Record<string, unknown>).addedAt as number || 0) - ((a as Record<string, unknown>).addedAt as number || 0));
+            return sorted.sort((a: TrackData, b: TrackData) => (b.addedAt || 0) - (a.addedAt || 0));
         case 'added-oldest':
-            return sorted.sort((a: TrackData, b: TrackData) => ((a as Record<string, unknown>).addedAt as number || 0) - ((b as Record<string, unknown>).addedAt as number || 0));
+            return sorted.sort((a: TrackData, b: TrackData) => (a.addedAt || 0) - (b.addedAt || 0));
         case 'title':
             return sorted.sort((a: TrackData, b: TrackData) => (a.title || '').localeCompare(b.title || ''));
         case 'artist':
@@ -98,8 +98,8 @@ function sortTracks(tracks: TrackData[], sortType: string): TrackData[] {
                 const albumB = b.album?.title || '';
                 const albumCompare = albumA.localeCompare(albumB);
                 if (albumCompare !== 0) return albumCompare;
-                const trackNumA = a.trackNumber || (a as Record<string, unknown>).position as number || 0;
-                const trackNumB = b.trackNumber || (b as Record<string, unknown>).position as number || 0;
+                const trackNumA = a.trackNumber || a.position || 0;
+                const trackNumB = b.trackNumber || b.position || 0;
                 return trackNumA - trackNumB;
             });
         default:
@@ -352,7 +352,7 @@ export class UIRenderer {
         const isUnavailable = track.isUnavailable;
         const isBlocked = contentBlockingSettings?.shouldHideTrack(track);
         const trackImageHTML = showCover
-            ? this.getCoverHTML((track.album as Record<string, unknown> | undefined)?.videoCover as string | undefined, track.album?.cover, 'Track Cover', 'track-item-cover')
+            ? this.getCoverHTML(track.album?.videoCover, track.album?.cover, 'Track Cover', 'track-item-cover')
             : '';
 
         let displayIndex: string | number;
@@ -635,8 +635,8 @@ export class UIRenderer {
         let artistName = '';
         if (album.artist) {
             artistName = typeof album.artist === 'string' ? album.artist : (album.artist as TrackArtist).name;
-        } else if ((album as Record<string, unknown>).artists && ((album as Record<string, unknown>).artists as TrackArtist[])?.length) {
-            artistName = ((album as Record<string, unknown>).artists as TrackArtist[]).map((a: TrackArtist) => a.name).join(', ');
+        } else if (album.artists?.length) {
+            artistName = album.artists.map((a: TrackArtist) => a.name).join(', ');
         }
 
         return this.createBaseCardHTML({
@@ -645,7 +645,7 @@ export class UIRenderer {
             href: `/album/${album.id}`,
             title: `${escapeHtml(album.title)} ${explicitBadge} ${qualityBadge}`,
             subtitle: `${escapeHtml(artistName)} • ${yearDisplay}${typeLabel}`,
-            imageHTML: this.getCoverHTML((album as Record<string, unknown>).videoCover as string | undefined, album.cover, escapeHtml(album.title)),
+            imageHTML: this.getCoverHTML(album.videoCover, album.cover, escapeHtml(album.title)),
             actionButtonsHTML: `
                 <button class="like-btn card-like-btn" data-action="toggle-like" data-type="album" title="Add to Liked">
                     ${this.createHeartIcon(false)}
@@ -796,7 +796,7 @@ export class UIRenderer {
         const tempDiv = document.createElement('div');
 
         // Check if there are multiple discs in the tracks array
-        const hasMultipleDiscs = tracks.some((t: TrackData) => (t.volumeNumber || (t as Record<string, unknown>).discNumber as number || 1) > 1);
+        const hasMultipleDiscs = tracks.some((t: TrackData) => (t.volumeNumber || t.discNumber || 1) > 1);
 
         tempDiv.innerHTML = tracks
             .map((track, i) => this.createTrackItemHTML(track, i, showCover, hasMultipleDiscs, useTrackNumber))
@@ -1538,8 +1538,8 @@ export class UIRenderer {
         const likedMixes = await db.getFavorites('mix') as MixData[];
 
         let mixedContent: Record<string, unknown>[] = [];
-        if (likedPlaylists.length) mixedContent.push(...likedPlaylists.map((p: Record<string, unknown>) => ({ ...p, _type: 'playlist' })));
-        if (likedMixes.length) mixedContent.push(...likedMixes.map((m: Record<string, unknown>) => ({ ...m, _type: 'mix' })));
+        if (likedPlaylists.length) mixedContent.push(...likedPlaylists.map((p) => ({ ...(p as unknown as Record<string, unknown>), _type: 'playlist' })));
+        if (likedMixes.length) mixedContent.push(...likedMixes.map((m) => ({ ...(m as unknown as Record<string, unknown>), _type: 'mix' })));
 
         // Sort by addedAt descending
         mixedContent.sort((a, b) => (b.addedAt as number || 0) - (a.addedAt as number || 0));
@@ -1551,7 +1551,7 @@ export class UIRenderer {
                 })
                 .join('');
 
-            likedPlaylists.forEach((playlist: Record<string, unknown>) => {
+            likedPlaylists.forEach((playlist) => {
                 const el = playlistsContainer.querySelector(`[data-playlist-id="${playlist.uuid}"]`);
                 if (el) {
                     trackDataStore.set(el, playlist as unknown as TrackData);
@@ -1559,7 +1559,7 @@ export class UIRenderer {
                 }
             });
 
-            likedMixes.forEach((mix: Record<string, unknown>) => {
+            likedMixes.forEach((mix) => {
                 const el = playlistsContainer.querySelector(`[data-mix-id="${mix.id}"]`);
                 if (el) {
                     trackDataStore.set(el, mix as unknown as TrackData);
@@ -1884,7 +1884,7 @@ export class UIRenderer {
 
                 // Use cached metadata or fetch details for each item
                 const cardsHTML: string[] = [];
-                const itemsToStore: { el: null; data: Record<string, unknown>; type: string }[] = [];
+                const itemsToStore: { el: null; data: unknown; type: string }[] = [];
 
                 for (const item of items) {
                     try {
@@ -1984,7 +1984,7 @@ export class UIRenderer {
                     picksContainer.innerHTML = cardsHTML.join('');
                     itemsToStore.forEach((item, _index) => {
                         const type = item.type;
-                        const id = item.data.id;
+                        const id = (item.data as { id?: unknown })?.id;
                         const el = picksContainer.querySelector(`[data-${type}-id="${id}"]`);
                         if (el) {
                             trackDataStore.set(el, item.data as unknown as TrackData);
@@ -2475,8 +2475,8 @@ export class UIRenderer {
             `;
 
             tracks.sort((a: TrackData, b: TrackData) => {
-                const discA = a.volumeNumber ?? (a as Record<string, unknown>).discNumber as number ?? 1;
-                const discB = b.volumeNumber ?? (b as Record<string, unknown>).discNumber as number ?? 1;
+                const discA = a.volumeNumber ?? a.discNumber ?? 1;
+                const discB = b.volumeNumber ?? b.discNumber ?? 1;
                 if (discA !== discB) return discA - discB;
                 return (a.trackNumber || 0) - (b.trackNumber || 0);
             });
@@ -2947,10 +2947,10 @@ export class UIRenderer {
 
                 recentActivityManager.addPlaylist({
                     id: (playlistData!.id || playlistData!.uuid) as string | number,
-                    name: playlistData!.name || playlistData!.title,
-                    title: playlistData!.title || playlistData!.name,
-                    uuid: playlistData!.uuid || playlistData!.id,
-                    cover: playlistData!.cover,
+                    name: (playlistData!.name || playlistData!.title) as string | null | undefined,
+                    title: (playlistData!.title || playlistData!.name) as string | null | undefined,
+                    uuid: (playlistData!.uuid || playlistData!.id) as string | number | null | undefined,
+                    cover: playlistData!.cover as string | null | undefined,
                     images: uniqueCovers,
                     numberOfTracks: playlistData!.tracks ? (playlistData!.tracks as TrackData[]).length : 0,
                     isUserPlaylist: true,
@@ -3567,10 +3567,10 @@ export class UIRenderer {
                         try {
                             const unreleasedData = await getArtistUnreleasedProjects(artist.name);
                             if (unreleasedData && unreleasedData.eras.length > 0) {
-                                const { artist: trackerArtistData, sheetId, eras } = unreleasedData as { artist: Record<string, unknown>; sheetId: string; eras: Record<string, unknown>[] };
+                                const { artist: trackerArtistData, sheetId, eras } = unreleasedData;
 
                                 unreleasedContainer.innerHTML = eras
-                                    .map((e: Record<string, unknown>) => {
+                                    .map((e) => {
                                         let trackCount = 0;
                                         if (e.data) {
                                             Object.values(e.data).forEach((songs) => {
@@ -3588,21 +3588,21 @@ export class UIRenderer {
                                 const player = this.player;
                                 unreleasedContainer.querySelectorAll('.card').forEach((card: Element) => {
                                     const eraName = decodeURIComponent((card as HTMLElement).dataset.trackerProjectId || '');
-                                    const era = eras.find((e) => (e as Record<string, unknown>).name === eraName);
+                                    const era = eras.find((e) => e.name === eraName);
                                     if (!era) return;
 
                                     (card as HTMLElement).onclick = (e: MouseEvent) => {
                                         if ((e.target as HTMLElement).closest('.card-play-btn')) {
                                             e.stopPropagation();
                                             let eraTracks: TrackData[] = [];
-                                            if (era && (era as Record<string, unknown>).data) {
-                                                Object.values((era as Record<string, unknown>).data as Record<string, Record<string, unknown>[]>).forEach((songs: Record<string, unknown>[]) => {
+                                            if (era && era.data) {
+                                                Object.values(era.data).forEach((songs) => {
                                                     if (songs && songs.length) {
-                                                        songs.forEach((song: Record<string, unknown>) => {
+                                                        songs.forEach((song) => {
                                                             const track = createTrackFromSong(
-                                                                song,
+                                                                song as never,
                                                                 era as never,
-                                                                (trackerArtistData as Record<string, unknown>).name as string,
+                                                                trackerArtistData.name,
                                                                 eraTracks.length,
                                                                 sheetId
                                                             );
@@ -3611,7 +3611,7 @@ export class UIRenderer {
                                                     }
                                                 });
                                             }
-                                            const availableTracks = eraTracks.filter((t: TrackData) => !(t as Record<string, unknown>).unavailable);
+                                            const availableTracks = eraTracks.filter((t: TrackData) => !t.unavailable);
                                             if (availableTracks.length > 0) {
                                                 player.setQueue(availableTracks, 0);
                                                 player.playTrackFromQueue();
@@ -3619,7 +3619,7 @@ export class UIRenderer {
                                         } else if ((e.target as HTMLElement).closest('.card-menu-btn')) {
                                             e.stopPropagation();
                                         } else {
-                                            navigate(`/unreleased/${sheetId}/${encodeURIComponent((era as Record<string, unknown>).name as string)}`);
+                                            navigate(`/unreleased/${sheetId}/${encodeURIComponent(era.name)}`);
                                         }
                                     };
                                 });
@@ -3635,7 +3635,7 @@ export class UIRenderer {
                 }
             }
 
-            recentActivityManager.addArtist(artist as unknown as { id: string | number; [key: string]: unknown });
+            recentActivityManager.addArtist(artist as unknown as { id: string | number });
 
             document.title = artist.name;
         } catch (error) {
@@ -3706,7 +3706,7 @@ export class UIRenderer {
             const yesterday = new Date(today - 86400000).setHours(0, 0, 0, 0);
 
             history.forEach((item: TrackData) => {
-                const date = new Date((item as Record<string, unknown>).timestamp as number);
+                const date = new Date(item.timestamp as number);
                 const dayStart = new Date(date).setHours(0, 0, 0, 0);
 
                 let label;
@@ -3794,7 +3794,7 @@ export class UIRenderer {
         await renderTrackerTrackContent(trackId, container, this);
     }
 
-    updatePlaylistHeaderActions(playlist: Record<string, unknown>, isOwned: boolean, tracks: TrackData[], showShare: boolean = false, onSort: ((sortType: string) => void) | null = null, getCurrentSort: (() => string) | null = null): void {
+    updatePlaylistHeaderActions(playlist: PlaylistData | Record<string, unknown>, isOwned: boolean, tracks: TrackData[], showShare: boolean = false, onSort: ((sortType: string) => void) | null = null, getCurrentSort: (() => string) | null = null): void {
         const actionsDiv = document.getElementById('page-playlist')!.querySelector('.detail-header-actions')! as HTMLElement;
 
         // Cleanup existing dynamic buttons
@@ -3837,7 +3837,7 @@ export class UIRenderer {
                 const menu = document.getElementById('sort-menu');
 
                 // Show "Date Added" options only if tracks have addedAt
-                const hasAddedDate = tracks.some((t: TrackData) => (t as Record<string, unknown>).addedAt);
+                const hasAddedDate = tracks.some((t: TrackData) => t.addedAt);
                 menu!.querySelectorAll('.requires-added-date').forEach((opt) => {
                     (opt as HTMLElement).style.display = hasAddedDate ? '' : 'none';
                 });
@@ -3891,7 +3891,7 @@ export class UIRenderer {
         }
 
         // Share (User Playlists Only)
-        if (showShare || (isOwned && (playlist as Record<string, unknown>).isPublic)) {
+        if (showShare || (isOwned && (playlist as PlaylistData).isPublic)) {
             const shareBtn = document.createElement('button');
             shareBtn.id = 'share-playlist-btn';
             shareBtn.className = 'btn-secondary';
@@ -4195,7 +4195,7 @@ export class UIRenderer {
                 track = await this.api.getTrackMetadata(trackId, provider as null) as TrackData;
             }
 
-            const videoCoverUrl = (track.album as Record<string, unknown> | undefined)?.videoCover as string | undefined
+            const videoCoverUrl = track.album?.videoCover
                 ? (this.api as unknown as TidalAPIAccessor).tidalAPI.getVideoCoverUrl(track.album!.videoCover as string)
                 : null;
             const coverUrl = videoCoverUrl || this.api.getCoverUrl(track.album?.cover ?? '');

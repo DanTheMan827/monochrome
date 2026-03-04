@@ -142,7 +142,7 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
                 for (const track of currentQueue) {
                     const wasAdded = await db.toggleFavorite('track', track);
                     if (wasAdded) {
-                        syncManager.syncLibraryItem('track', track, true);
+                        syncManager.syncLibraryItem('track', track as unknown as Record<string, unknown>, true);
                         addedCount++;
                     }
                 }
@@ -314,7 +314,7 @@ export function initializeUIInteractions(player: Player, api: MusicAPI, ui: UIRe
                     const track = player.getCurrentQueue()[index];
                     if (track) {
                         const added = await db.toggleFavorite('track', track);
-                        syncManager.syncLibraryItem('track', track, added);
+                        syncManager.syncLibraryItem('track', track as unknown as Record<string, unknown>, added);
 
                         // Update button state
                         likeBtn.classList.toggle('active', added);

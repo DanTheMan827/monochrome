@@ -1206,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (name) {
                 const folder = await db.createFolder(name, cover);
                 trackCreateFolder(folder as { name?: string });
-                await syncManager.syncUserFolder(folder, 'create');
+                await syncManager.syncUserFolder(folder as unknown as Record<string, unknown>, 'create');
                 ui.renderLibraryPage();
                 document.getElementById('folder-modal')!.classList.remove('active');
                 trackCloseModal('Create Folder');
@@ -1240,7 +1240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     playlist.isPublic = isPublic;
                     if (isPublic) {
                         try {
-                            await syncManager.publishPlaylist(playlist);
+                            await syncManager.publishPlaylist(playlist as unknown as Record<string, unknown>);
                         } catch (e) {
                             console.error('Failed to publish playlist:', e);
                             alert('Failed to publish playlist. Please ensure you are logged in.');
@@ -1265,7 +1265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             playlist.description = description;
                             await handlePublicStatus(playlist);
                             await db.performTransaction('user_playlists', 'readwrite', (store: { put: (item: unknown) => void }) => store.put(playlist));
-                            syncManager.syncUserPlaylist(playlist, 'update');
+                            syncManager.syncUserPlaylist(playlist as unknown as Record<string, unknown>, 'update');
                             ui.renderLibraryPage();
                             // Also update current page if we are on it
                             if (window.location.pathname === `/userplaylist/${editingId}`) {
@@ -1780,7 +1780,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         await handlePublicStatus(playlist);
                         // Update DB again with isPublic flag
                         await db.performTransaction('user_playlists', 'readwrite', (store: { put: (item: unknown) => void }) => store.put(playlist));
-                        await syncManager.syncUserPlaylist(playlist, 'create');
+                        await syncManager.syncUserPlaylist(playlist as unknown as Record<string, unknown>, 'create');
                         trackCreatePlaylist(playlist, importSource);
                         ui.renderLibraryPage();
                         modal!.classList.remove('active');

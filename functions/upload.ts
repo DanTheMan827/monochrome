@@ -33,7 +33,6 @@ interface MultipartPart {
 
 interface CompleteResponse {
     success: boolean;
-    [key: string]: unknown;
 }
 
 export async function onRequest(context: CFContext): Promise<Response> {

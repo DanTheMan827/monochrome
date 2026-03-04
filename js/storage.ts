@@ -12,7 +12,13 @@ interface InstancesData {
 
 interface RecentItem {
     id: string | number;
-    [key: string]: unknown;
+    name?: string | null;
+    title?: string | null;
+    uuid?: string | number | null;
+    cover?: string | null;
+    images?: string[];
+    numberOfTracks?: number;
+    isUserPlaylist?: boolean;
 }
 
 interface RecentActivityStore {

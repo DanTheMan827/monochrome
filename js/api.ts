@@ -41,7 +41,10 @@ interface NormalizedSearchResult {
 
 interface TrackLookupInfo {
     manifest: string;
-    [key: string]: unknown;
+    trackReplayGain?: unknown;
+    trackPeakAmplitude?: unknown;
+    albumReplayGain?: unknown;
+    albumPeakAmplitude?: unknown;
 }
 
 interface TrackLookupResult {

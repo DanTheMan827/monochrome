@@ -9,7 +9,7 @@ interface SearchOptions {
     provider?: string;
     offset?: number;
     limit?: number;
-    [key: string]: unknown;
+    signal?: AbortSignal;
 }
 
 type MusicProvider = 'tidal' | 'qobuz';

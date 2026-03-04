@@ -824,7 +824,7 @@ export async function showAddToPlaylistModal(track: TrackData): Promise<void> {
 
 export async function handleTrackAction(
     action: string,
-    item: TrackData & Record<string, unknown>,
+    item: TrackData,
     player: PlayerInstance,
     api: ApiInstance,
     lyricsManager: unknown,
@@ -863,16 +863,16 @@ export async function handleTrackAction(
             }
 
             let tracks: TrackData[] = [];
-            let collectionItem: TrackData & Record<string, unknown> = item;
+            let collectionItem: TrackData = item;
 
             if (type === 'album') {
                 const data = await api.getAlbum(item.id);
                 tracks = data.tracks;
-                collectionItem = (data.album || item) as TrackData & Record<string, unknown>;
+                collectionItem = (data.album || item) as TrackData;
             } else if (type === 'playlist') {
                 const data = await api.getPlaylist(item.uuid as string | number);
                 tracks = data.tracks;
-                collectionItem = (data.playlist || item) as TrackData & Record<string, unknown>;
+                collectionItem = (data.playlist || item) as TrackData;
             } else if (type === 'user-playlist') {
                 let playlist = await db.getPlaylist(String(item.id)) as PlaylistData | null;
                 if (!playlist) {
@@ -883,11 +883,11 @@ export async function handleTrackAction(
                     }
                 }
                 tracks = playlist?.tracks ?? (item.tracks as TrackData[] | undefined) ?? [];
-                collectionItem = (playlist as TrackData & Record<string, unknown>) || item;
+                collectionItem = (playlist as TrackData) || item;
             } else if (type === 'mix') {
                 const data = await api.getMix(item.id);
                 tracks = data.tracks;
-                collectionItem = (data.mix || item) as TrackData & Record<string, unknown>;
+                collectionItem = (data.mix || item) as TrackData;
             }
 
             if (tracks.length === 0 && action !== 'start-mix') {
@@ -1016,19 +1016,19 @@ export async function handleTrackAction(
         await downloadTrackWithMetadata(item, downloadQualitySettings.getQuality(), api as never, lyricsManager as null);
     } else if (action === 'toggle-like') {
         const added = await db.toggleFavorite(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', item);
-        syncManager.syncLibraryItem(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', item, added);
+        syncManager.syncLibraryItem(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', item as unknown as Record<string, unknown>, added);
 
         // Track like/unlike
         if (added) {
             if (type === 'track') trackLikeTrack(item);
             else if (type === 'album') trackLikeAlbum(item as unknown as TrackAlbum);
             else if (type === 'artist') trackLikeArtist(item as unknown as ArtistData);
-            else if (type === 'playlist' || type === 'user-playlist') trackLikePlaylist(item);
+            else if (type === 'playlist' || type === 'user-playlist') trackLikePlaylist(item as unknown as PlaylistData);
         } else {
             if (type === 'track') trackUnlikeTrack(item);
             else if (type === 'album') trackUnlikeAlbum(item as unknown as TrackAlbum);
             else if (type === 'artist') trackUnlikeArtist(item as unknown as ArtistData);
-            else if (type === 'playlist' || type === 'user-playlist') trackUnlikePlaylist(item);
+            else if (type === 'playlist' || type === 'user-playlist') trackUnlikePlaylist(item as unknown as PlaylistData);
         }
 
         if (added && type === 'track' && scrobbler) {
@@ -1502,7 +1502,7 @@ export async function handleTrackAction(
     }
 }
 
-async function updateContextMenuLikeState(contextMenu: ContextMenuElement, contextTrack: TrackData & Record<string, unknown>): Promise<void> {
+async function updateContextMenuLikeState(contextMenu: ContextMenuElement, contextTrack: TrackData): Promise<void> {
     if (!contextMenu || !contextTrack) return;
 
     const likeItem = contextMenu.querySelector('li[data-action="toggle-like"]');
@@ -1604,7 +1604,7 @@ async function updateContextMenuLikeState(contextMenu: ContextMenuElement, conte
 }
 
 export function initializeTrackInteractions(player: PlayerInstance, api: ApiInstance, mainContent: HTMLElement, contextMenu: ContextMenuElement, lyricsManager: unknown, ui: UIInstance, scrobbler: ScrobblerInstance): void {
-    let contextTrack: (TrackData & Record<string, unknown>) | null = null;
+    let contextTrack: (TrackData) | null = null;
 
     mainContent.addEventListener('click', async (e: Event) => {
         const target = e.target as HTMLElement;
@@ -1616,7 +1616,7 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
             const action = actionBtn.dataset.action;
             const type = actionBtn.dataset.type || 'track';
 
-            let item: (TrackData & Record<string, unknown>) | undefined = itemElement ? trackDataStore.get(itemElement as HTMLElement) as TrackData | undefined : trackDataStore.get(actionBtn) as TrackData | undefined;
+            let item: (TrackData) | undefined = itemElement ? trackDataStore.get(itemElement as HTMLElement) as TrackData | undefined : trackDataStore.get(actionBtn) as TrackData | undefined;
 
             // If no item from element (e.g. header buttons), try to get from hash
             if (!item && action === 'toggle-like') {
@@ -1625,15 +1625,15 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
                     try {
                         if (type === 'album') {
                             const data = await api.getAlbum(id);
-                            item = data.album as TrackData & Record<string, unknown>;
+                            item = data.album as TrackData;
                         } else if (type === 'artist') {
-                            item = await api.getArtist(id) as unknown as TrackData & Record<string, unknown>;
+                            item = await api.getArtist(id) as unknown as TrackData;
                         } else if (type === 'playlist') {
                             const data = await api.getPlaylist(id);
-                            item = data.playlist as TrackData & Record<string, unknown>;
+                            item = data.playlist as TrackData;
                         } else if (type === 'mix') {
                             const data = await api.getMix(id);
-                            item = data.mix as TrackData & Record<string, unknown>;
+                            item = data.mix as TrackData;
                         } else if (type === 'track') {
                             const data = await api.getTrack(id);
                             item = data.track;
@@ -1645,7 +1645,7 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
             }
 
             if (item) {
-                await handleTrackAction(action, item as TrackData & Record<string, unknown>, player, api, lyricsManager, type, ui, scrobbler);
+                await handleTrackAction(action, item as TrackData, player, api, lyricsManager, type, ui, scrobbler);
             }
             return;
         }
@@ -1657,11 +1657,11 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
             const type = cardMenuBtn.dataset.type;
             const id = cardMenuBtn.dataset.id;
 
-            let item: (TrackData & Record<string, unknown>) | null = card ? trackDataStore.get(card) as TrackData & Record<string, unknown> : null;
+            let item: (TrackData) | null = card ? trackDataStore.get(card) as TrackData : null;
 
             if (!item) {
                 // Fallback: create a shell item
-                item = { id: id as string, uuid: id, title: card?.querySelector('.card-title')?.textContent || 'Item', duration: 0 } as unknown as TrackData & Record<string, unknown>;
+                item = { id: id as string, uuid: id, title: card?.querySelector('.card-title')?.textContent || 'Item', duration: 0 } as unknown as TrackData;
             }
 
             if (contextMenu._originalHTML) {
@@ -1684,7 +1684,7 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
             e.stopPropagation();
             const trackItem = menuBtn.closest('.track-item') as HTMLElement | null;
             if (trackItem && !trackItem.dataset.queueIndex) {
-                const clickedTrack = trackDataStore.get(trackItem) as (TrackData & Record<string, unknown>) | undefined;
+                const clickedTrack = trackDataStore.get(trackItem) as (TrackData) | undefined;
 
                 if (clickedTrack && clickedTrack.isLocal) return;
 
@@ -1806,10 +1806,10 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
             if (trackItem.classList.contains('queue-track-item')) {
                 // For queue items, get track from player's queue
                 const queueIndex = parseInt(trackItem.dataset.queueIndex || '0');
-                contextTrack = player.getCurrentQueue()[queueIndex] as TrackData & Record<string, unknown>;
+                contextTrack = player.getCurrentQueue()[queueIndex] as TrackData;
             } else {
                 // For regular track items
-                contextTrack = (trackDataStore.get(trackItem) as TrackData & Record<string, unknown>) || null;
+                contextTrack = (trackDataStore.get(trackItem) as TrackData) || null;
             }
 
             if (contextTrack) {
@@ -1846,12 +1846,12 @@ export function initializeTrackInteractions(player: PlayerInstance, api: ApiInst
                       : 'item';
             const id = card.dataset.albumId || card.dataset.playlistId || card.dataset.mixId;
 
-            const item: TrackData & Record<string, unknown> = (trackDataStore.get(card) as TrackData & Record<string, unknown>) || ({
+            const item: TrackData = (trackDataStore.get(card) as TrackData) || ({
                 id: id || '',
                 uuid: id,
                 title: card.querySelector('.card-title')?.textContent || '',
                 duration: 0,
-            } as unknown as TrackData & Record<string, unknown>);
+            } as unknown as TrackData);
 
             if (contextMenu._originalHTML) {
                 contextMenu.innerHTML = contextMenu._originalHTML;

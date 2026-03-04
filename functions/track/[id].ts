@@ -18,12 +18,10 @@ interface TrackInfoItem {
     duration?: number;
     previewUrl?: string;
     previewURL?: string;
-    [key: string]: unknown;
 }
 
 interface TrackInfoResponse {
     data?: TrackInfoItem | TrackInfoItem[];
-    [key: string]: unknown;
 }
 
 interface TrackMetadata {
@@ -34,7 +32,6 @@ interface TrackMetadata {
     duration: number;
     previewUrl?: string;
     previewURL?: string;
-    [key: string]: unknown;
 }
 
 interface StreamResponse {

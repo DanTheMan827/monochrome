@@ -10,18 +10,17 @@ interface DBRecord {
     name?: string | null;
     duration?: number | null;
     explicit?: boolean;
-    artist?: { id?: string | number; name?: string | null; [key: string]: unknown } | null;
-    artists?: Array<{ id: string | number; name?: string | null; [key: string]: unknown }>;
+    artist?: { id?: string | number; name?: string | null } | null;
+    artists?: Array<{ id: string | number; name?: string | null }>;
     album?: {
         id?: string | number;
         title?: string | null;
         cover?: string | null;
         releaseDate?: string | null;
         vibrantColor?: string | null;
-        artist?: { id?: string | number; name?: string | null; [key: string]: unknown } | null;
+        artist?: { id?: string | number; name?: string | null } | null;
         numberOfTracks?: number | null;
         mediaMetadata?: { tags?: string[] } | null;
-        [key: string]: unknown;
     } | null;
     cover?: string | null;
     image?: string | null;
@@ -46,12 +45,14 @@ interface DBRecord {
     description?: string;
     mixType?: string;
     tracks?: DBRecord[];
-    user?: { name?: string | null; [key: string]: unknown } | null;
+    user?: { name?: string | null } | null;
     images?: string[];
     createdAt?: number;
     updatedAt?: number;
     playlists?: string[];
-    [key: string]: unknown;
+    trackId?: string | number;
+    albumId?: string | number;
+    artistId?: string | number;
 }
 
 interface PinnedRecord {
@@ -73,7 +74,6 @@ interface ImportDataShape {
     history_tracks?: DBRecord[] | Record<string, DBRecord>;
     user_playlists?: DBRecord[] | Record<string, DBRecord>;
     user_folders?: DBRecord[] | Record<string, DBRecord>;
-    [key: string]: unknown;
 }
 
 export class MusicDatabase {
@@ -538,7 +538,7 @@ export class MusicDatabase {
                         item.album.id = parseInt(item.album.id, 10);
                     }
                     if (item.artists) {
-                        item.artists.forEach((artist: { id: string | number; [key: string]: unknown }) => {
+                        item.artists.forEach((artist: { id: string | number }) => {
                             if (artist.id && typeof artist.id === 'string' && !isNaN(Number(artist.id))) {
                                 artist.id = parseInt(artist.id, 10);
                             }
@@ -547,7 +547,7 @@ export class MusicDatabase {
 
                     // Critical: Ensure key exists for IndexedDB store.put()
                     const keyPath = store.keyPath;
-                    if (typeof keyPath === 'string' && keyPath && !item[keyPath]) {
+                    if (typeof keyPath === 'string' && keyPath && !(item as Record<string, unknown>)[keyPath]) {
                         console.warn(`Item missing keyPath "${keyPath}" in ${storeName}, generating fallback.`);
                         if (keyPath === 'uuid') item.uuid = crypto.randomUUID();
                         else if (keyPath === 'id')

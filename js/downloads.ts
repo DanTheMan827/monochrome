@@ -58,7 +58,6 @@ interface DownloadMetadata {
     releaseDate?: string;
     numberOfTracks?: number;
     cover?: string;
-    [key: string]: unknown;
 }
 
 const downloadTasks = new Map<string | number, { taskEl: HTMLElement; abortController: AbortController }>();
@@ -85,17 +84,17 @@ function getExplicitTrackDiscNumber(track: TrackData): number | null {
     const candidates = [
         track?.volumeNumber,
         track?.discNumber,
-        (track as Record<string, unknown>)?.mediaNumber,
-        (track as Record<string, unknown>)?.media_number,
-        (track as Record<string, unknown>)?.volume,
-        (track as Record<string, unknown>)?.disc,
-        ((track as Record<string, unknown>)?.volume as Record<string, unknown>)?.number,
-        ((track as Record<string, unknown>)?.disc as Record<string, unknown>)?.number,
-        ((track as Record<string, unknown>)?.media as Record<string, unknown>)?.number,
-        (track as Record<string, unknown>)?.disc,
-        (track as Record<string, unknown>)?.disc_no,
-        (track as Record<string, unknown>)?.discNo,
-        (track as Record<string, unknown>)?.disc_number,
+        (track as unknown as Record<string, unknown>)?.mediaNumber,
+        (track as unknown as Record<string, unknown>)?.media_number,
+        (track as unknown as Record<string, unknown>)?.volume,
+        (track as unknown as Record<string, unknown>)?.disc,
+        ((track as unknown as Record<string, unknown>)?.volume as Record<string, unknown>)?.number,
+        ((track as unknown as Record<string, unknown>)?.disc as Record<string, unknown>)?.number,
+        ((track as unknown as Record<string, unknown>)?.media as Record<string, unknown>)?.number,
+        (track as unknown as Record<string, unknown>)?.disc,
+        (track as unknown as Record<string, unknown>)?.disc_no,
+        (track as unknown as Record<string, unknown>)?.discNo,
+        (track as unknown as Record<string, unknown>)?.disc_number,
         (track?.mediaMetadata as Record<string, unknown>)?.discNumber,
     ];
 
@@ -332,7 +331,7 @@ async function downloadTrackBlob(track: TrackData, quality: string, api: Downloa
                     ...(enrichedTrack.album || {} as TrackAlbum),
                 } as TrackAlbum,
                 // Preserve explicit disc fields from either source
-                discNumber: (enrichedTrack as Record<string, unknown>).discNumber ?? (fullTrack as Record<string, unknown>).discNumber,
+                discNumber: enrichedTrack.discNumber ?? fullTrack.discNumber,
                 volumeNumber: enrichedTrack.volumeNumber ?? fullTrack.volumeNumber,
             } as TrackData;
         }
@@ -1076,7 +1075,7 @@ export async function downloadAlbumAsZip(album: TrackAlbum, tracks: TrackData[],
         year: String(year),
     });
 
-    const coverBlob = await getCoverBlob(api, album.cover || ((album as Record<string, unknown>).album as TrackAlbum)?.cover || (album as Record<string, unknown>).coverId as string | undefined);
+    const coverBlob = await getCoverBlob(api, album.cover || ((album as unknown as Record<string, unknown>).album as TrackAlbum)?.cover || (album as unknown as Record<string, unknown>).coverId as string | undefined);
     await startBulkDownload(tracks, folderName, api, quality, lyricsManager, 'album', album.title, coverBlob, album);
 }
 
@@ -1409,7 +1408,7 @@ export async function downloadTrackWithMetadata(track: TrackData | null, quality
                     ...(fullTrack.album || {} as TrackAlbum),
                     ...(enrichedTrack.album || {} as TrackAlbum),
                 } as TrackAlbum,
-                discNumber: (enrichedTrack as Record<string, unknown>).discNumber ?? (fullTrack as Record<string, unknown>).discNumber,
+                discNumber: enrichedTrack.discNumber ?? fullTrack.discNumber,
                 volumeNumber: enrichedTrack.volumeNumber ?? fullTrack.volumeNumber,
             } as TrackData;
         }

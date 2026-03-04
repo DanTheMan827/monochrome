@@ -219,7 +219,6 @@ interface TrackArtist {
     name: string;
     type?: string;
     picture?: string;
-    [key: string]: unknown;
 }
 
 interface TrackAlbum {
@@ -227,8 +226,10 @@ interface TrackAlbum {
     title: string;
     cover: string;
     releaseDate?: string;
+    releaseYear?: string | number;
     vibrantColor?: string;
     artist?: TrackArtist;
+    artists?: TrackArtist[];
     numberOfTracks?: number;
     mediaMetadata?: { tags?: string[] };
     duration?: number;
@@ -236,7 +237,8 @@ interface TrackAlbum {
     explicit?: boolean;
     numberOfVolumes?: number;
     type?: string;
-    [key: string]: unknown;
+    tracks?: TrackData[];
+    videoCover?: string;
 }
 
 interface TrackData {
@@ -279,7 +281,21 @@ interface TrackData {
     popularity?: number;
     bpm?: number;
     cover?: string;
-    [key: string]: unknown;
+    cleanTitle?: string;
+    discNumber?: number;
+    explicitLyrics?: boolean;
+    file?: Blob;
+    addedAt?: number;
+    timestamp?: number;
+    position?: number;
+    unavailable?: boolean;
+    uuid?: string | number;
+    name?: string;
+    tracks?: TrackData[];
+    bitrate?: number;
+    credits?: Array<{ type: string; name: string }>;
+    composers?: Array<{ name: string }>;
+    lyrics?: { text?: string };
 }
 
 interface TrackerInfo {
@@ -291,7 +307,19 @@ interface TrackerInfo {
     title?: string;
     duration?: number;
     streamUrl?: string;
-    [key: string]: unknown;
+    sheetId?: string;
+    releaseDate?: string;
+    addedDate?: string;
+    project?: string;
+    era?: string;
+    timeline?: string;
+    category?: string;
+    trackNumber?: number | string;
+    leakedDate?: string;
+    recordingDate?: string;
+    description?: string;
+    notes?: string;
+    sourceUrl?: string | null;
 }
 
 interface PlaylistData {
@@ -314,7 +342,7 @@ interface PlaylistData {
     squareImage?: string;
     isLocal?: boolean;
     isEditable?: boolean;
-    [key: string]: unknown;
+    isPublic?: boolean;
 }
 
 interface ArtistData {
@@ -330,7 +358,6 @@ interface ArtistData {
     topTracks?: TrackData[];
     singles?: TrackAlbum[];
     compilations?: TrackAlbum[];
-    [key: string]: unknown;
 }
 
 interface SearchResults {
@@ -345,8 +372,9 @@ interface MixData {
     id: string;
     title?: string;
     subTitle?: string;
+    cover?: string;
+    description?: string;
     rows?: { modules?: MixModule[] }[];
-    [key: string]: unknown;
 }
 
 interface MixModule {
@@ -355,7 +383,6 @@ interface MixModule {
     pagedList?: {
         items?: Record<string, unknown>[];
     };
-    [key: string]: unknown;
 }
 
 interface QueueState {
@@ -380,7 +407,6 @@ interface CFContext {
     params: Record<string, string>;
     env: {
         ASSETS: { fetch(request: Request): Promise<Response> };
-        [key: string]: unknown;
     };
 }
 

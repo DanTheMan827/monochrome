@@ -85,7 +85,6 @@ interface ProfileData {
 interface UserData {
     profile: ProfileData;
     library?: Record<string, unknown>;
-    [key: string]: unknown;
 }
 
 function getLastFmArtistName(artist: LastFmTrack['artist'] | LastFmAlbum['artist']): string {

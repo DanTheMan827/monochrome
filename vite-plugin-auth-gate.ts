@@ -10,7 +10,6 @@ interface AuthSession {
     uid?: string;
     email?: unknown;
     iat?: number;
-    [key: string]: unknown;
 }
 
 interface SessionRequest extends IncomingMessage {

@@ -9,7 +9,6 @@ interface LastFMResponse {
         key: string;
         name: string;
     };
-    [key: string]: unknown;
 }
 
 export class LastFMScrobbler {

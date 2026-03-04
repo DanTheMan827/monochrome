@@ -16,14 +16,12 @@ interface AlbumResponseData {
     numberOfTracks?: number;
     items?: unknown[];
     cover?: string;
-    [key: string]: unknown;
 }
 
 interface AlbumApiResponse {
     data?: AlbumResponseData;
     album?: AlbumResponseData;
     tracks?: unknown[];
-    [key: string]: unknown;
 }
 
 class ServerAPI {
