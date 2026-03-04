@@ -35,6 +35,7 @@ import {
     musicProviderSettings,
     analyticsSettings,
     modalSettings,
+    keyboardShortcuts,
 } from './storage.js';
 import { audioContextManager, EQ_PRESETS } from './audio-context.js';
 import { getButterchurnPresets } from './visualizers/butterchurn.js';
@@ -2437,6 +2438,15 @@ export function initializeSettings(scrobbler, player, api, ui) {
         sidebarShowDiscordToggle.checked = sidebarSectionSettings.shouldShowDiscord();
         sidebarShowDiscordToggle.addEventListener('change', (e) => {
             sidebarSectionSettings.setShowDiscord(e.target.checked);
+            sidebarSectionSettings.applySidebarVisibility();
+        });
+    }
+
+    const sidebarShowGithubToggle = document.getElementById('sidebar-show-githubbtn-toggle');
+    if (sidebarShowGithubToggle) {
+        sidebarShowGithubToggle.checked = sidebarSectionSettings.shouldShowGithub();
+        sidebarShowGithubToggle.addEventListener('change', (e) => {
+            sidebarSectionSettings.setShowGithub(e.target.checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
