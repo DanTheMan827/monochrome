@@ -2383,31 +2383,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }, 0);
 
-    const handleExternalLink = (query: string): boolean => {
-        const isExternalLink =
-            query.includes('monochrome.tf/') ||
-            query.includes('monochrome.samidy.com/') ||
-            query.includes('tidal.com/');
+    const KNOWN_EXTERNAL_HOSTS = new Set(['monochrome.tf', 'monochrome.samidy.com', 'tidal.com']);
 
-        if (isExternalLink) {
-            const url = query.startsWith('http') ? query : 'https://' + query;
-            try {
-                const urlObj = new URL(url);
-                let path = urlObj.pathname;
-                // Remove trailing slashes and get just endpoint/id
-                path = path.replace(/\/+$/, '');
-                // Get just the first two segments (e.g., /album/382839956)
-                const segments = path.split('/').filter((s) => s);
-                if (segments.length >= 2) {
-                    path = '/' + segments[0] + '/' + segments[1];
-                }
-                navigate(path);
-                return true;
-            } catch {
-                return false;
+    const handleExternalLink = (query: string): boolean => {
+        const url = query.startsWith('http') ? query : 'https://' + query;
+        try {
+            const urlObj = new URL(url);
+            if (!KNOWN_EXTERNAL_HOSTS.has(urlObj.hostname)) return false;
+
+            let path = urlObj.pathname;
+            // Remove trailing slashes and get just endpoint/id
+            path = path.replace(/\/+$/, '');
+            // Get just the first two segments (e.g., /album/382839956)
+            const segments = path.split('/').filter((s) => s);
+            if (segments.length >= 2) {
+                path = '/' + segments[0] + '/' + segments[1];
             }
+            navigate(path);
+            return true;
+        } catch {
+            return false;
         }
-        return false;
     };
 
     searchInput.addEventListener('input', (e) => {
