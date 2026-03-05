@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
             },
         },
         optimizeDeps: {
-            exclude: ['pocketbase', '@ffmpeg/ffmpeg', '@ffmpeg/util'],
+            exclude: ['pocketbase', '@ffmpeg/ffmpeg', '@ffmpeg/util', 'taglib-wasm'],
         },
         server: {
             fs: {
