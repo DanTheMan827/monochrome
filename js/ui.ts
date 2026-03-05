@@ -31,6 +31,7 @@ import {
     homePageSettings,
     fontSettings,
     contentBlockingSettings,
+    settingsUiState,
 } from './storage.ts';
 import { db } from './db.ts';
 import { getVibrantColorFromImage } from './vibrant-color.ts';
@@ -1519,6 +1520,17 @@ export class UIRenderer {
 
         if (pageId === 'settings') {
             this.renderApiSettings();
+            const savedTabName = settingsUiState.getActiveTab();
+            const savedTab = document.querySelector(`.settings-tab[data-tab="${savedTabName}"]`);
+            if (savedTab) {
+                document.querySelectorAll('.settings-tab').forEach((t) => t.classList.remove('active'));
+                document.querySelectorAll('.settings-tab-content').forEach((c) => c.classList.remove('active'));
+                savedTab.classList.add('active');
+                document.getElementById(`settings-tab-${savedTabName}`)?.classList.add('active');
+            }
+        } else {
+            document.querySelectorAll('.settings-tab').forEach((t) => t.classList.remove('active'));
+            document.querySelectorAll('.settings-tab-content').forEach((c) => c.classList.remove('active'));
         }
     }
 
@@ -2569,6 +2581,13 @@ export class UIRenderer {
                 const isLiked = await db.isFavorite('album', album.id);
                 albumLikeBtn.innerHTML = this.createHeartIcon(isLiked);
                 albumLikeBtn.classList.toggle('active', isLiked);
+            }
+
+            // Store album data for menu button
+            const albumMenuBtn = document.getElementById('album-menu-btn');
+            if (albumMenuBtn) {
+                albumMenuBtn.dataset.id = String(album.id);
+                trackDataStore.set(albumMenuBtn, album as unknown as TrackData);
             }
 
             document.title = `${album.title} - ${album.artist.name}`;

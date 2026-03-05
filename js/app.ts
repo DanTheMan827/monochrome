@@ -2493,45 +2493,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     const searchForm = document.getElementById('search-form') as HTMLFormElement;
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
 
-    // Setup clear button for search bar
     ui.setupSearchClearButton(searchInput);
 
-    const performSearch = debounce((query: string) => {
+    const performSearch = (query: string) => {
         if (query) {
             navigate(`/search/${encodeURIComponent(query)}`);
         }
-    }, 0);
+    };
 
-    const KNOWN_EXTERNAL_HOSTS = new Set(['monochrome.tf', 'monochrome.samidy.com', 'tidal.com']);
+    const debouncedSearch = debounce((query) => {
+        if (query && query === searchInput.value.trim()) {
+            performSearch(query);
+        }
+    }, 3000);
 
     const handleExternalLink = (query: string): boolean => {
-        const url = query.startsWith('http') ? query : 'https://' + query;
-        try {
-            const urlObj = new URL(url);
-            if (!KNOWN_EXTERNAL_HOSTS.has(urlObj.hostname)) return false;
+        const isExternalLink =
+            query.includes('monochrome.tf/') ||
+            query.includes('monochrome.samidy.com/') ||
+            query.includes('tidal.com/');
 
-            let path = urlObj.pathname;
-            // Remove trailing slashes and get just endpoint/id
-            path = path.replace(/\/+$/, '');
-            // Get just the first two segments (e.g., /album/382839956)
-            const segments = path.split('/').filter((s) => s);
-            if (segments.length >= 2) {
-                path = '/' + segments[0] + '/' + segments[1];
+        if (isExternalLink) {
+            const url = query.startsWith('http') ? query : 'https://' + query;
+            try {
+                const urlObj = new URL(url);
+                let path = urlObj.pathname;
+                path = path.replace(/\/+$/, '');
+                const segments = path.split('/').filter((s: string) => s);
+                if (segments.length >= 2) {
+                    path = '/' + segments[0] + '/' + segments[1];
+                }
+                navigate(path);
+                return true;
+            } catch {
+                return false;
             }
-            navigate(path);
-            return true;
-        } catch {
-            return false;
         }
+        return false;
     };
 
     searchInput.addEventListener('input', (e) => {
         const query = (e.target as HTMLInputElement).value.trim();
         if (!query) return;
 
-        if (!handleExternalLink(query)) {
-            performSearch(query);
+        if (handleExternalLink(query)) {
+            return;
         }
+
+        debouncedSearch(query);
     });
 
     searchInput.addEventListener('change', (e) => {
@@ -2563,7 +2572,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!handleExternalLink(query)) {
             ui.addToSearchHistory(query);
-            navigate(`/search/${encodeURIComponent(query)}`);
+            performSearch(query);
             const historyEl = document.getElementById('search-history');
             if (historyEl) historyEl.style.display = 'none';
         }

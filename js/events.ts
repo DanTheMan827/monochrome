@@ -1293,6 +1293,10 @@ export async function handleTrackAction(
 
         trackOpenInNewTab(type, (item.id || item.uuid) as string | number);
         window.open(url, '_blank');
+    } else if (action === 'open-in-harmony') {
+        const albumId = item.id;
+        const harmonyUrl = `https://harmony.pulsewidth.org.uk/release?url=${encodeURIComponent(`https://tidal.com/album/${albumId}`)}&gtin=&region=&musicbrainz=&deezer=&itunes=&spotify=&tidal=&beatport=`;
+        window.open(harmonyUrl, '_blank');
     } else if (action === 'track-info') {
         // Show detailed track info modal
         const isTracker = item.isTracker;
@@ -1521,9 +1525,11 @@ export async function handleTrackAction(
 async function updateContextMenuLikeState(contextMenu: ContextMenuElement, contextTrack: TrackData): Promise<void> {
     if (!contextMenu || !contextTrack) return;
 
+    const type = contextMenu._contextType || 'track';
+
     const likeItem = contextMenu.querySelector('li[data-action="toggle-like"]');
     if (likeItem) {
-        const isLiked = await db.isFavorite('track', contextTrack.id);
+        const isLiked = await db.isFavorite(type as 'track' | 'album' | 'artist' | 'playlist' | 'mix', contextTrack.id);
         likeItem.textContent = isLiked ? 'Unlike' : 'Like';
     }
 
@@ -1548,7 +1554,6 @@ async function updateContextMenuLikeState(contextMenu: ContextMenuElement, conte
 
     // Update block/unblock labels
     const { contentBlockingSettings } = await import('./storage.ts');
-    const type = contextMenu._contextType || 'track';
 
     const blockTrackItem = contextMenu.querySelector('li[data-action="block-track"]') as HTMLElement | null;
     if (blockTrackItem) {
@@ -1676,7 +1681,7 @@ export function initializeTrackInteractions(
             return;
         }
 
-        const cardMenuBtn = target.closest('.card-menu-btn') as HTMLElement | null;
+        const cardMenuBtn = target.closest('.card-menu-btn, #album-menu-btn') as HTMLElement | null;
         if (cardMenuBtn) {
             e.stopPropagation();
             const card = cardMenuBtn.closest('.card') as HTMLElement | null;
@@ -1684,6 +1689,11 @@ export function initializeTrackInteractions(
             const id = cardMenuBtn.dataset.id;
 
             let item: TrackData | null = card ? (trackDataStore.get(card) as TrackData) : null;
+
+            if (!item) {
+                // Check if item is stored on the button itself (e.g., album page header menu)
+                item = trackDataStore.get(cardMenuBtn) ?? null;
+            }
 
             if (!item) {
                 // Fallback: create a shell item
