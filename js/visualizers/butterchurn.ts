@@ -100,6 +100,7 @@ loadPresetsModule();
 export class ButterchurnPreset {
     name: string;
     contextType: string;
+    managesOwnContext: boolean;
     visualizer: ButterchurnVisualizer | null;
     canvas: HTMLCanvasElement | null;
     audioContext: AudioContext | null;
@@ -117,6 +118,7 @@ export class ButterchurnPreset {
     constructor() {
         this.name = 'Butterchurn';
         this.contextType = 'webgl';
+        this.managesOwnContext = true;
 
         this.visualizer = null;
         this.canvas = null;
@@ -487,32 +489,35 @@ export class ButterchurnPreset {
     /**
      * Lazy initialization helper for when audio context becomes available
      */
-    lazyInit(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: AudioNode | null): void {
-        if (!this.isInitialized && canvas && audioContext) {
-            const gl =
-                canvas.getContext('webgl2', {
-                    alpha: true,
-                    antialias: true,
-                    preserveDrawingBuffer: true,
-                }) ||
-                canvas.getContext('webgl', {
-                    alpha: true,
-                    antialias: true,
-                    preserveDrawingBuffer: true,
-                });
+    lazyInit(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: AudioNode | null): Promise<void> {
+        return new Promise((resolve) => {
+            if (!this.isInitialized && canvas && audioContext) {
+                const gl =
+                    canvas.getContext('webgl2', {
+                        alpha: true,
+                        antialias: true,
+                        preserveDrawingBuffer: true,
+                    }) ||
+                    canvas.getContext('webgl', {
+                        alpha: true,
+                        antialias: true,
+                        preserveDrawingBuffer: true,
+                    });
 
-            if (gl) {
-                this.init(canvas, gl, audioContext, null);
+                if (gl) {
+                    this.init(canvas, gl, audioContext, null);
 
-                // Connect audio if sourceNode is provided
-                if (sourceNode) {
-                    this.connectAudioWithDelay(sourceNode);
+                    // Connect audio if sourceNode is provided
+                    if (sourceNode) {
+                        this.connectAudioWithDelay(sourceNode);
+                    }
                 }
+            } else if (this.isInitialized && sourceNode) {
+                // Reconnect if source changed
+                this.connectAudioWithDelay(sourceNode);
             }
-        } else if (this.isInitialized && sourceNode) {
-            // Reconnect if source changed
-            this.connectAudioWithDelay(sourceNode);
-        }
+            resolve();
+        });
     }
 
     /**
@@ -525,9 +530,17 @@ export class ButterchurnPreset {
             this._unregisterGraphChange = null;
         }
 
-        if (this.visualizer) {
+        if (this.visualizer && this.canvas) {
+            const gl = this.canvas.getContext('webgl2') || this.canvas.getContext('webgl');
+            if (gl) {
+                const ext = gl.getExtension('WEBGL_lose_context');
+                if (ext) {
+                    ext.loseContext();
+                }
+            }
             this.visualizer = null;
         }
+
         this.isInitialized = false;
         this.canvas = null;
         this.audioContext = null;

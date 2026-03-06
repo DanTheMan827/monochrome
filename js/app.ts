@@ -1,4 +1,5 @@
 //js/app.js
+import { Models } from 'appwrite';
 import { MusicAPI } from './music-api.ts';
 import {
     apiSettings,
@@ -612,7 +613,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.getElementById('fullscreen-cover-image')?.addEventListener('click', () => {
+    document.getElementById('fullscreen-cover-overlay')?.addEventListener('click', (e) => {
+        const coverImage = document.getElementById('fullscreen-cover-image');
+        if (!coverImage) return;
+        const isOnCoverImage =
+            (e.target as HTMLElement).closest('#fullscreen-cover-image') ||
+            (e.target as HTMLElement).id === 'fullscreen-cover-image';
+        if (!isOnCoverImage) return;
+
         const action = fullscreenCoverClickSettings.getAction();
         const overlay = document.getElementById('fullscreen-cover-overlay');
         const playerInstance = window.monochromePlayer;
@@ -2786,7 +2794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const headerAccountIcon = document.getElementById('header-account-icon');
 
     // Temporarily disable accounts - show popup
-    const isAccountsDisabled = true;
+    const isAccountsDisabled = false;
 
     if (headerAccountBtn && headerAccountDropdown) {
         if (isAccountsDisabled) {
@@ -2855,7 +2863,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        authManager.onAuthStateChanged(async (user: { uid: string } | null) => {
+        authManager.onAuthStateChanged(async (user: Models.User<Models.Preferences> | null) => {
             if (user) {
                 const data = await syncManager.getUserData();
                 if (data && data.profile && data.profile.avatar_url) {

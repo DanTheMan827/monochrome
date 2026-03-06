@@ -1711,6 +1711,7 @@ export class UIRenderer {
 
         try {
             this.showPage('home');
+            this.setupHomeTabs();
 
             const welcomeEl = document.getElementById('home-welcome');
             const contentEl = document.getElementById('home-content');
@@ -1777,6 +1778,237 @@ export class UIRenderer {
             ]);
         } finally {
             this.renderLock = false;
+        }
+    }
+
+    setupHomeTabs(): void {
+        const tabs = document.querySelectorAll('.home-tab');
+        if (tabs.length === 0) return;
+
+        if ((tabs[0] as HTMLElement).dataset.initialized) return;
+
+        tabs.forEach((tab) => {
+            (tab as HTMLElement).dataset.initialized = 'true';
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.home-tab').forEach((t) => t.classList.remove('active'));
+                document.querySelectorAll('.home-view').forEach((v) => {
+                    (v as HTMLElement).style.display = 'none';
+                    v.classList.remove('active');
+                });
+
+                tab.classList.add('active');
+                const viewId = `home-view-${(tab as HTMLElement).dataset.tab}`;
+                const view = document.getElementById(viewId);
+                if (view) {
+                    view.style.display = 'block';
+                    view.classList.add('active');
+                }
+
+                if ((tab as HTMLElement).dataset.tab === 'explore') {
+                    this.renderExplorePage();
+                }
+            });
+        });
+    }
+
+    async renderExplorePage(): Promise<void> {
+        const container = document.getElementById('explore-grid');
+        if (!container) return;
+
+        if (container.children.length > 0) return;
+
+        container.classList.remove('card-grid');
+
+        container.innerHTML = `<div class="card-grid">${this.createSkeletonCards(12)}</div>`;
+
+        try {
+            const response = await fetch('https://hot.monochrome.tf/');
+            if (!response.ok) throw new Error('Failed to load explore data');
+            const data = await response.json();
+
+            container.innerHTML = '';
+
+            const GENRES = [
+                { id: 'hip_hop', name: 'Hip Hop / Rap' },
+                { id: 'pop', name: 'Pop' },
+                { id: 'rock', name: 'Rock' },
+                { id: 'electronic', name: 'Electronic' },
+                { id: 'country', name: 'Country' },
+                { id: 'jazz', name: 'Jazz' },
+                { id: 'classical', name: 'Classical' },
+                { id: 'latin', name: 'Latin' },
+                { id: 'reggae', name: 'Reggae / Dancehall' },
+                { id: 'blues', name: 'Blues' },
+                { id: 'soundtrack', name: 'Soundtrack' },
+                { id: 'alternative', name: 'Alternative' },
+            ];
+
+            if (GENRES.length > 0) {
+                const genresSection = document.createElement('section');
+                genresSection.className = 'content-section';
+                genresSection.innerHTML = `<h2 class="section-title">Genres</h2>`;
+
+                const genresGrid = document.createElement('div');
+                genresGrid.style.display = 'flex';
+                genresGrid.style.flexWrap = 'wrap';
+                genresGrid.style.gap = '0.5rem';
+                genresGrid.innerHTML = GENRES.map(
+                    (genre) => `
+                    <div class="card genre-card" data-genre-id="${genre.id}" data-genre-name="${escapeHtml(genre.name)}" style="cursor: pointer; background: var(--secondary); padding: 0.6rem 1rem; border-radius: var(--radius); border: 1px solid var(--border);">
+                        <h3 style="margin: 0; font-size: 0.875rem; font-weight: 600;">${escapeHtml(genre.name)}</h3>
+                    </div>
+                `
+                ).join('');
+
+                genresSection.appendChild(genresGrid);
+                container.appendChild(genresSection);
+
+                genresGrid.querySelectorAll('.genre-card').forEach((card) => {
+                    card.addEventListener('click', () => {
+                        this.renderGenrePage(
+                            (card as HTMLElement).dataset.genreId!,
+                            (card as HTMLElement).dataset.genreName!
+                        );
+                    });
+                });
+            }
+
+            if (data.top_albums && data.top_albums.length > 0) {
+                this.renderExploreSection(container, 'Trending Albums', data.top_albums, 'album');
+            }
+
+            if (data.top_tracks && data.top_tracks.length > 0) {
+                this.renderExploreSection(container, 'Trending Tracks', data.top_tracks, 'track');
+            }
+
+            if (data.featured_playlists && data.featured_playlists.length > 0) {
+                this.renderExploreSection(container, 'Featured Playlists', data.featured_playlists, 'playlist');
+            }
+
+            if (data.sections && data.sections.length > 0) {
+                data.sections.forEach((section: { type: string; title: string; items: TrackData[] }) => {
+                    if (section.items && section.items.length > 0) {
+                        let type: string | null = null;
+                        if (section.type === 'ALBUM_LIST') type = 'album';
+                        else if (section.type === 'TRACK_LIST') type = 'track';
+                        else if (section.type === 'PLAYLIST_LIST') type = 'playlist';
+
+                        if (type) {
+                            this.renderExploreSection(container, section.title, section.items, type);
+                        }
+                    }
+                });
+            }
+
+            if (container.children.length === 0) {
+                container.innerHTML = createPlaceholder('No explore content available.');
+            }
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = createPlaceholder('Failed to load explore content.');
+        }
+    }
+
+    renderExploreSection(container: HTMLElement, title: string, items: TrackData[], type: string): void {
+        const section = document.createElement('section');
+        section.className = 'content-section';
+        section.innerHTML = `<h2 class="section-title">${title}</h2>`;
+
+        if (type === 'track') {
+            const list = document.createElement('div');
+            list.className = 'track-list';
+            this.renderListWithTracks(list, items, true);
+            section.appendChild(list);
+        } else {
+            const grid = document.createElement('div');
+            grid.className = 'card-grid';
+            grid.innerHTML = items
+                .map((item) => {
+                    if (type === 'album') return this.createAlbumCardHTML(item as unknown as TrackAlbum);
+                    if (type === 'playlist') return this.createPlaylistCardHTML(item as unknown as PlaylistData);
+                    return '';
+                })
+                .join('');
+
+            items.forEach((item) => {
+                let selector: string | undefined;
+                if (type === 'album') selector = `[data-album-id="${item.id}"]`;
+                if (type === 'playlist') selector = `[data-playlist-id="${item.uuid}"]`;
+
+                if (selector) {
+                    const el = grid.querySelector(selector);
+                    if (el) {
+                        trackDataStore.set(el, item);
+                        if (type === 'album') this.updateLikeState(el, 'album', item.id);
+                        if (type === 'playlist') this.updateLikeState(el, 'playlist', item.uuid ?? item.id);
+                    }
+                }
+            });
+            section.appendChild(grid);
+        }
+        container.appendChild(section);
+    }
+
+    async renderGenrePage(genreId: string, genreName: string): Promise<void> {
+        const container = document.getElementById('explore-grid');
+        if (!container) return;
+
+        container.classList.remove('card-grid');
+
+        container.innerHTML = `
+            <div style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem;">
+                <button class="btn-secondary explore-back-btn" style="display: flex; align-items: center; gap: 0.5rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    Back
+                </button>
+                <h2 class="section-title" style="margin: 0;">${escapeHtml(genreName)}</h2>
+            </div>
+            <div class="card-grid">${this.createSkeletonCards(12)}</div>
+        `;
+
+        (container.querySelector('.explore-back-btn') as HTMLElement).addEventListener('click', () => {
+            container.innerHTML = '';
+            this.renderExplorePage();
+        });
+
+        try {
+            const response = await fetch(`https://hot.monochrome.tf/explore/genre/?id=${genreId}`);
+            if (!response.ok) throw new Error('Failed to load genre data');
+            const data = await response.json();
+
+            const header = container.firstElementChild;
+            container.innerHTML = '';
+            if (header) container.appendChild(header);
+
+            const contentContainer = document.createElement('div');
+            container.appendChild(contentContainer);
+
+            if (data.sections && data.sections.length > 0) {
+                data.sections.forEach((section: { type: string; title: string; items: TrackData[] }) => {
+                    if (section.items && section.items.length > 0) {
+                        let type: string | null = null;
+                        if (section.type === 'ALBUM_LIST') type = 'album';
+                        else if (section.type === 'TRACK_LIST') type = 'track';
+                        else if (section.type === 'PLAYLIST_LIST') type = 'playlist';
+
+                        if (type) {
+                            this.renderExploreSection(contentContainer, section.title, section.items, type);
+                        }
+                    }
+                });
+            }
+
+            if (contentContainer.children.length === 0) {
+                contentContainer.innerHTML = createPlaceholder('No content found for this genre.');
+            }
+        } catch (e) {
+            console.error(e);
+            const header = container.firstElementChild;
+            container.innerHTML = '';
+            if (header) container.appendChild(header);
+            const errorDiv = document.createElement('div');
+            errorDiv.innerHTML = createPlaceholder('Failed to load genre content.');
+            container.appendChild(errorDiv);
         }
     }
 
