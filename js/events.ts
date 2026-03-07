@@ -1706,6 +1706,11 @@ export function initializeTrackInteractions(
             }
 
             if (!item) {
+                // Check if item is stored on the button itself (e.g., album page header menu)
+                item = trackDataStore.get(cardMenuBtn);
+            }
+
+            if (!item) {
                 // Fallback: create a shell item
                 item = {
                     id: id as string,

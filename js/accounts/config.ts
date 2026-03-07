@@ -1,7 +1,15 @@
 // js/accounts/config.ts
 import { Client, Account } from 'appwrite';
 
-const client: Client = new Client().setEndpoint('https://auth.samidy.xyz/v1').setProject('auth-for-monochrome');
+const getEndpoint = (): string => {
+    const hostname = window.location.hostname;
+    if (hostname.endsWith('monochrome.tf') || hostname === 'monochrome.tf') {
+        return 'https://auth.monochrome.tf/v1';
+    }
+    return 'https://auth.samidy.com/v1';
+};
+
+const client: Client = new Client().setEndpoint(getEndpoint()).setProject('auth-for-monochrome');
 
 const account: Account = new Account(client);
 

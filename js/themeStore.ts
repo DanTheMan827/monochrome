@@ -47,6 +47,35 @@ const GENERIC_FONT_FAMILIES = [
     'gill sans',
 ];
 
+const THEMES_PER_PAGE = 50;
+
+const GENERIC_FONT_FAMILIES = [
+    'serif',
+    'sans-serif',
+    'monospace',
+    'cursive',
+    'fantasy',
+    'system-ui',
+    'inter',
+    'ibm plex mono',
+    'roboto',
+    'open sans',
+    'lato',
+    'montserrat',
+    'poppins',
+    'apple music',
+    'sf pro display',
+    'courier new',
+    'times new roman',
+    'arial',
+    'helvetica',
+    'verdana',
+    'tahoma',
+    'trebuchet ms',
+    'impact',
+    'gill sans',
+];
+
 export class ThemeStore {
     static EXPECTED_USER_ID_LENGTH = 15;
     private pb: PocketBase;

@@ -479,6 +479,10 @@ async function readMp3Metadata(file: File, metadata: LocalTrackMetadata): Promis
         if (!metadata.duration || metadata.duration === 0) {
             metadata.duration = await calculateMp3Duration(file, tagSize);
         }
+
+        if (!metadata.duration || metadata.duration === 0) {
+            metadata.duration = await calculateMp3Duration(file, tagSize);
+        }
     }
 
     if (file.size > 128) {
