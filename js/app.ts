@@ -612,7 +612,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    document.getElementById('fullscreen-cover-image')?.addEventListener('click', () => {
+    document.getElementById('fullscreen-cover-overlay')?.addEventListener('click', (e) => {
+        const coverImage = document.getElementById('fullscreen-cover-image');
+        if (!coverImage) return;
+        const isOnCoverImage = (e.target as HTMLElement)?.closest('#fullscreen-cover-image') || (e.target as HTMLElement)?.id === 'fullscreen-cover-image';
+        if (!isOnCoverImage) return;
+
         const action = fullscreenCoverClickSettings.getAction();
         const overlay = document.getElementById('fullscreen-cover-overlay');
         const playerInstance = window.monochromePlayer;
@@ -2375,27 +2380,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const searchForm = document.getElementById('search-form') as HTMLFormElement;
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
 
-    // Setup clear button for search bar
     ui.setupSearchClearButton(searchInput);
 
-    const performSearch = debounce((query: string) => {
+    const performSearch = (query: string): void => {
         if (query) {
             navigate(`/search/${encodeURIComponent(query)}`);
         }
-    }, 0);
+    };
 
-    const KNOWN_EXTERNAL_HOSTS = new Set(['monochrome.tf', 'monochrome.samidy.com', 'tidal.com']);
+    const debouncedSearch = debounce((query) => {
+        if (query && query === searchInput.value.trim()) {
+            performSearch(query);
+        }
+    }, 3000);
 
     const handleExternalLink = (query: string): boolean => {
         const url = query.startsWith('http') ? query : 'https://' + query;
         try {
             const urlObj = new URL(url);
-            if (!KNOWN_EXTERNAL_HOSTS.has(urlObj.hostname)) return false;
-
             let path = urlObj.pathname;
-            // Remove trailing slashes and get just endpoint/id
             path = path.replace(/\/+$/, '');
-            // Get just the first two segments (e.g., /album/382839956)
             const segments = path.split('/').filter((s) => s);
             if (segments.length >= 2) {
                 path = '/' + segments[0] + '/' + segments[1];
@@ -2411,9 +2415,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const query = (e.target as HTMLInputElement).value.trim();
         if (!query) return;
 
-        if (!handleExternalLink(query)) {
-            performSearch(query);
+        if (handleExternalLink(query)) {
+            return;
         }
+
+        debouncedSearch(query);
     });
 
     searchInput.addEventListener('change', (e) => {
@@ -2445,7 +2451,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!handleExternalLink(query)) {
             ui.addToSearchHistory(query);
-            navigate(`/search/${encodeURIComponent(query)}`);
+            performSearch(query);
             const historyEl = document.getElementById('search-history');
             if (historyEl) historyEl.style.display = 'none';
         }
@@ -2657,7 +2663,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const headerAccountIcon = document.getElementById('header-account-icon');
 
     // Temporarily disable accounts - show popup
-    const isAccountsDisabled = true;
+    const isAccountsDisabled = false;
 
     if (headerAccountBtn && headerAccountDropdown) {
         if (isAccountsDisabled) {
@@ -2726,7 +2732,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        authManager.onAuthStateChanged(async (user: { uid: string } | null) => {
+        authManager.onAuthStateChanged(async (user) => {
             if (user) {
                 const data = await syncManager.getUserData();
                 if (data && data.profile && data.profile.avatar_url) {

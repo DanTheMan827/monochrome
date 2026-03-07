@@ -2,10 +2,13 @@
 import PocketBase, { type RecordModel, ClientResponseError } from 'pocketbase';
 import { db } from '../db.ts';
 import { authManager } from './auth.ts';
-import type { FirebaseUser } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+import type { Models } from 'appwrite';
+
+type AppwriteUser = Models.User<Models.Preferences>;
+
 
 const PUBLIC_COLLECTION = 'public_playlists';
-const DEFAULT_POCKETBASE_URL = 'https://monodb.samidy.com';
+const DEFAULT_POCKETBASE_URL = 'https://data.samidy.xyz';
 const POCKETBASE_URL: string = localStorage.getItem('monochrome-pocketbase-url') || DEFAULT_POCKETBASE_URL;
 
 console.log('[PocketBase] Using URL:', POCKETBASE_URL);
@@ -96,7 +99,7 @@ const syncManager = {
         const user = authManager.user;
         if (!user) return null;
 
-        const record = await this._getUserRecord(user.uid);
+        const record = await this._getUserRecord(user.$id);
         if (!record) return null;
 
         const library = this.safeParseInternal(record.library, 'library', {} as LibraryCollection);
@@ -182,7 +185,7 @@ const syncManager = {
         const user = authManager.user;
         if (!user) return;
 
-        const record = await this._getUserRecord(user.uid);
+        const record = await this._getUserRecord(user.$id);
         if (!record) return;
 
         let library = this.safeParseInternal(record.library, 'library', {} as LibraryCollection);
@@ -200,7 +203,7 @@ const syncManager = {
             delete library[pluralType][key];
         }
 
-        await this._updateUserJSON(user.uid, 'library', library);
+        await this._updateUserJSON(user.$id, 'library', library);
     },
 
     _minifyItem(type: LibraryType, item: Record<string, unknown>): Record<string, unknown> {
@@ -299,20 +302,20 @@ const syncManager = {
         const user = authManager.user;
         if (!user) return;
 
-        const record = await this._getUserRecord(user.uid);
+        const record = await this._getUserRecord(user.$id);
         if (!record) return;
 
         let history = this.safeParseInternal(record.history, 'history', [] as unknown[]);
 
         const newHistory = [historyEntry, ...history].slice(0, 100);
-        await this._updateUserJSON(user.uid, 'history', newHistory);
+        await this._updateUserJSON(user.$id, 'history', newHistory);
     },
 
     async syncUserPlaylist(playlist: Record<string, unknown>, action: string): Promise<void> {
         const user = authManager.user;
         if (!user) return;
 
-        const record = await this._getUserRecord(user.uid);
+        const record = await this._getUserRecord(user.$id);
         if (!record) return;
 
         let userPlaylists = this.safeParseInternal(record.user_playlists, 'user_playlists', {} as Record<string, Record<string, unknown>>);
@@ -338,14 +341,14 @@ const syncManager = {
             }
         }
 
-        await this._updateUserJSON(user.uid, 'user_playlists', userPlaylists);
+        await this._updateUserJSON(user.$id, 'user_playlists', userPlaylists);
     },
 
     async syncUserFolder(folder: Record<string, unknown>, action: string): Promise<void> {
         const user = authManager.user;
         if (!user) return;
 
-        const record = await this._getUserRecord(user.uid);
+        const record = await this._getUserRecord(user.$id);
         if (!record) return;
 
         let userFolders = this.safeParseInternal(record.user_folders, 'user_folders', {} as Record<string, Record<string, unknown>>);
@@ -363,7 +366,7 @@ const syncManager = {
             };
         }
 
-        await this._updateUserJSON(user.uid, 'user_folders', userFolders);
+        await this._updateUserJSON(user.$id, 'user_folders', userFolders);
     },
 
     async getPublicPlaylist(uuid: string): Promise<RecordModel | null> {
@@ -437,7 +440,7 @@ const syncManager = {
 
     async publishPlaylist(playlist: Record<string, unknown>): Promise<void> {
         if (!playlist || !playlist.id) return;
-        const uid = authManager.user?.uid;
+        const uid = authManager.user?.$id;
         if (!uid) return;
 
         const data = {
@@ -477,7 +480,7 @@ const syncManager = {
     },
 
     async unpublishPlaylist(uuid: string): Promise<void> {
-        const uid = authManager.user?.uid;
+        const uid = authManager.user?.$id;
         if (!uid) return;
 
         try {
@@ -513,7 +516,7 @@ const syncManager = {
     async updateProfile(data: Record<string, unknown>): Promise<void> {
         const user = authManager.user;
         if (!user) return;
-        const record = await this._getUserRecord(user.uid);
+        const record = await this._getUserRecord(user.$id);
         if (!record) return;
 
         const updateData = { ...data };
@@ -521,7 +524,7 @@ const syncManager = {
             updateData.privacy = JSON.stringify(updateData.privacy);
         }
 
-        await this.pb.collection('DB_users').update(record.id, updateData, { f_id: user.uid });
+        await this.pb.collection('DB_users').update(record.id, updateData, { f_id: user.$id });
         if (this._userRecordCache) {
             this._userRecordCache = { ...this._userRecordCache, ...updateData };
         }
@@ -541,9 +544,9 @@ const syncManager = {
         if (!user) return;
 
         try {
-            const record = await this._getUserRecord(user.uid);
+            const record = await this._getUserRecord(user.$id);
             if (record) {
-                await this.pb.collection('DB_users').delete(record.id, { f_id: user.uid });
+                await this.pb.collection('DB_users').delete(record.id, { f_id: user.$id });
                 this._userRecordCache = null;
                 alert('Cloud data cleared successfully.');
             }
@@ -553,7 +556,7 @@ const syncManager = {
         }
     },
 
-    async onAuthStateChanged(user: FirebaseUser | null): Promise<void> {
+    async onAuthStateChanged(user: AppwriteUser | null): Promise<void> {
         if (user) {
             if (this._isSyncing) return;
 
@@ -647,10 +650,10 @@ const syncManager = {
                     }
 
                     if (needsUpdate) {
-                        await this._updateUserJSON(user.uid, 'library', library);
-                        await this._updateUserJSON(user.uid, 'user_playlists', userPlaylists);
-                        await this._updateUserJSON(user.uid, 'user_folders', userFolders);
-                        await this._updateUserJSON(user.uid, 'history', history);
+                        await this._updateUserJSON(user.$id, 'library', library);
+                        await this._updateUserJSON(user.$id, 'user_playlists', userPlaylists);
+                        await this._updateUserJSON(user.$id, 'user_folders', userFolders);
+                        await this._updateUserJSON(user.$id, 'history', history);
                     }
 
                     const convertedData = {

@@ -18,7 +18,37 @@ interface PBError {
     data?: { message?: string; data?: Record<string, { message: string }> };
 }
 
+const THEMES_PER_PAGE = 50;
+
+const GENERIC_FONT_FAMILIES = [
+    'serif',
+    'sans-serif',
+    'monospace',
+    'cursive',
+    'fantasy',
+    'system-ui',
+    'inter',
+    'ibm plex mono',
+    'roboto',
+    'open sans',
+    'lato',
+    'montserrat',
+    'poppins',
+    'apple music',
+    'sf pro display',
+    'courier new',
+    'times new roman',
+    'arial',
+    'helvetica',
+    'verdana',
+    'tahoma',
+    'trebuchet ms',
+    'impact',
+    'gill sans',
+];
+
 export class ThemeStore {
+    static EXPECTED_USER_ID_LENGTH = 15;
     private pb: PocketBase;
     private modal: HTMLElement | null;
     private grid: HTMLElement | null;
@@ -30,7 +60,6 @@ export class ThemeStore {
     private detailsPreviewShadow: ShadowRoot | null;
     private previewStyleTag: HTMLStyleElement | null;
     private editingThemeId: string | null;
-
     constructor() {
         this.pb = syncManager.pb;
         this.modal = document.getElementById('theme-store-modal');
@@ -140,7 +169,7 @@ export class ThemeStore {
         let currentUserId: string | null = null;
         if (authManager.user) {
             try {
-                const record = await syncManager._getUserRecord(authManager.user.uid);
+                const record = await syncManager._getUserRecord(authManager.user.$id);
                 currentUserId = record?.id ?? null;
             } catch (e) {
                 console.warn('Failed to resolve user ID for theme ownership check', e);
@@ -148,7 +177,7 @@ export class ThemeStore {
         }
 
         try {
-            const result = await this.pb.collection('themes').getList(1, 50, {
+            const result = await this.pb.collection('themes').getList(1, THEMES_PER_PAGE, {
                 sort: '-created',
                 filter: query ? `name ~ "${query}" || description ~ "${query}"` : '',
                 expand: 'author',
@@ -262,7 +291,7 @@ export class ThemeStore {
             const fbUser = authManager.user;
             if (!fbUser) throw new Error('Not authenticated');
 
-            await this.pb.collection('themes').delete(themeId, { f_id: fbUser.uid });
+            await this.pb.collection('themes').delete(themeId, { f_id: fbUser.$id });
             alert('Theme deleted successfully.');
             this.loadThemes();
         } catch (err) {
@@ -423,33 +452,7 @@ export class ThemeStore {
             const fontFamilyValue = fontMatch[1].trim();
             const mainFont = fontFamilyValue.split(',')[0].trim().replace(/['"]/g, '');
 
-            const genericFamilies = [
-                'serif',
-                'sans-serif',
-                'monospace',
-                'cursive',
-                'fantasy',
-                'system-ui',
-                'inter',
-                'ibm plex mono',
-                'roboto',
-                'open sans',
-                'lato',
-                'montserrat',
-                'poppins',
-                'apple music',
-                'sf pro display',
-                'courier new',
-                'times new roman',
-                'arial',
-                'helvetica',
-                'verdana',
-                'tahoma',
-                'trebuchet ms',
-                'impact',
-                'gill sans',
-            ];
-            const isPresetOrGeneric = genericFamilies.some((generic) => mainFont.toLowerCase() === generic);
+            const isPresetOrGeneric = GENERIC_FONT_FAMILIES.some((generic) => mainFont.toLowerCase() === generic);
 
             if (!isPresetOrGeneric) {
                 const FONT_LINK_ID = 'monochrome-dynamic-font';
@@ -508,6 +511,7 @@ export class ThemeStore {
         document.querySelectorAll('.theme-option').forEach((el) => el.classList.remove('active'));
         document.querySelector('[data-theme="custom"]')?.classList.add('active');
 
+        // Force reflow to ensure theme changes are applied immediately
         document.documentElement.style.display = 'none';
         document.documentElement.offsetHeight;
         document.documentElement.style.display = '';
@@ -566,7 +570,7 @@ export class ThemeStore {
         let userName: string | null = null;
 
         try {
-            const dbUser = await syncManager._getUserRecord(fbUser.uid);
+            const dbUser = await syncManager._getUserRecord(fbUser.$id);
             if (!dbUser) {
                 throw new Error('Could not find or create your user record. Please try again.');
             }
@@ -574,9 +578,9 @@ export class ThemeStore {
             userId = dbUser.id;
             userName = dbUser.username || dbUser.display_name || fbUser.email;
 
-            if (userId.length !== 15) {
+            if (userId.length !== ThemeStore.EXPECTED_USER_ID_LENGTH) {
                 throw new Error(
-                    `Your user ID is corrupted (${userId.length} chars, expected 15). ` +
+                    `Your user ID is corrupted (${userId.length} chars, expected ${ThemeStore.EXPECTED_USER_ID_LENGTH}). ` +
                         `Please go to Settings > System > Clear Cloud Data, then log out and back in.`
                 );
             }
@@ -595,11 +599,11 @@ export class ThemeStore {
             formData.append('authorUrl', website || '');
 
             if (this.editingThemeId) {
-                await this.pb.collection('themes').update(this.editingThemeId, formData, { f_id: fbUser.uid });
+                await this.pb.collection('themes').update(this.editingThemeId, formData, { f_id: fbUser.$id });
                 alert('Theme updated successfully!');
             } else {
                 formData.append('author', userId);
-                await this.pb.collection('themes').create(formData, { f_id: fbUser.uid });
+                await this.pb.collection('themes').create(formData, { f_id: fbUser.$id });
                 alert('Theme uploaded successfully!');
             }
 
@@ -630,8 +634,9 @@ export class ThemeStore {
                 alert(msg);
             } else {
                 const message = pbErr.message || pbErr.data?.message || 'Unknown error';
-                const debugInfo = `\n\nDebug: User ID: ${userId} (${userId?.length} chars) | Status: ${pbErr.status}`;
-                alert(`Failed to upload theme: ${message}${debugInfo}`);
+                const debugInfo = `User ID: ${userId} (${userId?.length} chars) | Status: ${pbErr.status}`;
+                console.error('Upload failed (debug info):', debugInfo);
+                alert(`Failed to upload theme: ${message}`);
             }
         }
     }

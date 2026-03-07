@@ -4,6 +4,7 @@ import { LCDPreset } from './visualizers/lcd.ts';
 import { ParticlesPreset } from './visualizers/particles.ts';
 import { UnknownPleasuresWebGL } from './visualizers/unknown_pleasures_webgl.ts';
 import { ButterchurnPreset } from './visualizers/butterchurn.ts';
+import { KawarpPreset } from './visualizers/kawarp.js';
 import { audioContextManager } from './audio-context.ts';
 
 type RenderingCtx = CanvasRenderingContext2D | WebGLRenderingContext | WebGL2RenderingContext;
@@ -24,10 +25,11 @@ interface VisualizerStats {
 interface VisualizerPreset {
     name?: string;
     contextType?: string;
+    managesOwnContext?: boolean;
     draw(ctx: RenderingCtx, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, params: VisualizerStats): void;
     resize?(width: number, height: number): void;
     destroy?(): void;
-    lazyInit?(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: MediaElementAudioSourceNode | null): void;
+    lazyInit?(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: MediaElementAudioSourceNode | null): Promise<void>;
 }
 
 export class Visualizer {
@@ -63,6 +65,7 @@ export class Visualizer {
             particles: new ParticlesPreset(),
             'unknown-pleasures': new UnknownPleasuresWebGL(),
             butterchurn: new ButterchurnPreset() as unknown as VisualizerPreset,
+            kawarp: new KawarpPreset() as unknown as VisualizerPreset,
         };
 
         this.activePresetKey = visualizerSettings.getPreset();
@@ -128,10 +131,9 @@ export class Visualizer {
         const type: string = preset.contextType || '2d';
         const currentType: string | undefined = this._currentContextType;
 
-        // If context type changed, we need to recreate the canvas
-        // (you can't get a different context type from the same canvas)
-        if (this.ctx && currentType !== type) {
-            // Clone and replace canvas to get fresh context
+        const needsClone = (this.ctx && currentType !== type) || (!this.ctx && currentType && currentType !== type);
+
+        if (needsClone) {
             const parent: HTMLElement | null = this.canvas.parentElement;
             const newCanvas: HTMLCanvasElement = this.canvas.cloneNode(true) as HTMLCanvasElement;
             if (parent) {
@@ -139,6 +141,12 @@ export class Visualizer {
             }
             this.canvas = newCanvas;
             this.ctx = null;
+        }
+
+        // Kawarp grabs its own WebGL context, so we skip this
+        if (preset.managesOwnContext) {
+            this._currentContextType = type;
+            return;
         }
 
         if (this.ctx) return;
@@ -184,15 +192,18 @@ export class Visualizer {
             this.audioContext.resume();
         }
 
-        // Initialize Butterchurn if it's the active preset
-        if (this.activePresetKey === 'butterchurn' && this.activePreset.lazyInit && this.audioContext) {
-            const sourceNode: MediaElementAudioSourceNode | null = audioContextManager.getSourceNode();
-            this.activePreset.lazyInit(this.canvas, this.audioContext, sourceNode);
-        }
-
+        // Set canvas dimensions before preset init so WebGL framebuffers are created at correct size
         this.resize();
         window.addEventListener('resize', this._resizeBound);
         this.canvas.style.display = 'block';
+
+        // Initialize presets that need lazy init (Butterchurn, Kawarp)
+        if (this.activePreset.lazyInit && this.audioContext) {
+            const sourceNode = audioContextManager.getSourceNode();
+            this.activePreset.lazyInit(this.canvas, this.audioContext, sourceNode).then(() => {
+                this.resize();
+            });
+        }
 
         this.animate();
     }
@@ -318,19 +329,32 @@ export class Visualizer {
     setPreset(key: string): void {
         if (!this.presets[key]) return;
 
+        const webglPresets = ['butterchurn', 'kawarp'];
+        const fromPreset = this.activePresetKey;
+        const toPreset = key;
+
+        if (webglPresets.includes(fromPreset) && webglPresets.includes(toPreset) && fromPreset !== toPreset) {
+            visualizerSettings.setPreset(key);
+            window.location.reload();
+            return;
+        }
+
         if (this.activePreset?.destroy) {
             this.activePreset.destroy();
         }
+
+        this._currentContextType = undefined;
+        this.ctx = null;
 
         this.activePresetKey = key;
         this.initContext();
         this.resize();
 
-        // Initialize Butterchurn if switching to it
-        const preset: VisualizerPreset = this.presets[key];
-        if (key === 'butterchurn' && preset.lazyInit && this.audioContext) {
+        if (this.presets[key].lazyInit && this.audioContext) {
             const sourceNode: MediaElementAudioSourceNode | null = audioContextManager.getSourceNode();
-            preset.lazyInit(this.canvas, this.audioContext, sourceNode);
+            this.presets[key].lazyInit!(this.canvas, this.audioContext, sourceNode).then(() => {
+                this.resize();
+            });
         }
     }
 }

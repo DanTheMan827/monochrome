@@ -407,6 +407,9 @@ interface CFContext {
     params: Record<string, string>;
     env: {
         ASSETS: { fetch(request: Request): Promise<Response> };
+        R2_ENABLED?: string;
+        R2_ACCESS_KEY_ID?: string;
+        R2_SECRET_ACCESS_KEY?: string;
     };
 }
 
