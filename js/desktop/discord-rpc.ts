@@ -1,0 +1,87 @@
+// js/desktop/discord-rpc.ts
+import { getTrackTitle, getTrackArtists } from '../utils.ts';
+
+interface DiscordRPCData {
+    details: string;
+    state: string;
+    largeImageKey: string;
+    largeImageText: string;
+    smallImageKey: string;
+    smallImageText: string;
+    instance?: boolean;
+    startTimestamp?: number;
+    endTimestamp?: number;
+}
+
+interface DiscordRPCPlayer {
+    audio: HTMLAudioElement;
+    currentTrack: TrackData | null;
+}
+
+export function initializeDiscordRPC(player: DiscordRPCPlayer): void {
+    const EXTENSION_ID: string = 'js.neutralino.discordrpc';
+
+    function sendUpdate(track: TrackData | null, isPaused: boolean = false): void {
+        if (!track) return;
+
+        let coverUrl: string = 'monochrome';
+        if (track.album?.cover) {
+            const coverId: string = track.album.cover.replace(/-/g, '/');
+            coverUrl = `https://resources.tidal.com/images/${coverId}/320x320.jpg`;
+        }
+
+        const data: DiscordRPCData = {
+            details: getTrackTitle(track),
+            state: getTrackArtists(track),
+            largeImageKey: coverUrl,
+            largeImageText: track.album?.title || 'Monochrome',
+            smallImageKey: isPaused ? 'pause' : 'play',
+            smallImageText: isPaused ? 'Paused' : 'Playing',
+            instance: false,
+        };
+
+        if (!isPaused && track.duration) {
+            const now: number = Date.now();
+            const elapsed: number = player.audio.currentTime * 1000;
+            const remaining: number = (track.duration - player.audio.currentTime) * 1000;
+
+            data.startTimestamp = Math.floor((now - elapsed) / 1000);
+            data.endTimestamp = Math.floor((now + remaining) / 1000);
+        }
+
+        Neutralino.events.broadcast('discord:update', data).catch((e: unknown) => console.error('Broadcast failed', e));
+        Neutralino.extensions
+            .dispatch(EXTENSION_ID, 'discord:update', data)
+            .catch((e: unknown) => console.error('Dispatch failed', e));
+    }
+
+    player.audio.addEventListener('play', (): void => {
+        sendUpdate(player.currentTrack);
+    });
+
+    player.audio.addEventListener('pause', (): void => {
+        sendUpdate(player.currentTrack, true);
+    });
+
+    player.audio.addEventListener('loadedmetadata', (): void => {
+        if (!player.audio.paused) {
+            sendUpdate(player.currentTrack);
+        }
+    });
+
+    // Send initial status
+    if (player.currentTrack) {
+        sendUpdate(player.currentTrack, player.audio.paused);
+    } else {
+        Neutralino.events
+            .broadcast('discord:update', {
+                details: 'Idling',
+                state: 'Monochrome',
+                largeImageKey: 'monochrome',
+                largeImageText: 'Monochrome',
+                smallImageKey: 'pause',
+                smallImageText: 'Paused',
+            })
+            .catch(() => {});
+    }
+}
