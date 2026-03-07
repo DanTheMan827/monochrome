@@ -14,16 +14,16 @@ interface R2Env {
     R2_SECRET_ACCESS_KEY?: string;
 }
 
-async function hmac(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+async function hmac(key: Uint8Array<ArrayBuffer>, data: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
     const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
-    return new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, data));
+    return new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, data)) as Uint8Array<ArrayBuffer>;
 }
 
-async function sha256(data: ArrayBuffer | Uint8Array): Promise<Uint8Array> {
-    return new Uint8Array(await crypto.subtle.digest('SHA-256', data));
+async function sha256(data: ArrayBuffer | Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
+    return new Uint8Array(await crypto.subtle.digest('SHA-256', data)) as Uint8Array<ArrayBuffer>;
 }
 
-function buf2hex(buffer: Uint8Array): string {
+function buf2hex(buffer: Uint8Array<ArrayBuffer>): string {
     return Array.from(buffer)
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('');
