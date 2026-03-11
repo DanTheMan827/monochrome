@@ -1,4 +1,20 @@
 export class LCDPreset {
+    name: string;
+    gridCols: number;
+    maxVol: number;
+    volDecay: number;
+    prevData: Float32Array;
+    peakData: Float32Array;
+    primaryColor: string;
+    disableShake: boolean;
+    glCanvas: HTMLCanvasElement | null;
+    gl: WebGLRenderingContext | null;
+    glProgram: WebGLProgram | null;
+    glInitialized: boolean;
+    uResolution: WebGLUniformLocation | null;
+    uTime: WebGLUniformLocation | null;
+    startTime: number;
+
     constructor() {
         this.name = 'LCD Pixels';
         this.gridCols = 48;

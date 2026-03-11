@@ -21,6 +21,21 @@ const ANALYSIS_INTERVAL = 100;
 const CACHE_BUST_PARAM = 'not-from-cache-please';
 
 export class KawarpPreset {
+    name: string;
+    contextType: string;
+    managesOwnContext: boolean;
+    kawarp: any | null;
+    canvas: HTMLCanvasElement | null;
+    audioElement: HTMLMediaElement | null;
+    isInitialized: boolean;
+    _lastCoverUrl: string | null;
+    _currentScale: number;
+    _targetScale: number;
+    _lastAnalysisTime: number;
+    _coverObserver: MutationObserver | null;
+    _onPlay: () => void;
+    _onPause: () => void;
+
     constructor() {
         this.name = 'Kawarp';
         this.contextType = 'webgl';
@@ -60,7 +75,7 @@ export class KawarpPreset {
             this.canvas = canvas;
             this.kawarp = new Kawarp(canvas, { ...KAWARP_DEFAULTS });
 
-            this.audioElement = document.getElementById('audio-player');
+            this.audioElement = document.getElementById('audio-player') as HTMLMediaElement | null;
             if (this.audioElement) {
                 this.audioElement.addEventListener('play', this._onPlay);
                 this.audioElement.addEventListener('pause', this._onPause);
@@ -69,9 +84,9 @@ export class KawarpPreset {
             this._observeCoverArt();
 
             const coverEl = document.querySelector('.now-playing-bar .cover');
-            if (coverEl?.tagName === 'IMG' && coverEl.src) {
-                this._lastCoverUrl = coverEl.src;
-                this._loadCover(coverEl.src);
+            if (coverEl?.tagName === 'IMG' && (coverEl as HTMLImageElement).src) {
+                this._lastCoverUrl = (coverEl as HTMLImageElement).src;
+                this._loadCover((coverEl as HTMLImageElement).src);
             }
 
             this.kawarp.start();
@@ -96,7 +111,7 @@ export class KawarpPreset {
 
         this._coverObserver = new MutationObserver(() => {
             const el = document.querySelector('.now-playing-bar .cover');
-            const src = el?.tagName === 'IMG' ? el.src : null;
+            const src = el?.tagName === 'IMG' ? (el as HTMLImageElement).src : null;
             if (!src || src === this._lastCoverUrl) return;
             this._lastCoverUrl = src;
             if (this.kawarp && this.isInitialized) {
