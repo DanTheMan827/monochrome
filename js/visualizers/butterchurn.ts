@@ -7,10 +7,10 @@ import { visualizerSettings } from '../storage.js';
 import { audioContextManager } from '../audio-context.js';
 
 // Module-level preset cache - loads immediately when this file is imported
-let cachedPresets = null;
-let cachedPresetKeys = [];
+let cachedPresets: Record<string, ButterchurnPresetData> | null = null;
+let cachedPresetKeys: string[] = [];
 let isLoading = false;
-let loadCallbacks = [];
+let loadCallbacks: Array<(presets: Record<string, ButterchurnPresetData>, keys: string[]) => void> = [];
 
 /**
  * Load presets at module level using dynamic import (lazy loaded)
@@ -83,7 +83,7 @@ export function getButterchurnPresets() {
 /**
  * Register callback for when presets are loaded
  */
-export function onButterchurnPresetsLoaded(callback) {
+export function onButterchurnPresetsLoaded(callback: (presets: Record<string, ButterchurnPresetData>, keys: string[]) => void) {
     if (cachedPresets) {
         callback(cachedPresets, cachedPresetKeys);
     } else {
@@ -95,6 +95,23 @@ export function onButterchurnPresetsLoaded(callback) {
 loadPresetsModule();
 
 export class ButterchurnPreset {
+    name: string;
+    contextType: string;
+    managesOwnContext: boolean;
+    visualizer: ButterchurnVisualizer | null;
+    canvas: HTMLCanvasElement | null;
+    audioContext: AudioContext | null;
+    currentPresetIndex: number;
+    lastPresetChange: number;
+    isInitialized: boolean;
+    presets: Record<string, ButterchurnPresetData>;
+    presetKeys: string[];
+    shuffledQueue: number[];
+    shuffledIndex: number;
+    blendProgress: number;
+    blendDuration: number;
+    _unregisterGraphChange: (() => void) | null;
+
     constructor() {
         this.name = 'Butterchurn';
         this.contextType = 'webgl';
@@ -458,8 +475,8 @@ export class ButterchurnPreset {
     /**
      * Lazy initialization helper for when audio context becomes available
      */
-    lazyInit(canvas, audioContext, sourceNode) {
-        return new Promise((resolve) => {
+    lazyInit(canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: AudioNode | null) {
+        return new Promise<void>((resolve) => {
             if (!this.isInitialized && canvas && audioContext) {
                 const gl =
                     canvas.getContext('webgl2', {
