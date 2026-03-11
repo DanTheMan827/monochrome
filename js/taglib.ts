@@ -56,7 +56,7 @@ export async function getMetadataWithTagLib(audioData: Uint8Array) {
         audioData = new Uint8Array(audioData);
     }
 
-    const worker = new Worker(new URL(TagLibWorker, import.meta.url), { type: 'module' });
+    const worker = new Worker(new URL(TagLibWorker as any, import.meta.url), { type: 'module' });
     const wasmUrl = await fetchTagLib();
 
     return new Promise<TagLibReadMetadata>((resolve, reject) => {
