@@ -23,6 +23,18 @@ import { db } from './db.js';
 import Hls from 'hls.js';
 
 export class Player {
+    currentTrack: {
+        id: string | number;
+        title?: string;
+        type?: string;
+        album?: { id: string | number; cover?: string; type?: string; numberOfTracks?: number };
+        artist?: { id: string | number; name?: string };
+        artists?: { id: string | number; name?: string }[];
+        [key: string]: unknown;
+    } | null;
+    shuffleActive: boolean;
+    userVolume: number;
+
     constructor(audioElement, api, quality = 'HI_RES_LOSSLESS') {
         this.audio = audioElement;
         this.video = document.getElementById('video-player');

@@ -18,6 +18,8 @@ interface UserPlaylistData {
     updatedAt: number;
     numberOfTracks: number;
     images: string[];
+    isPublic?: boolean;
+    title?: string;
 }
 
 interface UserFolderData {

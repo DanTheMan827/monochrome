@@ -8,6 +8,55 @@
  */
 
 export class UnknownPleasuresWebGL {
+    name: string;
+    contextType: string;
+    historySize: number;
+    dataPoints: number;
+    history: Float32Array[];
+    writeIndex: number;
+    pLookup: Float32Array;
+    xLookup: Float32Array;
+    gl: WebGLRenderingContext | null;
+    lineProgram: WebGLProgram | null;
+    glowProgram: WebGLProgram | null;
+    brightnessProgram: WebGLProgram | null;
+    blurProgram: WebGLProgram | null;
+    compositeProgram: WebGLProgram | null;
+    quadBuffer: WebGLBuffer | null;
+    lineBuffer: WebGLBuffer | null;
+    framebuffer: WebGLFramebuffer | null;
+    blurFramebuffer: WebGLFramebuffer | null;
+    blurFinalFramebuffer: WebGLFramebuffer | null;
+    sceneTexture: WebGLTexture | null;
+    blurTexture: WebGLTexture | null;
+    blurFinalTexture: WebGLTexture | null;
+    _paletteColor: string;
+    _paletteRGB: number[][] | null;
+    rotationAngle: number;
+    _cos: number;
+    _sin: number;
+    _propagationAccum: number;
+    vertexBuffer: Float32Array;
+    _tempPoints: Array<{ x: number; y: number }>;
+    line_a_posEdge: number;
+    line_u_color: WebGLUniformLocation | null;
+    brightness_a_position: number;
+    brightness_u_texture: WebGLUniformLocation | null;
+    brightness_u_threshold: WebGLUniformLocation | null;
+    brightness_u_isDarkTheme: WebGLUniformLocation | null;
+    blur_a_position: number;
+    blur_u_texture: WebGLUniformLocation | null;
+    blur_u_resolution: WebGLUniformLocation | null;
+    blur_u_direction: WebGLUniformLocation | null;
+    blur_u_spread: WebGLUniformLocation | null;
+    composite_a_position: number;
+    composite_u_scene: WebGLUniformLocation | null;
+    composite_u_blur: WebGLUniformLocation | null;
+    composite_u_glowStrength: WebGLUniformLocation | null;
+    composite_u_noiseStrength: WebGLUniformLocation | null;
+    composite_u_isDarkTheme: WebGLUniformLocation | null;
+    composite_u_time: WebGLUniformLocation | null;
+
     // Propagation speed: controls how fast waves propagate between lines
     // Higher = faster propagation (1.0 = default, 0.5 = slower, 2.0 = faster)
     static PROPAGATION_SPEED = 0.7;

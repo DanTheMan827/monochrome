@@ -104,6 +104,9 @@ function sortTracks(tracks, sortType) {
 }
 
 export class UIRenderer {
+    lyricsManager: import('./lyrics.js').LyricsManager | null;
+    uiToggleCleanup: (() => void) | null;
+
     constructor(api, player) {
         this.api = api;
         this.player = player;

@@ -84,12 +84,12 @@ if (typeof window !== 'undefined') {
     window.plausible =
         window.plausible ||
         function () {
-            (window.plausible.q = window.plausible.q || []).push(arguments);
+            (window.plausible!.q = window.plausible!.q || []).push(arguments);
         };
     window.plausible.init =
         window.plausible.init ||
         function (i) {
-            window.plausible.o = i || {};
+            window.plausible!.o = i || {};
         };
     window.plausible.init();
 }
@@ -99,7 +99,7 @@ let settingsModule = null;
 let downloadsModule = null;
 let metadataModule = null;
 
-export const managers = {};
+export const managers: { lyricsManager?: LyricsManager } = {};
 
 async function loadSettingsModule() {
     if (!settingsModule) {
@@ -244,7 +244,7 @@ function initializeKeyboardShortcuts(player, _audioPlayer) {
         },
         lyrics: () => {
             trackKeyboardShortcut('L');
-            document.querySelector('.now-playing-bar .cover')?.click();
+            (document.querySelector('.now-playing-bar .cover') as HTMLElement | null)?.click();
         },
         search: () => {
             trackKeyboardShortcut('/');
@@ -280,7 +280,7 @@ function initializeKeyboardShortcuts(player, _audioPlayer) {
     };
 
     document.addEventListener('keydown', (e) => {
-        if (e.target.matches('input, textarea, [contenteditable="true"]')) return;
+        if ((e.target as Element).matches('input, textarea, [contenteditable="true"]')) return;
 
         const shortcuts = keyboardShortcuts.getShortcuts();
         const pressedKey = e.key.toLowerCase();
@@ -288,7 +288,7 @@ function initializeKeyboardShortcuts(player, _audioPlayer) {
         const hasCtrl = e.ctrlKey || e.metaKey;
         const hasAlt = e.altKey;
 
-        for (const [action, shortcut] of Object.entries(shortcuts)) {
+        for (const [action, shortcut] of Object.entries(shortcuts) as [string, KeyboardShortcut][]) {
             if (!shortcut?.key) continue;
             const shortcutKey = shortcut.key.toLowerCase();
             const matches =
@@ -329,7 +329,7 @@ function showOfflineNotification() {
 }
 
 function hideOfflineNotification() {
-    const notification = document.querySelector('.offline-notification');
+    const notification = document.querySelector('.offline-notification') as HTMLElement | null;
     if (notification) {
         notification.style.animation = 'slide-out 0.3s ease forwards';
         setTimeout(() => notification.remove(), 300);
@@ -452,13 +452,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 setTimeout(async () => {
                     try {
                         // my worker should detect a users OS and serve the right ver
-                        const update = await updater.checkForUpdates('https://update.samidy.xyz/update.json');
+                        const update = await updater.checkForUpdates('https://update.samidy.xyz/update.json') as { available?: boolean; notes?: string } | null;
 
                         if (update && update.available) {
                             const modal = document.getElementById('desktop-update-modal');
                             const notes = document.getElementById('desktop-update-notes');
-                            const confirmBtn = document.getElementById('desktop-update-confirm');
-                            const cancelBtn = document.getElementById('desktop-update-cancel');
+                            const confirmBtn = document.getElementById('desktop-update-confirm') as HTMLButtonElement | null;
+                            const cancelBtn = document.getElementById('desktop-update-cancel') as HTMLButtonElement | null;
 
                             if (modal) {
                                 notes.innerHTML = update.notes || 'Bug fixes and improvements.';
@@ -570,7 +570,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.querySelector('.now-playing-bar').addEventListener('click', async (e) => {
-        if (!e.target.closest('.cover')) return;
+        if (!(e.target as Element).closest('.cover')) return;
 
         if (!player.currentTrack) {
             alert('No track is currently playing');
@@ -628,7 +628,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Toggle Share Button visibility on switch change
     document.getElementById('playlist-public-toggle')?.addEventListener('change', (e) => {
         const shareBtn = document.getElementById('playlist-share-btn');
-        if (shareBtn) shareBtn.style.display = e.target.checked ? 'flex' : 'none';
+        if (shareBtn) shareBtn.style.display = (e.target as HTMLInputElement).checked ? 'flex' : 'none';
     });
 
     document.getElementById('close-fullscreen-cover-btn')?.addEventListener('click', () => {
@@ -643,7 +643,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('fullscreen-cover-overlay')?.addEventListener('click', (e) => {
         const coverImage = document.getElementById('fullscreen-cover-image');
         if (!coverImage) return;
-        const isOnCoverImage = e.target.closest('#fullscreen-cover-image') || e.target.id === 'fullscreen-cover-image';
+        const isOnCoverImage = (e.target as Element).closest('#fullscreen-cover-image') || (e.target as Element).id === 'fullscreen-cover-image';
         if (!isOnCoverImage) return;
 
         const action = fullscreenCoverClickSettings.getAction();
@@ -722,34 +722,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Import tab switching in playlist modal
     document.querySelectorAll('.import-tab').forEach((tab) => {
         tab.addEventListener('click', () => {
-            const importType = tab.dataset.importType;
+            const importType = (tab as HTMLElement).dataset.importType;
 
             // Update tab styles
             document.querySelectorAll('.import-tab').forEach((t) => {
                 t.classList.remove('active');
-                t.style.opacity = '0.7';
+                (t as HTMLElement).style.opacity = '0.7';
             });
             tab.classList.add('active');
-            tab.style.opacity = '1';
+            (tab as HTMLElement).style.opacity = '1';
 
             // Show/hide panels
-            document.getElementById('csv-import-panel').style.display = importType === 'csv' ? 'block' : 'none';
-            document.getElementById('jspf-import-panel').style.display = importType === 'jspf' ? 'block' : 'none';
-            document.getElementById('xspf-import-panel').style.display = importType === 'xspf' ? 'block' : 'none';
-            document.getElementById('xml-import-panel').style.display = importType === 'xml' ? 'block' : 'none';
-            document.getElementById('m3u-import-panel').style.display = importType === 'm3u' ? 'block' : 'none';
+            document.getElementById('csv-import-panel')!.style.display = importType === 'csv' ? 'block' : 'none';
+            document.getElementById('jspf-import-panel')!.style.display = importType === 'jspf' ? 'block' : 'none';
+            document.getElementById('xspf-import-panel')!.style.display = importType === 'xspf' ? 'block' : 'none';
+            document.getElementById('xml-import-panel')!.style.display = importType === 'xml' ? 'block' : 'none';
+            document.getElementById('m3u-import-panel')!.style.display = importType === 'm3u' ? 'block' : 'none';
 
             // Clear all file inputs except the active one
-            document.getElementById('csv-file-input').value =
-                importType === 'csv' ? document.getElementById('csv-file-input').value : '';
-            document.getElementById('jspf-file-input').value =
-                importType === 'jspf' ? document.getElementById('jspf-file-input').value : '';
-            document.getElementById('xspf-file-input').value =
-                importType === 'xspf' ? document.getElementById('xspf-file-input').value : '';
-            document.getElementById('xml-file-input').value =
-                importType === 'xml' ? document.getElementById('xml-file-input').value : '';
-            document.getElementById('m3u-file-input').value =
-                importType === 'm3u' ? document.getElementById('m3u-file-input').value : '';
+            (document.getElementById('csv-file-input') as HTMLInputElement).value =
+                importType === 'csv' ? (document.getElementById('csv-file-input') as HTMLInputElement).value : '';
+            (document.getElementById('jspf-file-input') as HTMLInputElement).value =
+                importType === 'jspf' ? (document.getElementById('jspf-file-input') as HTMLInputElement).value : '';
+            (document.getElementById('xspf-file-input') as HTMLInputElement).value =
+                importType === 'xspf' ? (document.getElementById('xspf-file-input') as HTMLInputElement).value : '';
+            (document.getElementById('xml-file-input') as HTMLInputElement).value =
+                importType === 'xml' ? (document.getElementById('xml-file-input') as HTMLInputElement).value : '';
+            (document.getElementById('m3u-file-input') as HTMLInputElement).value =
+                importType === 'm3u' ? (document.getElementById('m3u-file-input') as HTMLInputElement).value : '';
         });
     });
     const spotifyBtn = document.getElementById('csv-spotify-btn');
@@ -835,7 +835,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     coverFileInput?.addEventListener('change', async (e) => {
-        const file = e.target.files?.[0];
+        const file = (e.target as HTMLInputElement).files?.[0];
         if (!file) return;
 
         // Validate file type
@@ -847,11 +847,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Show uploading status
         coverUploadStatus.style.display = 'block';
         coverUploadText.textContent = 'Uploading...';
-        coverUploadBtn.disabled = true;
+        (coverUploadBtn as HTMLButtonElement).disabled = true;
 
         try {
             const publicUrl = await uploadCoverImage(file);
-            coverUrlInput.value = publicUrl;
+            (coverUrlInput as HTMLInputElement).value = publicUrl;
             coverUploadText.textContent = 'Done!';
             coverUploadText.style.color = 'var(--success)';
 
@@ -863,7 +863,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             coverUploadText.style.color = 'var(--error)';
             console.error('Upload failed:', error);
         } finally {
-            coverUploadBtn.disabled = false;
+            (coverUploadBtn as HTMLButtonElement).disabled = false;
         }
     });
 
@@ -956,8 +956,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     document.addEventListener('click', async (e) => {
-        if (e.target.closest('#play-album-btn')) {
-            const btn = e.target.closest('#play-album-btn');
+        const target = e.target as Element;
+        if (target.closest('#play-album-btn')) {
+            const btn = target.closest('#play-album-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const pathParts = window.location.pathname.split('/');
@@ -994,8 +995,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#shuffle-album-btn')) {
-            const btn = e.target.closest('#shuffle-album-btn');
+        if (target.closest('#shuffle-album-btn')) {
+            const btn = target.closest('#shuffle-album-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const pathParts = window.location.pathname.split('/');
@@ -1028,8 +1029,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#shuffle-artist-btn')) {
-            const btn = e.target.closest('#shuffle-artist-btn');
+        if (target.closest('#shuffle-artist-btn')) {
+            const btn = target.closest('#shuffle-artist-btn') as HTMLButtonElement;
             if (btn.disabled) return;
             const artistId = window.location.pathname.split('/')[2];
             if (!artistId) return;
@@ -1100,8 +1101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
         }
-        if (e.target.closest('#download-mix-btn')) {
-            const btn = e.target.closest('#download-mix-btn');
+        if (target.closest('#download-mix-btn')) {
+            const btn = target.closest('#download-mix-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const mixId = window.location.pathname.split('/')[2];
@@ -1125,8 +1126,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#download-playlist-btn')) {
-            const btn = e.target.closest('#download-playlist-btn');
+        if (target.closest('#download-playlist-btn')) {
+            const btn = target.closest('#download-playlist-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const playlistId = window.location.pathname.split('/')[2];
@@ -1169,36 +1170,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#create-playlist-btn')) {
+        if (target.closest('#create-playlist-btn')) {
             trackOpenModal('Create Playlist');
             const modal = document.getElementById('playlist-modal');
-            document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-            document.getElementById('playlist-name-input').value = '';
-            document.getElementById('playlist-cover-input').value = '';
-            document.getElementById('playlist-cover-file-input').value = '';
-            document.getElementById('playlist-description-input').value = '';
-            modal.dataset.editingId = '';
-            document.getElementById('import-section').style.display = 'block';
-            document.getElementById('csv-file-input').value = '';
-            document.getElementById('ytm-url-input').value = '';
-            document.getElementById('ytm-status').textContent = '';
-            document.getElementById('jspf-file-input').value = '';
-            document.getElementById('xspf-file-input').value = '';
-            document.getElementById('xml-file-input').value = '';
-            document.getElementById('m3u-file-input').value = '';
+            document.getElementById('playlist-modal-title')!.textContent = 'Create Playlist';
+            (document.getElementById('playlist-name-input') as HTMLInputElement).value = '';
+            (document.getElementById('playlist-cover-input') as HTMLInputElement).value = '';
+            (document.getElementById('playlist-cover-file-input') as HTMLInputElement).value = '';
+            (document.getElementById('playlist-description-input') as HTMLInputElement).value = '';
+            modal!.dataset.editingId = '';
+            document.getElementById('import-section')!.style.display = 'block';
+            (document.getElementById('csv-file-input') as HTMLInputElement).value = '';
+            (document.getElementById('ytm-url-input') as HTMLInputElement).value = '';
+            document.getElementById('ytm-status')!.textContent = '';
+            (document.getElementById('jspf-file-input') as HTMLInputElement).value = '';
+            (document.getElementById('xspf-file-input') as HTMLInputElement).value = '';
+            (document.getElementById('xml-file-input') as HTMLInputElement).value = '';
+            (document.getElementById('m3u-file-input') as HTMLInputElement).value = '';
 
             // Reset import tabs to CSV
             document.querySelectorAll('.import-tab').forEach((tab) => {
-                tab.classList.toggle('active', tab.dataset.importType === 'csv');
+                tab.classList.toggle('active', (tab as HTMLElement).dataset.importType === 'csv');
             });
-            document.getElementById('csv-import-panel').style.display = 'block';
-            document.getElementById('jspf-import-panel').style.display = 'none';
-            document.getElementById('xspf-import-panel').style.display = 'none';
-            document.getElementById('xml-import-panel').style.display = 'none';
-            document.getElementById('m3u-import-panel').style.display = 'none';
+            document.getElementById('csv-import-panel')!.style.display = 'block';
+            document.getElementById('jspf-import-panel')!.style.display = 'none';
+            document.getElementById('xspf-import-panel')!.style.display = 'none';
+            document.getElementById('xml-import-panel')!.style.display = 'none';
+            document.getElementById('m3u-import-panel')!.style.display = 'none';
 
             // Reset Public Toggle
-            const publicToggle = document.getElementById('playlist-public-toggle');
+            const publicToggle = document.getElementById('playlist-public-toggle') as HTMLInputElement | null;
             const shareBtn = document.getElementById('playlist-share-btn');
             if (publicToggle) publicToggle.checked = false;
             if (shareBtn) shareBtn.style.display = 'none';
@@ -1223,18 +1224,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('playlist-name-input').focus();
         }
 
-        if (e.target.closest('#create-folder-btn')) {
+        if (target.closest('#create-folder-btn')) {
             trackOpenModal('Create Folder');
             const modal = document.getElementById('folder-modal');
-            document.getElementById('folder-name-input').value = '';
-            document.getElementById('folder-cover-input').value = '';
-            modal.classList.add('active');
-            document.getElementById('folder-name-input').focus();
+            (document.getElementById('folder-name-input') as HTMLInputElement).value = '';
+            (document.getElementById('folder-cover-input') as HTMLInputElement).value = '';
+            modal!.classList.add('active');
+            document.getElementById('folder-name-input')!.focus();
         }
 
-        if (e.target.closest('#folder-modal-save')) {
-            const name = document.getElementById('folder-name-input').value.trim();
-            const cover = document.getElementById('folder-cover-input').value.trim();
+        if (target.closest('#folder-modal-save')) {
+            const name = (document.getElementById('folder-name-input') as HTMLInputElement).value.trim();
+            const cover = (document.getElementById('folder-cover-input') as HTMLInputElement).value.trim();
 
             if (name) {
                 const folder = await db.createFolder(name, cover);
@@ -1248,11 +1249,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#folder-modal-cancel')) {
+        if (target.closest('#folder-modal-cancel')) {
             document.getElementById('folder-modal').classList.remove('active');
         }
 
-        if (e.target.closest('#delete-folder-btn')) {
+        if (target.closest('#delete-folder-btn')) {
             const folderId = window.location.pathname.split('/')[2];
             if (folderId && confirm('Are you sure you want to delete this folder?')) {
                 await db.deleteFolder(folderId);
@@ -1262,10 +1263,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#playlist-modal-save')) {
-            let name = document.getElementById('playlist-name-input').value.trim();
-            let description = document.getElementById('playlist-description-input').value.trim();
-            const isPublic = document.getElementById('playlist-public-toggle')?.checked;
+        if (target.closest('#playlist-modal-save')) {
+            let name = (document.getElementById('playlist-name-input') as HTMLInputElement).value.trim();
+            let description = (document.getElementById('playlist-description-input') as HTMLInputElement).value.trim();
+            const isPublic = (document.getElementById('playlist-public-toggle') as HTMLInputElement | null)?.checked;
 
             if (name) {
                 const modal = document.getElementById('playlist-modal');
@@ -1292,7 +1293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (editingId) {
                     // Edit
-                    const cover = document.getElementById('playlist-cover-input').value.trim();
+                    const cover = (document.getElementById('playlist-cover-input') as HTMLInputElement).value.trim();
                     db.getPlaylist(editingId).then(async (playlist) => {
                         if (playlist) {
                             playlist.name = name;
@@ -1312,17 +1313,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 } else {
                     // Create
-                    const csvFileInput = document.getElementById('csv-file-input');
-                    const jspfFileInput = document.getElementById('jspf-file-input');
-                    const xspfFileInput = document.getElementById('xspf-file-input');
-                    const xmlFileInput = document.getElementById('xml-file-input');
-                    const m3uFileInput = document.getElementById('m3u-file-input');
+                    const csvFileInput = document.getElementById('csv-file-input') as HTMLInputElement;
+                    const jspfFileInput = document.getElementById('jspf-file-input') as HTMLInputElement;
+                    const xspfFileInput = document.getElementById('xspf-file-input') as HTMLInputElement;
+                    const xmlFileInput = document.getElementById('xml-file-input') as HTMLInputElement;
+                    const m3uFileInput = document.getElementById('m3u-file-input') as HTMLInputElement;
 
                     const importOptions = { strictArtistMatch: true, albumMatch: true };
 
                     let tracks = [];
                     let importSource = 'manual';
-                    let cover = document.getElementById('playlist-cover-input').value.trim();
+                    let cover = (document.getElementById('playlist-cover-input') as HTMLInputElement).value.trim();
 
                     // Helper function for import progress
                     const setupProgressElements = () => {
@@ -1343,9 +1344,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     };
 
                     const isYTMActive = document.getElementById('csv-ytm-btn')?.classList.contains('btn-primary');
-                    const ytmUrlInput = document.getElementById('ytm-url-input');
+                    const ytmUrlInput = document.getElementById('ytm-url-input') as HTMLInputElement | null;
 
-                    if (isYTMActive && ytmUrlInput.value.trim()) {
+                    if (isYTMActive && ytmUrlInput?.value.trim()) {
                         importSource = 'ytm_import';
                         const url = ytmUrlInput.value.trim();
                         const playlistId = url.split('list=')[1]?.split('&')[0];
@@ -1464,7 +1465,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 currentTrackElement.textContent = progress.currentTrack;
                                 if (currentArtistElement)
                                     currentArtistElement.textContent = progress.currentArtist || '';
-                            });
+                            }) as JspfParseResult;
 
                             tracks = result.tracks;
                             const missingTracks = result.missingTracks;
@@ -1803,8 +1804,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
 
                     // Check for pending tracks (from Add to Playlist -> New Playlist)
-                    const modal = document.getElementById('playlist-modal');
-                    if (modal._pendingTracks && Array.isArray(modal._pendingTracks)) {
+                    const modal = document.getElementById('playlist-modal') as (HTMLElement & { _pendingTracks?: Record<string, unknown>[] }) | null;
+                    if (modal?._pendingTracks && Array.isArray(modal._pendingTracks)) {
                         tracks = [...tracks, ...modal._pendingTracks];
                         delete modal._pendingTracks;
                         // Also clear CSV input if we came from there? No, keep it separate.
@@ -1827,23 +1828,23 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#playlist-modal-cancel')) {
+        if (target.closest('#playlist-modal-cancel')) {
             document.getElementById('playlist-modal').classList.remove('active');
         }
 
-        if (e.target.closest('.edit-playlist-btn')) {
-            const card = e.target.closest('.user-playlist');
+        if (target.closest('.edit-playlist-btn')) {
+            const card = target.closest('.user-playlist') as HTMLElement;
             const playlistId = card.dataset.userPlaylistId;
             db.getPlaylist(playlistId).then(async (playlist) => {
                 if (playlist) {
                     const modal = document.getElementById('playlist-modal');
-                    document.getElementById('playlist-modal-title').textContent = 'Edit Playlist';
-                    document.getElementById('playlist-name-input').value = playlist.name;
-                    document.getElementById('playlist-cover-input').value = playlist.cover || '';
-                    document.getElementById('playlist-description-input').value = playlist.description || '';
+                    document.getElementById('playlist-modal-title')!.textContent = 'Edit Playlist';
+                    (document.getElementById('playlist-name-input') as HTMLInputElement).value = playlist.name;
+                    (document.getElementById('playlist-cover-input') as HTMLInputElement).value = playlist.cover || '';
+                    (document.getElementById('playlist-description-input') as HTMLInputElement).value = playlist.description || '';
 
                     // Set Public Toggle
-                    const publicToggle = document.getElementById('playlist-public-toggle');
+                    const publicToggle = document.getElementById('playlist-public-toggle') as HTMLInputElement | null;
                     const shareBtn = document.getElementById('playlist-share-btn');
 
                     // Check if actually public in Pocketbase to be sure (async) or trust local flag
@@ -1889,8 +1890,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        if (e.target.closest('.delete-playlist-btn')) {
-            const card = e.target.closest('.user-playlist');
+        if (target.closest('.delete-playlist-btn')) {
+            const card = target.closest('.user-playlist') as HTMLElement;
             const playlistId = card.dataset.userPlaylistId;
             if (confirm('Are you sure you want to delete this playlist?')) {
                 db.deletePlaylist(playlistId).then(() => {
@@ -1900,17 +1901,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#edit-playlist-btn')) {
+        if (target.closest('#edit-playlist-btn')) {
             const playlistId = window.location.pathname.split('/')[2];
             db.getPlaylist(playlistId).then((playlist) => {
                 if (playlist) {
                     const modal = document.getElementById('playlist-modal');
-                    document.getElementById('playlist-modal-title').textContent = 'Edit Playlist';
-                    document.getElementById('playlist-name-input').value = playlist.name;
-                    document.getElementById('playlist-cover-input').value = playlist.cover || '';
-                    document.getElementById('playlist-description-input').value = playlist.description || '';
+                    document.getElementById('playlist-modal-title')!.textContent = 'Edit Playlist';
+                    (document.getElementById('playlist-name-input') as HTMLInputElement).value = playlist.name;
+                    (document.getElementById('playlist-cover-input') as HTMLInputElement).value = playlist.cover || '';
+                    (document.getElementById('playlist-description-input') as HTMLInputElement).value = playlist.description || '';
 
-                    const publicToggle = document.getElementById('playlist-public-toggle');
+                    const publicToggle = document.getElementById('playlist-public-toggle') as HTMLInputElement | null;
                     const shareBtn = document.getElementById('playlist-share-btn');
 
                     if (publicToggle) publicToggle.checked = !!playlist.isPublic;
@@ -1953,7 +1954,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        if (e.target.closest('#delete-playlist-btn')) {
+        if (target.closest('#delete-playlist-btn')) {
             const playlistId = window.location.pathname.split('/')[2];
             if (confirm('Are you sure you want to delete this playlist?')) {
                 db.deletePlaylist(playlistId).then(() => {
@@ -1963,9 +1964,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('.remove-from-playlist-btn')) {
+        if (target.closest('.remove-from-playlist-btn')) {
             e.stopPropagation();
-            const btn = e.target.closest('.remove-from-playlist-btn');
+            const btn = target.closest('.remove-from-playlist-btn') as HTMLElement;
             const playlistId = window.location.pathname.split('/')[2];
 
             db.getPlaylist(playlistId).then(async (playlist) => {
@@ -1995,8 +1996,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        if (e.target.closest('#play-playlist-btn')) {
-            const btn = e.target.closest('#play-playlist-btn');
+        if (target.closest('#play-playlist-btn')) {
+            const btn = target.closest('#play-playlist-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const playlistId = window.location.pathname.split('/')[2];
@@ -2032,8 +2033,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#download-album-btn')) {
-            const btn = e.target.closest('#download-album-btn');
+        if (target.closest('#download-album-btn')) {
+            const btn = target.closest('#download-album-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const albumId = window.location.pathname.split('/')[2];
@@ -2057,8 +2058,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#add-album-to-playlist-btn')) {
-            const btn = e.target.closest('#add-album-to-playlist-btn');
+        if (target.closest('#add-album-to-playlist-btn')) {
+            const btn = target.closest('#add-album-to-playlist-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const albumId = window.location.pathname.split('/')[2];
@@ -2102,27 +2103,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 };
 
                 const handleOptionClick = async (e) => {
-                    const option = e.target.closest('.modal-option');
+                    const option = (e.target as Element).closest('.modal-option');
                     if (!option) return;
 
                     if (option.classList.contains('create-new-option')) {
                         closeModal();
-                        const createModal = document.getElementById('playlist-modal');
-                        document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-                        document.getElementById('playlist-name-input').value = '';
-                        document.getElementById('playlist-cover-input').value = '';
-                        createModal.dataset.editingId = '';
-                        document.getElementById('import-section').style.display = 'none'; // Hide import for simple add
+                        const createModal = document.getElementById('playlist-modal') as (HTMLElement & { _pendingTracks?: Record<string, unknown>[] }) | null;
+                        document.getElementById('playlist-modal-title')!.textContent = 'Create Playlist';
+                        (document.getElementById('playlist-name-input') as HTMLInputElement).value = '';
+                        (document.getElementById('playlist-cover-input') as HTMLInputElement).value = '';
+                        createModal!.dataset.editingId = '';
+                        document.getElementById('import-section')!.style.display = 'none'; // Hide import for simple add
 
                         // Pass tracks
-                        createModal._pendingTracks = tracks;
+                        createModal!._pendingTracks = tracks;
 
                         createModal.classList.add('active');
                         document.getElementById('playlist-name-input').focus();
                         return;
                     }
 
-                    const playlistId = option.dataset.id;
+                    const playlistId = (option as HTMLElement).dataset.id;
 
                     try {
                         await db.addTracksToPlaylist(playlistId, tracks);
@@ -2156,8 +2157,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#play-artist-radio-btn')) {
-            const btn = e.target.closest('#play-artist-radio-btn');
+        if (target.closest('#play-artist-radio-btn')) {
+            const btn = target.closest('#play-artist-radio-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const artistId = window.location.pathname.split('/')[2];
@@ -2227,8 +2228,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#shuffle-liked-tracks-btn')) {
-            const btn = e.target.closest('#shuffle-liked-tracks-btn');
+        if (target.closest('#shuffle-liked-tracks-btn')) {
+            const btn = target.closest('#shuffle-liked-tracks-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             try {
@@ -2248,8 +2249,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#download-liked-tracks-btn')) {
-            const btn = e.target.closest('#download-liked-tracks-btn');
+        if (target.closest('#download-liked-tracks-btn')) {
+            const btn = target.closest('#download-liked-tracks-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             btn.disabled = true;
@@ -2274,8 +2275,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        if (e.target.closest('#download-discography-btn')) {
-            const btn = e.target.closest('#download-discography-btn');
+        if (target.closest('#download-discography-btn')) {
+            const btn = target.closest('#download-discography-btn') as HTMLButtonElement;
             if (btn.disabled) return;
 
             const artistId = window.location.pathname.split('/')[2];
@@ -2291,8 +2292,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // Local Files Logic lollll
-        if (e.target.closest('#select-local-folder-btn') || e.target.closest('#change-local-folder-btn')) {
-            const isChange = e.target.closest('#change-local-folder-btn') !== null;
+        if (target.closest('#select-local-folder-btn') || target.closest('#change-local-folder-btn')) {
+            const isChange = target.closest('#change-local-folder-btn') !== null;
             try {
                 const isNeutralino =
                     window.Neutralino && (window.NL_MODE || window.location.search.includes('mode=neutralino'));
@@ -2316,7 +2317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     trackChangeLocalFolder();
                 }
 
-                const btn = document.getElementById('select-local-folder-btn');
+                const btn = document.getElementById('select-local-folder-btn') as HTMLButtonElement | null;
                 const btnText = document.getElementById('select-local-folder-text');
                 if (btn) {
                     if (btnText) btnText.textContent = 'Scanning...';
@@ -2401,7 +2402,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.error('Error selecting folder:', err);
                     alert('Failed to access folder. Please try again.');
                 }
-                const btn = document.getElementById('select-local-folder-btn');
+                const btn = document.getElementById('select-local-folder-btn') as HTMLButtonElement | null;
                 const btnText = document.getElementById('select-local-folder-text');
                 if (btn) {
                     if (btnText) btnText.textContent = 'Select Music Folder';
@@ -2413,7 +2414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const searchForm = document.getElementById('search-form');
-    const searchInput = document.getElementById('search-input');
+    const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
 
     ui.setupSearchClearButton(searchInput);
 
@@ -2424,7 +2425,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     const debouncedSearch = debounce((query) => {
-        if (query && query === searchInput.value.trim()) {
+        if (query && query === searchInput?.value.trim()) {
             performSearch(query);
         }
     }, 3000);
@@ -2454,8 +2455,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         return false;
     };
 
-    searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.trim();
+    searchInput?.addEventListener('input', (e) => {
+        const query = (e.target as HTMLInputElement).value.trim();
         if (!query) return;
 
         if (handleExternalLink(query)) {
@@ -2465,23 +2466,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         debouncedSearch(query);
     });
 
-    searchInput.addEventListener('change', (e) => {
-        const query = e.target.value.trim();
+    searchInput?.addEventListener('change', (e) => {
+        const query = (e.target as HTMLInputElement).value.trim();
         if (query) {
             ui.addToSearchHistory(query);
         }
     });
 
-    searchInput.addEventListener('focus', () => {
+    searchInput?.addEventListener('focus', () => {
         ui.renderSearchHistory();
     });
 
-    searchInput.addEventListener('click', () => {
+    searchInput?.addEventListener('click', () => {
         ui.renderSearchHistory();
     });
 
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-bar')) {
+        if (!(e.target as Element).closest('.search-bar')) {
             const historyEl = document.getElementById('search-history');
             if (historyEl) historyEl.style.display = 'none';
         }
@@ -2489,7 +2490,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     searchForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        const query = searchInput.value.trim();
+        const query = searchInput?.value.trim();
         if (!query) return;
 
         if (!handleExternalLink(query)) {
@@ -2514,7 +2515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const router = createRouter(ui);
 
-    const handleRouteChange = async (event) => {
+    const handleRouteChange = async (event?: PopStateEvent | null) => {
         const overlay = document.getElementById('fullscreen-cover-overlay');
         const isFullscreenOpen = overlay && getComputedStyle(overlay).display === 'flex';
 
@@ -2556,7 +2557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.addEventListener('popstate', handleRouteChange);
 
     document.body.addEventListener('click', (e) => {
-        const link = e.target.closest('a');
+        const link = (e.target as Element).closest('a');
 
         if (
             link &&
@@ -2606,14 +2607,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Font Settings
-    const fontSelect = document.getElementById('font-select');
+    const fontSelect = document.getElementById('font-select') as HTMLSelectElement | null;
     if (fontSelect) {
         const savedFont = localStorage.getItem('monochrome-font');
         if (savedFont) {
             fontSelect.value = savedFont;
         }
         fontSelect.addEventListener('change', (e) => {
-            const font = e.target.value;
+            const font = (e.target as HTMLSelectElement).value;
             document.documentElement.style.setProperty('--font-family', font);
             localStorage.setItem('monochrome-font', font);
         });
@@ -2669,14 +2670,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    const contextMenu = document.getElementById('context-menu');
+    const contextMenu = document.getElementById('context-menu') as (HTMLElement & {
+        _contextTrack?: {
+            album?: { id: string | number; type?: string; numberOfTracks?: number };
+            [key: string]: unknown;
+        };
+    }) | null;
     if (contextMenu) {
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
                     if (contextMenu.style.display === 'block') {
                         const track = contextMenu._contextTrack;
-                        const albumItem = contextMenu.querySelector('[data-action="go-to-album"]');
+                        const albumItem = contextMenu.querySelector('[data-action="go-to-album"]') as HTMLElement | null;
 
                         if (track) {
                             if (albumItem) {
@@ -2702,7 +2708,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const headerAccountBtn = document.getElementById('header-account-btn');
     const headerAccountDropdown = document.getElementById('header-account-dropdown');
-    const headerAccountImg = document.getElementById('header-account-img');
+    const headerAccountImg = document.getElementById('header-account-img') as HTMLImageElement | null;
     const headerAccountIcon = document.getElementById('header-account-icon');
 
     // Temporarily disable accounts - show popup
@@ -2728,7 +2734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         document.addEventListener('click', (e) => {
-            if (!headerAccountBtn.contains(e.target) && !headerAccountDropdown.contains(e.target)) {
+            if (!headerAccountBtn.contains(e.target as Node) && !headerAccountDropdown.contains(e.target as Node)) {
                 headerAccountDropdown.classList.remove('active');
             }
         });
@@ -2902,9 +2908,9 @@ function showDiscographyDownloadModal(artist, api, quality, lyricsManager, trigg
     document.getElementById('singles-count').textContent = (artist.eps || []).filter((a) => a.type === 'SINGLE').length;
 
     // Reset checkboxes
-    document.getElementById('download-albums').checked = true;
-    document.getElementById('download-eps').checked = true;
-    document.getElementById('download-singles').checked = true;
+    (document.getElementById('download-albums') as HTMLInputElement).checked = true;
+    (document.getElementById('download-eps') as HTMLInputElement).checked = true;
+    (document.getElementById('download-singles') as HTMLInputElement).checked = true;
 
     const closeModal = () => {
         modal.classList.remove('active');
@@ -2923,10 +2929,10 @@ function showDiscographyDownloadModal(artist, api, quality, lyricsManager, trigg
 
     modal.addEventListener('click', handleClose);
 
-    document.getElementById('start-discography-download').onclick = async () => {
-        const includeAlbums = document.getElementById('download-albums').checked;
-        const includeEPs = document.getElementById('download-eps').checked;
-        const includeSingles = document.getElementById('download-singles').checked;
+    document.getElementById('start-discography-download')!.onclick = async () => {
+        const includeAlbums = (document.getElementById('download-albums') as HTMLInputElement).checked;
+        const includeEPs = (document.getElementById('download-eps') as HTMLInputElement).checked;
+        const includeSingles = (document.getElementById('download-singles') as HTMLInputElement).checked;
 
         if (!includeAlbums && !includeEPs && !includeSingles) {
             alert('Please select at least one type of release to download.');
@@ -3031,7 +3037,7 @@ function showCustomizeShortcutsModal() {
         shortcutsList.innerHTML = '';
         const currentShortcuts = keyboardShortcuts.getShortcuts();
 
-        for (const [action, shortcut] of Object.entries(currentShortcuts || {})) {
+        for (const [action, shortcut] of Object.entries(currentShortcuts || {}) as [string, KeyboardShortcut][]) {
             const item = document.createElement('div');
             item.className = 'customize-shortcut-item';
             item.dataset.action = action;
