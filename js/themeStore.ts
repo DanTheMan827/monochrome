@@ -583,7 +583,7 @@ export class ThemeStore {
                 togglePreviewBtn.classList.remove('active');
             }
 
-            this.modal.querySelector('[data-tab="browse"]').click();
+            (this.modal.querySelector('[data-tab="browse"]') as HTMLElement)?.click();
             this.loadThemes();
         } catch (err) {
             console.error('Upload failed:', err);
@@ -594,7 +594,7 @@ export class ThemeStore {
             if (Object.keys(responseData).length > 0) {
                 let msg = 'Failed to upload theme:\n';
                 for (const [key, value] of Object.entries(responseData)) {
-                    msg += `• ${key}: ${value.message}\n`;
+                    msg += `• ${key}: ${(value as { message: string }).message}\n`;
                 }
                 alert(msg);
             } else {
@@ -609,13 +609,13 @@ export class ThemeStore {
     startEditTheme(theme) {
         this.editingThemeId = theme.id;
 
-        const uploadTab = this.modal.querySelector('[data-tab="upload"]');
+        const uploadTab = this.modal.querySelector('[data-tab="upload"]') as HTMLElement | null;
         if (uploadTab) uploadTab.click();
 
         (document.getElementById('theme-upload-name') as HTMLInputElement).value = theme.name;
         (document.getElementById('theme-upload-desc') as HTMLTextAreaElement).value = theme.description || '';
-        document.getElementById('theme-upload-website').value = theme.authorUrl || '';
-        document.getElementById('theme-upload-css').value = theme.css;
+        (document.getElementById('theme-upload-website') as HTMLInputElement).value = theme.authorUrl || '';
+        (document.getElementById('theme-upload-css') as HTMLTextAreaElement).value = theme.css;
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Update Theme';
@@ -628,7 +628,7 @@ export class ThemeStore {
 
     resetEditState() {
         this.editingThemeId = null;
-        document.getElementById('theme-upload-form')?.reset();
+        (document.getElementById('theme-upload-form') as HTMLFormElement | null)?.reset();
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Upload Theme';
@@ -646,7 +646,7 @@ export class ThemeStore {
     }
 
     setupEditorTools() {
-        const cssInput = document.getElementById('theme-upload-css');
+        const cssInput = document.getElementById('theme-upload-css') as HTMLTextAreaElement | null;
         const insertTemplateBtn = document.getElementById('te-insert-template');
         const togglePreviewBtn = document.getElementById('te-toggle-preview');
         const previewWindow = document.getElementById('theme-preview-window');
@@ -794,7 +794,7 @@ export class ThemeStore {
 
     updatePreview() {
         if (!this.previewShadow || !this.previewStyleTag) return;
-        const css = document.getElementById('theme-upload-css').value;
+        const css = (document.getElementById('theme-upload-css') as HTMLTextAreaElement).value;
         const scopedCss = css.replace(/:root/g, ':host');
         this.previewStyleTag.textContent = scopedCss;
     }

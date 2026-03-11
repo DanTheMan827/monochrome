@@ -7,8 +7,45 @@ import { ButterchurnPreset } from './visualizers/butterchurn.js';
 import { KawarpPreset } from './visualizers/kawarp.js';
 import { audioContextManager } from './audio-context.js';
 
+interface VisualizerStats {
+    kick: number;
+    intensity: number;
+    energyAverage: number;
+    lastBeatTime: number;
+    lastIntensity: number;
+    upbeatSmoother: number;
+    sensitivity: number;
+    primaryColor: string;
+    mode: string;
+}
+
+interface VisualizerPreset {
+    contextType?: string;
+    managesOwnContext?: boolean;
+    draw(ctx: RenderingContext | null, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, stats: VisualizerStats): void;
+    resize?: (w: number, h: number) => void;
+    destroy?: () => void;
+    lazyInit?: (canvas: HTMLCanvasElement, audioContext: AudioContext, sourceNode: AudioNode) => Promise<unknown>;
+}
+
 export class Visualizer {
-    constructor(canvas, audio) {
+    canvas: HTMLCanvasElement;
+    ctx: RenderingContext | null;
+    audio: HTMLAudioElement;
+    audioContext: AudioContext | null;
+    analyser: AnalyserNode | null;
+    isActive: boolean;
+    animationId: number | null;
+    presets: Record<string, VisualizerPreset>;
+    activePresetKey: string;
+    bufferLength: number;
+    dataArray: Uint8Array<ArrayBuffer> | null;
+    stats: VisualizerStats;
+    _lastPrimaryColor: string;
+    _resizeBound: () => void;
+    _currentContextType: string | undefined;
+
+    constructor(canvas: HTMLCanvasElement, audio: HTMLAudioElement) {
         this.canvas = canvas;
         this.ctx = null;
         this.audio = audio;
@@ -100,8 +137,8 @@ export class Visualizer {
         const needsClone = (this.ctx && currentType !== type) || (!this.ctx && currentType && currentType !== type);
 
         if (needsClone) {
-            const parent = this.canvas.parentElement;
-            const newCanvas = this.canvas.cloneNode(true);
+            const parent = this.canvas.parentElement!;
+            const newCanvas = this.canvas.cloneNode(true) as HTMLCanvasElement;
             parent.replaceChild(newCanvas, this.canvas);
             this.canvas = newCanvas;
             this.ctx = null;
@@ -184,7 +221,7 @@ export class Visualizer {
 
         window.removeEventListener('resize', this._resizeBound);
 
-        if (this.ctx && this.ctx.clearRect) {
+        if (this.ctx instanceof CanvasRenderingContext2D) {
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         }
 
