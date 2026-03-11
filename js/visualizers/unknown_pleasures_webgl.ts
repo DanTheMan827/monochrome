@@ -17,6 +17,80 @@ export class UnknownPleasuresWebGL {
 
     static NOISE_STRENGTH = 0.04;
 
+    // General
+    name: string;
+    contextType: string;
+    historySize: number;
+    dataPoints: number;
+
+    // Audio history ring buffer
+    history: Float32Array[];
+    writeIndex: number;
+
+    // Precomputed lookup tables
+    pLookup: Float32Array;
+    xLookup: Float32Array;
+
+    // WebGL state
+    gl: WebGLRenderingContext | null;
+    lineProgram: WebGLProgram | null;
+    glowProgram: WebGLProgram | null;
+    brightnessProgram: WebGLProgram | null;
+    blurProgram: WebGLProgram | null;
+    compositeProgram: WebGLProgram | null;
+    quadBuffer: WebGLBuffer | null;
+    lineBuffer: WebGLBuffer | null;
+    framebuffer: WebGLFramebuffer | null;
+    sceneTexture: WebGLTexture | null;
+    blurFramebuffer: WebGLFramebuffer | null;
+    blurTexture: WebGLTexture | null;
+    blurFinalFramebuffer: WebGLFramebuffer | null;
+    blurFinalTexture: WebGLTexture | null;
+
+    // Pre-allocated vertex buffer
+    vertexBuffer: Float32Array;
+
+    // Attribute / uniform locations – line program
+    line_a_posEdge: number;
+    line_u_color: WebGLUniformLocation | null;
+
+    // Attribute / uniform locations – brightness program
+    brightness_a_position: number;
+    brightness_u_texture: WebGLUniformLocation | null;
+    brightness_u_threshold: WebGLUniformLocation | null;
+    brightness_u_isDarkTheme: WebGLUniformLocation | null;
+
+    // Attribute / uniform locations – blur program
+    blur_a_position: number;
+    blur_u_texture: WebGLUniformLocation | null;
+    blur_u_resolution: WebGLUniformLocation | null;
+    blur_u_direction: WebGLUniformLocation | null;
+    blur_u_spread: WebGLUniformLocation | null;
+
+    // Attribute / uniform locations – composite program
+    composite_a_position: number;
+    composite_u_scene: WebGLUniformLocation | null;
+    composite_u_blur: WebGLUniformLocation | null;
+    composite_u_glowStrength: WebGLUniformLocation | null;
+    composite_u_noiseStrength: WebGLUniformLocation | null;
+    composite_u_isDarkTheme: WebGLUniformLocation | null;
+    composite_u_time: WebGLUniformLocation | null;
+
+    // Cached palette state
+    _paletteColor: string;
+    _paletteRGB: number[][] | null;
+
+    // Rotation
+    rotationAngle: number;
+    _cos: number;
+    _sin: number;
+
+    // Propagation timing
+    _propagationAccum: number;
+
+    // Reusable point array for geometry generation
+    _tempPoints: { x: number; y: number }[];
+
     constructor() {
         this.name = 'Unknown Pleasures';
         this.contextType = 'webgl';
@@ -59,7 +133,7 @@ export class UnknownPleasuresWebGL {
         this.writeIndex = 0;
     }
 
-    resize(width, height) {
+    resize(width: number, height: number) {
         if (this.gl && this.sceneTexture) {
             this._resizeFramebuffer(this.gl, width, height);
         }
@@ -105,7 +179,7 @@ export class UnknownPleasuresWebGL {
         this.vertexBuffer = new Float32Array(maxVertices * 3); // 3 floats per vertex (x,y,edge)
     }
 
-    _initGL(gl, width, height) {
+    _initGL(gl: WebGLRenderingContext, width: number, height: number) {
         if (this.lineProgram) return;
         this.gl = gl;
 
@@ -298,7 +372,7 @@ export class UnknownPleasuresWebGL {
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
 
-    _createProgram(gl, vsSource, fsSource) {
+    _createProgram(gl: WebGLRenderingContext, vsSource: string, fsSource: string): WebGLProgram | null {
         const vs = this._compileShader(gl, gl.VERTEX_SHADER, vsSource);
         const fs = this._compileShader(gl, gl.FRAGMENT_SHADER, fsSource);
         if (!vs || !fs) return null;
@@ -316,7 +390,7 @@ export class UnknownPleasuresWebGL {
         return program;
     }
 
-    _compileShader(gl, type, source) {
+    _compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
@@ -328,7 +402,7 @@ export class UnknownPleasuresWebGL {
         return shader;
     }
 
-    _createFramebuffer(gl, width, height) {
+    _createFramebuffer(gl: WebGLRenderingContext, width: number, height: number) {
         // Framebuffer 1: Scene (lines) - FULL RESOLUTION
         this.framebuffer = gl.createFramebuffer();
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
@@ -378,7 +452,7 @@ export class UnknownPleasuresWebGL {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     }
 
-    _resizeFramebuffer(gl, width, height) {
+    _resizeFramebuffer(gl: WebGLRenderingContext, width: number, height: number) {
         const blurW = Math.max(1, width >> 1);
         const blurH = Math.max(1, height >> 1);
 
@@ -392,7 +466,7 @@ export class UnknownPleasuresWebGL {
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, blurW, blurH, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
     }
 
-    _buildPalette(color) {
+    _buildPalette(color: string) {
         // Parse color exactly like Canvas2D version
         const r = parseInt(color.slice(1, 3), 16);
         const g = parseInt(color.slice(3, 5), 16);
@@ -418,7 +492,7 @@ export class UnknownPleasuresWebGL {
         this._paletteColor = color;
     }
 
-    _generateLineQuads(points, thickness, width, height, outBuffer, offset) {
+    _generateLineQuads(points: { x: number; y: number }[], thickness: number, width: number, height: number, outBuffer: Float32Array, offset: number): number {
         if (points.length < 2) return 0;
 
         const n = points.length;
@@ -538,7 +612,7 @@ export class UnknownPleasuresWebGL {
         return ptr - offset;
     }
 
-    draw(ctx, canvas, analyser, dataArray, params) {
+    draw(ctx: WebGLRenderingContext, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, params: { paused: boolean; primaryColor: string; kick: number; mode: string }) {
         const gl = ctx;
         const { width, height } = canvas;
         const isDark = document.documentElement.getAttribute('data-theme') !== 'white';
