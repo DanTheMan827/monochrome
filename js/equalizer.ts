@@ -155,12 +155,29 @@ function getPresetsForBandCount(bandCount) {
 }
 
 export class Equalizer {
+    audioContext: AudioContext | null;
+    source: AudioNode | null;
+    filters: BiquadFilterNode[];
+    inputNode: GainNode | null;
+    outputNode: GainNode | null;
+    preampNode: GainNode | null;
+    isEnabled: boolean;
+    isInitialized: boolean;
+    audio: HTMLAudioElement | null;
+    bandCount: number;
+    freqRange: { min: number; max: number };
+    frequencies: number[];
+    frequencyLabels: string[];
+    currentGains: number[];
+    preamp: number;
+
     constructor() {
         this.audioContext = null;
         this.source = null;
         this.filters = [];
         this.inputNode = null;
         this.outputNode = null;
+        this.preampNode = null;
         this.isEnabled = false;
         this.isInitialized = false;
         this.audio = null;

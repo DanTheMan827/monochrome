@@ -95,6 +95,23 @@ export function onButterchurnPresetsLoaded(callback) {
 loadPresetsModule();
 
 export class ButterchurnPreset {
+    name: string;
+    contextType: string;
+    managesOwnContext: boolean;
+    visualizer: ButterchurnVisualizer | null;
+    canvas: HTMLCanvasElement | null;
+    audioContext: AudioContext | null;
+    currentPresetIndex: number;
+    lastPresetChange: number;
+    isInitialized: boolean;
+    presets: Record<string, unknown>;
+    presetKeys: string[];
+    shuffledQueue: number[];
+    shuffledIndex: number;
+    blendProgress: number;
+    blendDuration: number;
+    _unregisterGraphChange: (() => void) | null;
+
     constructor() {
         this.name = 'Butterchurn';
         this.contextType = 'webgl';
@@ -459,7 +476,7 @@ export class ButterchurnPreset {
      * Lazy initialization helper for when audio context becomes available
      */
     lazyInit(canvas, audioContext, sourceNode) {
-        return new Promise((resolve) => {
+        return new Promise<void>((resolve) => {
             if (!this.isInitialized && canvas && audioContext) {
                 const gl =
                     canvas.getContext('webgl2', {
