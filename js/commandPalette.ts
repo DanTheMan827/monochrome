@@ -2,11 +2,50 @@ import { debounce } from './utils.js';
 import { db } from './db.js';
 import Fuse from 'fuse.js';
 
+interface CommandResult {
+    name: string;
+    description?: string;
+    action?: (...args: any[]) => any;
+    type?: string;
+    image?: string;
+}
+
+interface SettingItem {
+    id: string;
+    label: string;
+    description: string;
+    tab: string;
+}
+
+interface CommandDef {
+    name: string;
+    description: string;
+    action: (args?: string, autoPick?: boolean) => any;
+}
+
+declare global {
+    interface Window {
+        monochromePlayer: any;
+        monochromeUi: any;
+        monochromeScrobbler: any;
+    }
+}
+
 class CommandPalette {
+    overlay: HTMLElement;
+    input: HTMLInputElement;
+    resultsContainer: HTMLElement;
+    isOpen: boolean;
+    selectedIndex: number;
+    results: CommandResult[];
+    allSettings: SettingItem[];
+    debouncedSearch: (...args: any[]) => void;
+    commands: CommandDef[];
+
     constructor() {
-        this.overlay = document.getElementById('command-palette-overlay');
-        this.input = document.getElementById('command-palette-input');
-        this.resultsContainer = document.getElementById('command-palette-results');
+        this.overlay = document.getElementById('command-palette-overlay') as HTMLElement;
+        this.input = document.getElementById('command-palette-input') as HTMLInputElement;
+        this.resultsContainer = document.getElementById('command-palette-results') as HTMLElement;
         this.isOpen = false;
         this.selectedIndex = 0;
         this.results = [];
@@ -263,7 +302,7 @@ class CommandPalette {
 
         const themeOptions = document.querySelectorAll('.theme-option');
         themeOptions.forEach((opt) => {
-            if (opt.dataset.theme === theme) opt.classList.add('active');
+            if ((opt as HTMLElement).dataset.theme === theme) opt.classList.add('active');
             else opt.classList.remove('active');
         });
     }
@@ -491,7 +530,7 @@ class CommandPalette {
 
                 const streamingSelect = document.getElementById('streaming-quality-setting');
                 if (streamingSelect) {
-                    streamingSelect.value = quality;
+                    (streamingSelect as HTMLSelectElement).value = quality;
                 }
             }
         }
@@ -503,7 +542,7 @@ class CommandPalette {
 
             const downloadSelect = document.getElementById('download-quality-setting');
             if (downloadSelect) {
-                downloadSelect.value = quality;
+                    (downloadSelect as HTMLSelectElement).value = quality;
             }
         }
 
@@ -680,7 +719,7 @@ class CommandPalette {
 
         const tabButton = document.querySelector(`.settings-tab[data-tab="${setting.tab}"]`);
         if (tabButton && !tabButton.classList.contains('active')) {
-            tabButton.click();
+            (tabButton as HTMLElement).click();
         }
 
         await new Promise((resolve) => setTimeout(resolve, 50));

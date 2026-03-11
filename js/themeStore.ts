@@ -1,3 +1,4 @@
+import type PocketBase from 'pocketbase';
 import { syncManager } from './accounts/pocketbase.js';
 import { authManager } from './accounts/auth.js';
 import { navigate } from './router.js';
@@ -33,16 +34,30 @@ const GENERIC_FONT_FAMILIES = [
 
 export class ThemeStore {
     static EXPECTED_USER_ID_LENGTH = 15;
+    pb: PocketBase;
+    modal: HTMLElement;
+    grid: HTMLElement | null;
+    uploadForm: HTMLElement | null;
+    searchInput: HTMLElement | null;
+    loadingIndicator: HTMLElement;
+    _isCheckingAuth: boolean;
+    previewShadow: ShadowRoot | null;
+    previewStyleTag: HTMLStyleElement | null;
+    editingThemeId: string | null;
+    detailsPreviewShadow: ShadowRoot | null;
+
     constructor() {
         this.pb = syncManager.pb;
-        this.modal = document.getElementById('theme-store-modal');
+        this.modal = document.getElementById('theme-store-modal') as HTMLElement;
         this.grid = document.getElementById('community-themes-grid');
         this.uploadForm = document.getElementById('theme-upload-form');
         this.searchInput = document.getElementById('theme-store-search');
-        this.loadingIndicator = document.getElementById('theme-store-loading');
+        this.loadingIndicator = document.getElementById('theme-store-loading') as HTMLElement;
         this._isCheckingAuth = false;
         this.previewShadow = null;
+        this.previewStyleTag = null;
         this.editingThemeId = null;
+        this.detailsPreviewShadow = null;
         this.init();
     }
 
@@ -62,9 +77,9 @@ export class ThemeStore {
                 tabs.forEach((t) => t.classList.remove('active'));
                 this.modal.querySelectorAll('.search-tab-content').forEach((c) => c.classList.remove('active'));
                 tab.classList.add('active');
-                const contentId = tab.dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
+                const contentId = (tab as HTMLElement).dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
                 document.getElementById(contentId)?.classList.add('active');
-                if (tab.dataset.tab === 'upload') {
+                if ((tab as HTMLElement).dataset.tab === 'upload') {
                     this.checkAuth();
                 } else {
                     this.resetEditState();
@@ -75,7 +90,7 @@ export class ThemeStore {
         let debounceTimer;
         this.searchInput?.addEventListener('input', (e) => {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => this.loadThemes(e.target.value), 300);
+            debounceTimer = setTimeout(() => this.loadThemes((e.target as HTMLInputElement).value), 300);
         });
 
         this.uploadForm?.addEventListener('submit', (e) => this.handleUpload(e));
@@ -231,12 +246,12 @@ export class ThemeStore {
         `;
 
         div.addEventListener('click', (e) => {
-            if (e.target.closest('.delete-theme-btn')) {
+            if ((e.target as Element).closest('.delete-theme-btn')) {
                 e.stopPropagation();
                 this.deleteTheme(theme.id);
                 return;
             }
-            if (e.target.closest('.edit-theme-btn')) {
+            if ((e.target as Element).closest('.edit-theme-btn')) {
                 e.stopPropagation();
                 this.startEditTheme(theme);
                 return;
@@ -344,7 +359,7 @@ export class ThemeStore {
         this.detailsPreviewShadow.appendChild(wrapper);
 
         browseView.style.display = 'none';
-        tabs.style.display = 'none';
+        (tabs as HTMLElement).style.display = 'none';
         detailsView.style.display = 'flex';
     }
 
@@ -355,7 +370,7 @@ export class ThemeStore {
 
         detailsView.style.display = 'none';
         browseView.style.display = 'block';
-        tabs.style.display = 'flex';
+        (tabs as HTMLElement).style.display = 'flex';
 
         document.getElementById('theme-details-preview-container').innerHTML = '';
     }
@@ -409,7 +424,7 @@ export class ThemeStore {
 
             if (!isPresetOrGeneric) {
                 const FONT_LINK_ID = 'monochrome-dynamic-font';
-                let link = document.getElementById(FONT_LINK_ID);
+                let link = document.getElementById(FONT_LINK_ID) as HTMLLinkElement | null;
 
                 if (urlMatch && urlMatch[1]) {
                     const customUrl = urlMatch[1].trim().replace(/['"]/g, '');
@@ -508,10 +523,10 @@ export class ThemeStore {
     async handleUpload(e) {
         e.preventDefault();
 
-        const name = document.getElementById('theme-upload-name').value;
-        const desc = document.getElementById('theme-upload-desc').value;
-        const css = document.getElementById('theme-upload-css').value;
-        const website = document.getElementById('theme-upload-website').value;
+        const name = (document.getElementById('theme-upload-name') as HTMLInputElement).value;
+        const desc = (document.getElementById('theme-upload-desc') as HTMLInputElement).value;
+        const css = (document.getElementById('theme-upload-css') as HTMLInputElement).value;
+        const website = (document.getElementById('theme-upload-website') as HTMLInputElement).value;
 
         const fbUser = authManager?.user;
         if (!fbUser) {
@@ -570,7 +585,7 @@ export class ThemeStore {
                 togglePreviewBtn.classList.remove('active');
             }
 
-            this.modal.querySelector('[data-tab="browse"]').click();
+            (this.modal.querySelector('[data-tab="browse"]') as HTMLElement).click();
             this.loadThemes();
         } catch (err) {
             console.error('Upload failed:', err);
@@ -581,7 +596,7 @@ export class ThemeStore {
             if (Object.keys(responseData).length > 0) {
                 let msg = 'Failed to upload theme:\n';
                 for (const [key, value] of Object.entries(responseData)) {
-                    msg += `• ${key}: ${value.message}\n`;
+                    msg += `• ${key}: ${(value as Record<string, any>).message}\n`;
                 }
                 alert(msg);
             } else {
@@ -597,12 +612,12 @@ export class ThemeStore {
         this.editingThemeId = theme.id;
 
         const uploadTab = this.modal.querySelector('[data-tab="upload"]');
-        if (uploadTab) uploadTab.click();
+        if (uploadTab) (uploadTab as HTMLElement).click();
 
-        document.getElementById('theme-upload-name').value = theme.name;
-        document.getElementById('theme-upload-desc').value = theme.description || '';
-        document.getElementById('theme-upload-website').value = theme.authorUrl || '';
-        document.getElementById('theme-upload-css').value = theme.css;
+        (document.getElementById('theme-upload-name') as HTMLInputElement).value = theme.name;
+        (document.getElementById('theme-upload-desc') as HTMLInputElement).value = theme.description || '';
+        (document.getElementById('theme-upload-website') as HTMLInputElement).value = theme.authorUrl || '';
+        (document.getElementById('theme-upload-css') as HTMLInputElement).value = theme.css;
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Update Theme';
@@ -615,7 +630,7 @@ export class ThemeStore {
 
     resetEditState() {
         this.editingThemeId = null;
-        document.getElementById('theme-upload-form')?.reset();
+        (document.getElementById('theme-upload-form') as HTMLFormElement)?.reset();
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Upload Theme';
@@ -633,7 +648,7 @@ export class ThemeStore {
     }
 
     setupEditorTools() {
-        const cssInput = document.getElementById('theme-upload-css');
+        const cssInput = document.getElementById('theme-upload-css') as HTMLTextAreaElement;
         const insertTemplateBtn = document.getElementById('te-insert-template');
         const togglePreviewBtn = document.getElementById('te-toggle-preview');
         const previewWindow = document.getElementById('theme-preview-window');
@@ -651,7 +666,7 @@ export class ThemeStore {
 
         Object.entries(colorMap).forEach(([id, variable]) => {
             document.getElementById(id)?.addEventListener('input', (e) => {
-                this.updateCssVariable(cssInput, variable, e.target.value);
+                this.updateCssVariable(cssInput, variable, (e.target as HTMLInputElement).value);
                 this.updatePreview();
             });
         });
@@ -663,16 +678,16 @@ export class ThemeStore {
 
         Object.entries(styleMap).forEach(([id, variable]) => {
             document.getElementById(id)?.addEventListener('change', (e) => {
-                if (e.target.value) {
-                    this.updateCssVariable(cssInput, variable, e.target.value);
+                if ((e.target as HTMLInputElement).value) {
+                    this.updateCssVariable(cssInput, variable, (e.target as HTMLInputElement).value);
                     this.updatePreview();
-                    e.target.value = '';
+                    (e.target as HTMLInputElement).value = '';
                 }
             });
         });
 
         document.getElementById('te-font-custom')?.addEventListener('input', (e) => {
-            this.updateCssVariable(cssInput, '--font-family', e.target.value);
+            this.updateCssVariable(cssInput, '--font-family', (e.target as HTMLInputElement).value);
             this.updatePreview();
         });
 
@@ -781,7 +796,7 @@ export class ThemeStore {
 
     updatePreview() {
         if (!this.previewShadow || !this.previewStyleTag) return;
-        const css = document.getElementById('theme-upload-css').value;
+        const css = (document.getElementById('theme-upload-css') as HTMLInputElement).value;
         const scopedCss = css.replace(/:root/g, ':host');
         this.previewStyleTag.textContent = scopedCss;
     }

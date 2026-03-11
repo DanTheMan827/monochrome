@@ -18,8 +18,47 @@ import { rebuildFlacWithoutMetadata } from './metadata.flac.js';
 export const DASH_MANIFEST_UNAVAILABLE_CODE = 'DASH_MANIFEST_UNAVAILABLE';
 const TIDAL_V2_TOKEN = 'txNoH4kkV41MfH25';
 
+interface APISettings {
+    getInstances(type: string): Promise<Array<{ url: string; version?: string } | string>>;
+}
+
+interface FetchOptions {
+    type?: string;
+    minVersion?: string;
+    allowedDomains?: string[];
+    signal?: AbortSignal;
+}
+
+interface ArtistOptions {
+    lightweight?: boolean;
+    skipCache?: boolean;
+}
+
+interface DownloadProgress {
+    stage: string;
+    receivedBytes?: number;
+    totalBytes?: number;
+    currentSegment?: number;
+    totalSegments?: number;
+    message?: string;
+}
+
+interface DownloadOptions {
+    onProgress?: (progress: DownloadProgress) => void;
+    track?: Record<string, any>;
+    signal?: AbortSignal;
+}
+
+interface RecommendationOptions {
+    refresh?: boolean;
+}
+
 export class LosslessAPI {
-    constructor(settings) {
+    settings: APISettings;
+    cache: APICache;
+    streamCache: Map<string, string>;
+
+    constructor(settings: APISettings) {
         this.settings = settings;
         this.cache = new APICache({
             maxSize: 200,
@@ -44,7 +83,7 @@ export class LosslessAPI {
         }
     }
 
-    async fetchWithRetry(relativePath, options = {}) {
+    async fetchWithRetry(relativePath: string, options: FetchOptions = {}): Promise<Response> {
         const type = options.type || 'api';
         let instances = await this.settings.getInstances(type);
         if (instances.length === 0) {
@@ -52,9 +91,10 @@ export class LosslessAPI {
         }
 
         if (options.minVersion) {
+            const minVersion = options.minVersion;
             instances = instances.filter((instance) => {
-                if (!instance.version) return false;
-                return parseFloat(instance.version) >= parseFloat(options.minVersion);
+                if (typeof instance === 'string' || !instance.version) return false;
+                return parseFloat(instance.version) >= parseFloat(minVersion);
             });
             if (instances.length === 0) {
                 throw new Error(`No API instances configured for type: ${type} with minVersion: ${options.minVersion}`);
@@ -248,8 +288,8 @@ export class LosslessAPI {
             for (let j = 0; j < results.length; j++) {
                 const result = results[j];
                 const id = chunk[j];
-                if (result.status === 'fulfilled' && result.value.album?.releaseDate) {
-                    albumDateMap.set(id, result.value.album.releaseDate);
+                if (result.status === 'fulfilled' && (result.value as Record<string, any>)?.album?.releaseDate) {
+                    albumDateMap.set(id, (result.value as Record<string, any>).album.releaseDate);
                 }
             }
         }
@@ -395,7 +435,7 @@ export class LosslessAPI {
         return Array.from(unique.values());
     }
 
-    async searchTracks(query, options = {}) {
+    async searchTracks(query: string, options: FetchOptions = {}) {
         const cached = await this.cache.get('search_tracks', query);
         if (cached) return cached;
 
@@ -420,7 +460,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchArtists(query, options = {}) {
+    async searchArtists(query: string, options: FetchOptions = {}) {
         const cached = await this.cache.get('search_artists', query);
         if (cached) return cached;
 
@@ -442,7 +482,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchAlbums(query, options = {}) {
+    async searchAlbums(query: string, options: FetchOptions = {}) {
         const cached = await this.cache.get('search_albums', query);
         if (cached) return cached;
 
@@ -465,7 +505,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchPlaylists(query, options = {}) {
+    async searchPlaylists(query: string, options: FetchOptions = {}) {
         const cached = await this.cache.get('search_playlists', query);
         if (cached) return cached;
 
@@ -487,7 +527,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchVideos(query, options = {}) {
+    async searchVideos(query: string, options: FetchOptions = {}) {
         const cached = await this.cache.get('search_videos', query);
         if (cached) return cached;
 
@@ -856,7 +896,7 @@ export class LosslessAPI {
         }
     }
 
-    async getArtist(artistId, options = {}) {
+    async getArtist(artistId: string | number, options: ArtistOptions = {}) {
         const cacheKey = options.lightweight ? `artist_${artistId}_light` : `artist_${artistId}`;
         if (!options.skipCache) {
             const cached = await this.cache.get('artist', cacheKey);
@@ -920,7 +960,7 @@ export class LosslessAPI {
 
         if (!options.lightweight) {
             try {
-                const videoSearch = await this.searchVideos(artist.name);
+                const videoSearch = await this.searchVideos(artist.name) as Record<string, any>;
                 if (videoSearch && videoSearch.items) {
                     const numericArtistId = Number(artistId);
                     for (const item of videoSearch.items) {
@@ -941,7 +981,7 @@ export class LosslessAPI {
 
         const rawReleases = Array.from(albumMap.values());
         const allReleases = this.deduplicateAlbums(rawReleases).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         const eps = allReleases.filter((a) => a.type === 'EP' || a.type === 'SINGLE');
@@ -952,7 +992,7 @@ export class LosslessAPI {
             .slice(0, 15);
 
         const videos = Array.from(videoMap.values()).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         // Enrich tracks with album release dates
@@ -1041,7 +1081,7 @@ export class LosslessAPI {
         }
     }
 
-    async getRecommendedTracksForPlaylist(tracks, limit = 20, options = {}) {
+    async getRecommendedTracksForPlaylist(tracks: Record<string, any>[], limit = 20, options: RecommendationOptions = {}) {
         const artistMap = new Map();
 
         // Check if tracks already have artist info (some might)
@@ -1065,7 +1105,7 @@ export class LosslessAPI {
                 try {
                     // Search for the track to get full metadata
                     const searchQuery = `"${track.title}" ${track.artist?.name || ''}`.trim();
-                    const searchResult = await this.searchTracks(searchQuery, { signal: AbortSignal.timeout(5000) });
+                    const searchResult = await this.searchTracks(searchQuery, { signal: AbortSignal.timeout(5000) }) as Record<string, any>;
 
                     if (searchResult.items && searchResult.items.length > 0) {
                         const foundTrack = searchResult.items[0];
@@ -1221,7 +1261,7 @@ export class LosslessAPI {
             return this.streamCache.get(cacheKey);
         }
 
-        const lookup = await this.getTrack(id, quality);
+        const lookup = await this.getTrack(id, quality) as Record<string, any>;
 
         let streamUrl;
         if (lookup.originalTrackUrl) {
@@ -1282,7 +1322,7 @@ export class LosslessAPI {
         return streamUrl;
     }
 
-    async downloadTrack(id, quality = 'HI_RES_LOSSLESS', filename, options = {}) {
+    async downloadTrack(id: string | number, quality = 'HI_RES_LOSSLESS', filename: string, options: DownloadOptions = {}) {
         // Load ffmpeg in the background.
         loadFfmpeg().catch(console.error);
 
@@ -1476,7 +1516,7 @@ export class LosslessAPI {
                         });
                     }
 
-                    const enrichedTrack = { ...track };
+                    const enrichedTrack: Record<string, any> = { ...(track as Record<string, any>) };
                     if (lookup.info) {
                         enrichedTrack.replayGain = {
                             trackReplayGain: lookup.info.trackReplayGain,
