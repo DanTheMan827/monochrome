@@ -18,8 +18,43 @@ import { rebuildFlacWithoutMetadata } from './metadata.flac.js';
 export const DASH_MANIFEST_UNAVAILABLE_CODE = 'DASH_MANIFEST_UNAVAILABLE';
 const TIDAL_V2_TOKEN = 'txNoH4kkV41MfH25';
 
+interface APIInstance {
+    url: string;
+    version?: string;
+}
+
+interface FetchOptions {
+    type?: string;
+    signal?: AbortSignal;
+    minVersion?: string;
+    allowedDomains?: string[];
+}
+
+interface SearchOptions {
+    signal?: AbortSignal;
+}
+
+interface ArtistOptions {
+    lightweight?: boolean;
+    skipCache?: boolean;
+}
+
+interface RecommendedOptions {
+    refresh?: boolean;
+}
+
+interface DownloadOptions {
+    onProgress?: ((progress: any) => void) | null;
+    track?: any;
+    signal?: AbortSignal;
+}
+
 export class LosslessAPI {
-    constructor(settings) {
+    settings: any;
+    cache: APICache;
+    streamCache: Map<string, string>;
+
+    constructor(settings: any) {
         this.settings = settings;
         this.cache = new APICache({
             maxSize: 200,
@@ -44,7 +79,7 @@ export class LosslessAPI {
         }
     }
 
-    async fetchWithRetry(relativePath, options = {}) {
+    async fetchWithRetry(relativePath: string, options: FetchOptions = {}) {
         const type = options.type || 'api';
         let instances = await this.settings.getInstances(type);
         if (instances.length === 0) {
@@ -125,7 +160,7 @@ export class LosslessAPI {
         throw lastError || new Error(`All API instances failed for: ${relativePath}`);
     }
 
-    findSearchSection(source, key, visited) {
+    findSearchSection(source: any, key: string, visited: Set<any>): any {
         if (!source || typeof source !== 'object') return;
 
         if (Array.isArray(source)) {
@@ -152,7 +187,7 @@ export class LosslessAPI {
         }
     }
 
-    buildSearchResponse(section) {
+    buildSearchResponse(section: any) {
         const items = section?.items ?? [];
         return {
             items,
@@ -162,12 +197,12 @@ export class LosslessAPI {
         };
     }
 
-    normalizeSearchResponse(data, key) {
+    normalizeSearchResponse(data: any, key: string) {
         const section = this.findSearchSection(data, key, new Set());
         return this.buildSearchResponse(section);
     }
 
-    prepareTrack(track) {
+    prepareTrack(track: any) {
         let normalized = track;
 
         if (track.type && typeof track.type === 'string') {
@@ -191,18 +226,18 @@ export class LosslessAPI {
         return normalized;
     }
 
-    prepareAlbum(album) {
+    prepareAlbum(album: any) {
         if (!album.artist && Array.isArray(album.artists) && album.artists.length > 0) {
             return { ...album, artist: album.artists[0] };
         }
         return album;
     }
 
-    preparePlaylist(playlist) {
+    preparePlaylist(playlist: any) {
         return playlist;
     }
 
-    prepareVideo(video) {
+    prepareVideo(video: any) {
         let normalized = { ...video, type: 'video' };
 
         if (!video.artist && Array.isArray(video.artists) && video.artists.length > 0) {
@@ -212,14 +247,14 @@ export class LosslessAPI {
         return normalized;
     }
 
-    prepareArtist(artist) {
+    prepareArtist(artist: any) {
         if (!artist.type && Array.isArray(artist.artistTypes) && artist.artistTypes.length > 0) {
             return { ...artist, type: artist.artistTypes[0] };
         }
         return artist;
     }
 
-    async enrichTracksWithAlbumDates(tracks, maxRequests = 20) {
+    async enrichTracksWithAlbumDates(tracks: any[], maxRequests: number = 20) {
         if (!trackDateSettings.useAlbumYear()) return tracks;
 
         const albumIdsToFetch = [];
@@ -243,13 +278,13 @@ export class LosslessAPI {
         const chunkSize = 5;
         for (let i = 0; i < limitedIds.length; i += chunkSize) {
             const chunk = limitedIds.slice(i, i + chunkSize);
-            const results = await Promise.allSettled(chunk.map((id) => this.getAlbum(id)));
+            const results = await Promise.allSettled(chunk.map((id: any) => this.getAlbum(id)));
 
             for (let j = 0; j < results.length; j++) {
                 const result = results[j];
                 const id = chunk[j];
-                if (result.status === 'fulfilled' && result.value.album?.releaseDate) {
-                    albumDateMap.set(id, result.value.album.releaseDate);
+                if (result.status === 'fulfilled' && (result.value as any).album?.releaseDate) {
+                    albumDateMap.set(id, (result.value as any).album.releaseDate);
                 }
             }
         }
@@ -262,7 +297,7 @@ export class LosslessAPI {
         });
     }
 
-    parseTrackLookup(data) {
+    parseTrackLookup(data: any) {
         const entries = Array.isArray(data) ? data : [data];
         let track, info, originalTrackUrl;
 
@@ -294,7 +329,7 @@ export class LosslessAPI {
         return { track, info, originalTrackUrl };
     }
 
-    extractStreamUrlFromManifest(manifest) {
+    extractStreamUrlFromManifest(manifest: any): string | null {
         if (!manifest) return null;
 
         try {
@@ -361,7 +396,7 @@ export class LosslessAPI {
         }
     }
 
-    deduplicateAlbums(albums) {
+    deduplicateAlbums(albums: any[]) {
         const unique = new Map();
 
         for (const album of albums) {
@@ -395,7 +430,7 @@ export class LosslessAPI {
         return Array.from(unique.values());
     }
 
-    async searchTracks(query, options = {}) {
+    async searchTracks(query: string, options: SearchOptions = {}) {
         const cached = await this.cache.get('search_tracks', query);
         if (cached) return cached;
 
@@ -420,7 +455,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchArtists(query, options = {}) {
+    async searchArtists(query: string, options: SearchOptions = {}) {
         const cached = await this.cache.get('search_artists', query);
         if (cached) return cached;
 
@@ -442,7 +477,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchAlbums(query, options = {}) {
+    async searchAlbums(query: string, options: SearchOptions = {}) {
         const cached = await this.cache.get('search_albums', query);
         if (cached) return cached;
 
@@ -465,7 +500,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchPlaylists(query, options = {}) {
+    async searchPlaylists(query: string, options: SearchOptions = {}) {
         const cached = await this.cache.get('search_playlists', query);
         if (cached) return cached;
 
@@ -487,7 +522,7 @@ export class LosslessAPI {
         }
     }
 
-    async searchVideos(query, options = {}) {
+    async searchVideos(query: string, options: SearchOptions = {}) {
         const cached = await this.cache.get('search_videos', query);
         if (cached) return cached;
 
@@ -512,7 +547,7 @@ export class LosslessAPI {
         }
     }
 
-    async getVideo(id) {
+    async getVideo(id: string | number) {
         const cached = await this.cache.get('video', id);
         if (cached) return cached;
 
@@ -534,7 +569,7 @@ export class LosslessAPI {
         return result;
     }
 
-    async getAlbum(id) {
+    async getAlbum(id: string | number) {
         const cached = await this.cache.get('album', id);
         if (cached) return cached;
 
@@ -663,7 +698,7 @@ export class LosslessAPI {
         return result;
     }
 
-    async getPlaylist(id) {
+    async getPlaylist(id: string | number) {
         const cached = await this.cache.get('playlist', id);
         if (cached) return cached;
 
@@ -773,7 +808,7 @@ export class LosslessAPI {
         return result;
     }
 
-    async getMix(id) {
+    async getMix(id: string | number) {
         const cached = await this.cache.get('mix', id);
         if (cached) return cached;
 
@@ -807,7 +842,7 @@ export class LosslessAPI {
         return result;
     }
 
-    async getArtistSocials(artistName) {
+    async getArtistSocials(artistName: string) {
         const cacheKey = `artist_socials_${artistName}`;
         const cached = await this.cache.get('artist', cacheKey);
         if (cached) return cached;
@@ -856,7 +891,7 @@ export class LosslessAPI {
         }
     }
 
-    async getArtist(artistId, options = {}) {
+    async getArtist(artistId: string | number, options: ArtistOptions = {}) {
         const cacheKey = options.lightweight ? `artist_${artistId}_light` : `artist_${artistId}`;
         if (!options.skipCache) {
             const cached = await this.cache.get('artist', cacheKey);
@@ -920,7 +955,7 @@ export class LosslessAPI {
 
         if (!options.lightweight) {
             try {
-                const videoSearch = await this.searchVideos(artist.name);
+                const videoSearch = await this.searchVideos(artist.name) as any;
                 if (videoSearch && videoSearch.items) {
                     const numericArtistId = Number(artistId);
                     for (const item of videoSearch.items) {
@@ -941,7 +976,7 @@ export class LosslessAPI {
 
         const rawReleases = Array.from(albumMap.values());
         const allReleases = this.deduplicateAlbums(rawReleases).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a: any, b: any) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         const eps = allReleases.filter((a) => a.type === 'EP' || a.type === 'SINGLE');
@@ -952,7 +987,7 @@ export class LosslessAPI {
             .slice(0, 15);
 
         const videos = Array.from(videoMap.values()).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a: any, b: any) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         // Enrich tracks with album release dates
@@ -964,7 +999,7 @@ export class LosslessAPI {
         return result;
     }
 
-    async getSimilarArtists(artistId) {
+    async getSimilarArtists(artistId: string | number) {
         const cached = await this.cache.get('similar_artists', artistId);
         if (cached) return cached;
 
@@ -988,7 +1023,7 @@ export class LosslessAPI {
         }
     }
 
-    async getArtistBiography(artistId) {
+    async getArtistBiography(artistId: string | number) {
         const cacheKey = `artist_bio_v1_${artistId}`;
         const cached = await this.cache.get('artist', cacheKey);
         if (cached) return cached;
@@ -1018,7 +1053,7 @@ export class LosslessAPI {
         return null;
     }
 
-    async getSimilarAlbums(albumId) {
+    async getSimilarAlbums(albumId: string | number) {
         const cached = await this.cache.get('similar_albums', albumId);
         if (cached) return cached;
 
@@ -1041,7 +1076,7 @@ export class LosslessAPI {
         }
     }
 
-    async getRecommendedTracksForPlaylist(tracks, limit = 20, options = {}) {
+    async getRecommendedTracksForPlaylist(tracks: any[], limit: number = 20, options: RecommendedOptions = {}) {
         const artistMap = new Map();
 
         // Check if tracks already have artist info (some might)
@@ -1065,7 +1100,7 @@ export class LosslessAPI {
                 try {
                     // Search for the track to get full metadata
                     const searchQuery = `"${track.title}" ${track.artist?.name || ''}`.trim();
-                    const searchResult = await this.searchTracks(searchQuery, { signal: AbortSignal.timeout(5000) });
+                    const searchResult = await this.searchTracks(searchQuery, { signal: AbortSignal.timeout(5000) }) as any;
 
                     if (searchResult.items && searchResult.items.length > 0) {
                         const foundTrack = searchResult.items[0];
@@ -1108,7 +1143,7 @@ export class LosslessAPI {
         const artistPromises = artistsToProcess.map(async (artist) => {
             try {
                 console.log(`Fetching tracks for artist: ${artist.name} (ID: ${artist.id})`);
-                const artistData = await this.getArtist(artist.id, { lightweight: true, skipCache: options.refresh });
+                const artistData = await this.getArtist(artist.id, { lightweight: true, skipCache: options.refresh }) as any;
                 if (artistData && artistData.tracks && artistData.tracks.length > 0) {
                     const availableTracks = artistData.tracks.filter((track) => !seenTrackIds.has(track.id));
                     // Shuffle and pick different tracks when refreshing
@@ -1138,7 +1173,7 @@ export class LosslessAPI {
         return shuffled.slice(0, limit);
     }
 
-    normalizeTrackResponse(apiResponse) {
+    normalizeTrackResponse(apiResponse: any) {
         if (!apiResponse || typeof apiResponse !== 'object') {
             return apiResponse;
         }
@@ -1156,7 +1191,7 @@ export class LosslessAPI {
         return [trackStub, raw];
     }
 
-    async getTrackMetadata(id) {
+    async getTrackMetadata(id: string | number) {
         const cacheKey = `meta_${id}`;
         const cached = await this.cache.get('track', cacheKey);
         if (cached) return cached;
@@ -1178,7 +1213,7 @@ export class LosslessAPI {
         throw new Error('Track metadata not found');
     }
 
-    async getTrackRecommendations(id) {
+    async getTrackRecommendations(id: string | number) {
         const cached = await this.cache.get('recommendations', id);
         if (cached) return cached;
 
@@ -1201,7 +1236,7 @@ export class LosslessAPI {
         }
     }
 
-    async getTrack(id, quality = 'HI_RES_LOSSLESS') {
+    async getTrack(id: string | number, quality: string = 'HI_RES_LOSSLESS') {
         const cacheKey = `${id}_${quality}`;
         const cached = await this.cache.get('track', cacheKey);
         if (cached) return cached;
@@ -1214,14 +1249,14 @@ export class LosslessAPI {
         return result;
     }
 
-    async getStreamUrl(id, quality = 'HI_RES_LOSSLESS') {
+    async getStreamUrl(id: string | number, quality: string = 'HI_RES_LOSSLESS') {
         const cacheKey = `stream_${id}_${quality}`;
 
         if (this.streamCache.has(cacheKey)) {
             return this.streamCache.get(cacheKey);
         }
 
-        const lookup = await this.getTrack(id, quality);
+        const lookup = await this.getTrack(id, quality) as any;
 
         let streamUrl;
         if (lookup.originalTrackUrl) {
@@ -1237,7 +1272,7 @@ export class LosslessAPI {
         return streamUrl;
     }
 
-    async getVideoStreamUrl(id) {
+    async getVideoStreamUrl(id: string | number) {
         const cacheKey = `video_stream_${id}`;
 
         if (this.streamCache.has(cacheKey)) {
@@ -1282,7 +1317,7 @@ export class LosslessAPI {
         return streamUrl;
     }
 
-    async downloadTrack(id, quality = 'HI_RES_LOSSLESS', filename, options = {}) {
+    async downloadTrack(id: string | number, quality: string = 'HI_RES_LOSSLESS', filename: string, options: DownloadOptions = {}) {
         // Load ffmpeg in the background.
         loadFfmpeg().catch(console.error);
 
@@ -1517,7 +1552,7 @@ export class LosslessAPI {
         }
     }
 
-    triggerDownload(blob, filename) {
+    triggerDownload(blob: Blob, filename: string) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -1528,7 +1563,7 @@ export class LosslessAPI {
         URL.revokeObjectURL(url);
     }
 
-    getCoverUrl(id, size = '320') {
+    getCoverUrl(id: any, size: string = '320') {
         if (!id) {
             return `https://picsum.photos/seed/${Math.random()}/${size}`;
         }
@@ -1541,7 +1576,7 @@ export class LosslessAPI {
         return `https://resources.tidal.com/images/${formattedId}/${size}x${size}.jpg`;
     }
 
-    getArtistPictureUrl(id, size = '320') {
+    getArtistPictureUrl(id: any, size: string = '320') {
         if (!id) {
             return `https://picsum.photos/seed/${Math.random()}/${size}`;
         }
@@ -1554,7 +1589,7 @@ export class LosslessAPI {
         return `https://resources.tidal.com/images/${formattedId}/${size}x${size}.jpg`;
     }
 
-    getVideoCoverUrl(imageId, size = '1280') {
+    getVideoCoverUrl(imageId: any, size: string = '1280') {
         if (!imageId) {
             return null;
         }
