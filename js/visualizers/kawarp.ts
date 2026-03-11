@@ -1,5 +1,16 @@
 // js/visualizers/kawarp.js
 
+interface KawarpInstance {
+    start(): void;
+    stop(): void;
+    dispose(): void;
+    resize(): void;
+    loadImage(src: string): Promise<void>;
+    animationSpeed: number;
+    scale: number;
+    readonly isPlaying: boolean;
+}
+
 const KAWARP_DEFAULTS = {
     warpIntensity: 1,
     blurPasses: 8,
@@ -21,6 +32,21 @@ const ANALYSIS_INTERVAL = 100;
 const CACHE_BUST_PARAM = 'not-from-cache-please';
 
 export class KawarpPreset {
+    name: string;
+    contextType: string;
+    managesOwnContext: boolean;
+    kawarp: KawarpInstance | null;
+    canvas: HTMLCanvasElement | null;
+    audioElement: HTMLMediaElement | null;
+    isInitialized: boolean;
+    _lastCoverUrl: string | null;
+    _currentScale: number;
+    _targetScale: number;
+    _lastAnalysisTime: number;
+    _coverObserver: MutationObserver | null;
+    _onPlay: () => void;
+    _onPause: () => void;
+
     constructor() {
         this.name = 'Kawarp';
         this.contextType = 'webgl';
@@ -44,7 +70,7 @@ export class KawarpPreset {
         };
     }
 
-    async lazyInit(canvas, _audioContext, _sourceNode) {
+    async lazyInit(canvas: HTMLCanvasElement, _audioContext: AudioContext, _sourceNode: AudioNode): Promise<void> {
         if (this.isInitialized) {
             if (canvas !== this.canvas) {
                 this._destroyKawarp();
@@ -58,9 +84,9 @@ export class KawarpPreset {
             const { Kawarp } = await import('@kawarp/core');
 
             this.canvas = canvas;
-            this.kawarp = new Kawarp(canvas, { ...KAWARP_DEFAULTS });
+            this.kawarp = new Kawarp(canvas, { ...KAWARP_DEFAULTS }) as unknown as KawarpInstance;
 
-            this.audioElement = document.getElementById('audio-player');
+            this.audioElement = document.getElementById('audio-player') as HTMLMediaElement | null;
             if (this.audioElement) {
                 this.audioElement.addEventListener('play', this._onPlay);
                 this.audioElement.addEventListener('pause', this._onPause);
@@ -69,9 +95,9 @@ export class KawarpPreset {
             this._observeCoverArt();
 
             const coverEl = document.querySelector('.now-playing-bar .cover');
-            if (coverEl?.tagName === 'IMG' && coverEl.src) {
-                this._lastCoverUrl = coverEl.src;
-                this._loadCover(coverEl.src);
+            if (coverEl?.tagName === 'IMG' && (coverEl as HTMLImageElement).src) {
+                this._lastCoverUrl = (coverEl as HTMLImageElement).src;
+                this._loadCover((coverEl as HTMLImageElement).src);
             }
 
             this.kawarp.start();
@@ -81,22 +107,22 @@ export class KawarpPreset {
         }
     }
 
-    connectAudio() {}
+    connectAudio(): void {}
 
-    _ensureStarted() {
+    _ensureStarted(): void {
         if (!this.kawarp) return;
         if (this.kawarp.isPlaying) return;
         if (this.audioElement?.paused) return;
         this.kawarp.start();
     }
 
-    _observeCoverArt() {
+    _observeCoverArt(): void {
         const container = document.querySelector('.now-playing-bar');
         if (!container) return;
 
         this._coverObserver = new MutationObserver(() => {
             const el = document.querySelector('.now-playing-bar .cover');
-            const src = el?.tagName === 'IMG' ? el.src : null;
+            const src = el?.tagName === 'IMG' ? (el as HTMLImageElement).src : null;
             if (!src || src === this._lastCoverUrl) return;
             this._lastCoverUrl = src;
             if (this.kawarp && this.isInitialized) {
@@ -112,7 +138,7 @@ export class KawarpPreset {
         });
     }
 
-    _loadCover(url) {
+    _loadCover(url: string): void {
         // Cache buster forces a fresh CORS request, bypassing the browser's
         // cached non-CORS response from the <img> tag (same pattern as ui.js)
         const sep = url.includes('?') ? '&' : '?';
@@ -121,11 +147,11 @@ export class KawarpPreset {
             .catch((err) => console.warn('[Kawarp] Failed to load cover:', err));
     }
 
-    resize(_w, _h) {
+    resize(_w: number, _h: number): void {
         if (this.kawarp) this.kawarp.resize();
     }
 
-    draw(ctx, canvas, analyser, dataArray, stats) {
+    draw(ctx: RenderingContext | null, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, stats: { mode: string }): void {
         if (!this.kawarp || !this.isInitialized) return;
 
         this._ensureStarted();
@@ -174,7 +200,7 @@ export class KawarpPreset {
         }
     }
 
-    _destroyKawarp() {
+    _destroyKawarp(): void {
         if (this.kawarp) {
             this.kawarp.stop();
             this.kawarp.dispose();
@@ -184,7 +210,7 @@ export class KawarpPreset {
         this.isInitialized = false;
     }
 
-    destroy() {
+    destroy(): void {
         if (this._coverObserver) {
             this._coverObserver.disconnect();
             this._coverObserver = null;
