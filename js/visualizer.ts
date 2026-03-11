@@ -24,8 +24,8 @@ interface VisualizerPreset {
         ctx: CanvasRenderingContext2D | WebGLRenderingContext | WebGL2RenderingContext | null,
         canvas: HTMLCanvasElement,
         analyser: AnalyserNode,
-        dataArray: Uint8Array<ArrayBuffer>,
-        stats: VisualizerStats
+        dataArray: Uint8Array,
+        stats: unknown
     ): void;
     contextType?: string;
     managesOwnContext?: boolean;
