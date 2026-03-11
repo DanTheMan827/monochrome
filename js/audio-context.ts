@@ -88,6 +88,27 @@ function getPresetsForBandCount(bandCount) {
 const EQ_PRESETS = EQ_PRESETS_16;
 
 class AudioContextManager {
+    audioContext: AudioContext | null;
+    source: MediaElementAudioSourceNode | null;
+    sources: Map<HTMLMediaElement, MediaElementAudioSourceNode>;
+    analyser: AnalyserNode | null;
+    filters: BiquadFilterNode[];
+    outputNode: GainNode | null;
+    volumeNode: GainNode | null;
+    isInitialized: boolean;
+    isEQEnabled: boolean;
+    isMonoAudioEnabled: boolean;
+    monoMergerNode: ChannelMergerNode | null;
+    audio: HTMLMediaElement | null;
+    currentVolume: number;
+    bandCount: number;
+    freqRange: { min: number; max: number };
+    frequencies: number[];
+    currentGains: number[];
+    _graphChangeCallbacks: Array<(source: MediaElementAudioSourceNode | null) => void>;
+    preampNode: GainNode | null;
+    preamp: number;
+
     constructor() {
         this.audioContext = null;
         this.source = null;
@@ -300,18 +321,18 @@ class AudioContextManager {
         this.audio = audioElement;
 
         // Detect iOS - skip Web Audio initialization on iOS to avoid lock screen audio issues
-        const isIOS = typeof window !== 'undefined' && window.__IS_IOS__ === true;
+        const isIOS = typeof window !== 'undefined' && (window as Window & { __IS_IOS__?: boolean }).__IS_IOS__ === true;
         if (isIOS) {
             console.log('[AudioContext] Skipping Web Audio initialization on iOS for lock screen compatibility');
             return;
         }
 
         try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            const AudioContext = window.AudioContext || (window as Window & { webkitAudioContext?: typeof window.AudioContext }).webkitAudioContext!;
             const highResOptions = { sampleRate: 192000, latencyHint: 'playback' };
 
             try {
-                this.audioContext = new AudioContext(highResOptions);
+                this.audioContext = new AudioContext(highResOptions as AudioContextOptions);
                 console.log(`[AudioContext] Created with high-res settings: ${this.audioContext.sampleRate}Hz`);
             } catch (e) {
                 try {
@@ -402,7 +423,7 @@ class AudioContextManager {
                 }
             }
 
-            let lastNode = this.source;
+            let lastNode: AudioNode = this.source;
 
             // Apply mono audio if enabled
             if (this.isMonoAudioEnabled && this.monoMergerNode) {
@@ -417,7 +438,7 @@ class AudioContextManager {
                 monoGain.connect(this.monoMergerNode, 0, 0);
                 monoGain.connect(this.monoMergerNode, 0, 1);
 
-                lastNode = this.monoMergerNode;
+                lastNode = this.monoMergerNode as AudioNode;
                 console.log('[AudioContext] Mono audio enabled');
             }
 
