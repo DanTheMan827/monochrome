@@ -12,31 +12,39 @@ const editProfileModal = document.getElementById('edit-profile-modal');
 const editProfileBtn = document.getElementById('profile-edit-btn');
 const viewMyProfileBtn = document.getElementById('view-my-profile-btn');
 
-const editUsername = document.getElementById('edit-profile-username');
-const editDisplayName = document.getElementById('edit-profile-display-name');
-const editAvatar = document.getElementById('edit-profile-avatar');
-const editBanner = document.getElementById('edit-profile-banner');
-const editStatusSearch = document.getElementById('edit-profile-status-search');
-const editStatusJson = document.getElementById('edit-profile-status-json');
+const editUsername = document.getElementById('edit-profile-username') as HTMLInputElement;
+const editDisplayName = document.getElementById('edit-profile-display-name') as HTMLInputElement;
+const editAvatar = document.getElementById('edit-profile-avatar') as HTMLInputElement;
+const editBanner = document.getElementById('edit-profile-banner') as HTMLInputElement;
+const editStatusSearch = document.getElementById('edit-profile-status-search') as HTMLInputElement;
+const editStatusJson = document.getElementById('edit-profile-status-json') as HTMLInputElement;
 const statusSearchResults = document.getElementById('status-search-results');
 const statusPreview = document.getElementById('status-preview');
 const clearStatusBtn = document.getElementById('clear-status-btn');
 const editFavoriteAlbumsList = document.getElementById('edit-favorite-albums-list');
-const editFavoriteAlbumsSearch = document.getElementById('edit-favorite-albums-search');
+const editFavoriteAlbumsSearch = document.getElementById('edit-favorite-albums-search') as HTMLInputElement;
 const editFavoriteAlbumsResults = document.getElementById('edit-favorite-albums-results');
-const editAbout = document.getElementById('edit-profile-about');
-const editWebsite = document.getElementById('edit-profile-website');
-const editLastfm = document.getElementById('edit-profile-lastfm');
-const privacyPlaylists = document.getElementById('privacy-playlists-toggle');
-const privacyLastfm = document.getElementById('privacy-lastfm-toggle');
-const saveProfileBtn = document.getElementById('edit-profile-save');
+const editAbout = document.getElementById('edit-profile-about') as HTMLTextAreaElement;
+const editWebsite = document.getElementById('edit-profile-website') as HTMLInputElement;
+const editLastfm = document.getElementById('edit-profile-lastfm') as HTMLInputElement;
+const privacyPlaylists = document.getElementById('privacy-playlists-toggle') as HTMLInputElement;
+const privacyLastfm = document.getElementById('privacy-lastfm-toggle') as HTMLInputElement;
+const saveProfileBtn = document.getElementById('edit-profile-save') as HTMLButtonElement;
 const cancelProfileBtn = document.getElementById('edit-profile-cancel');
 const usernameError = document.getElementById('username-error');
 
-let currentFavoriteAlbums = [];
+interface FavoriteAlbum {
+    id: string;
+    title: string;
+    artist: string;
+    cover: string;
+    description: string;
+}
+
+let currentFavoriteAlbums: FavoriteAlbum[] = [];
 const api = new MusicAPI(apiSettings);
 
-async function uploadImage(file) {
+async function uploadImage(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -52,18 +60,18 @@ async function uploadImage(file) {
     }
 }
 
-function setupImageUploadControl(idPrefix) {
-    const urlInput = document.getElementById(idPrefix);
-    const fileInput = document.getElementById(idPrefix + '-file');
-    const uploadBtn = document.getElementById(idPrefix + '-upload-btn');
-    const toggleBtn = document.getElementById(idPrefix + '-toggle-btn');
-    const statusEl = document.getElementById(idPrefix + '-upload-status');
+function setupImageUploadControl(idPrefix: string): (currentUrl?: string) => void {
+    const urlInput = document.getElementById(idPrefix) as HTMLInputElement | null;
+    const fileInput = document.getElementById(idPrefix + '-file') as HTMLInputElement | null;
+    const uploadBtn = document.getElementById(idPrefix + '-upload-btn') as HTMLButtonElement | null;
+    const toggleBtn = document.getElementById(idPrefix + '-toggle-btn') as HTMLElement | null;
+    const statusEl = document.getElementById(idPrefix + '-upload-status') as HTMLElement | null;
 
-    if (!urlInput || !fileInput || !uploadBtn || !toggleBtn || !statusEl) return () => {};
+    if (!urlInput || !fileInput || !uploadBtn || !toggleBtn || !statusEl) return () => { /* noop */ };
 
     let useUrl = false;
 
-    function updateUI() {
+    function updateUI(): void {
         if (useUrl) {
             uploadBtn.style.display = 'none';
             urlInput.style.display = 'block';
@@ -82,8 +90,8 @@ function setupImageUploadControl(idPrefix) {
 
     uploadBtn.addEventListener('click', () => fileInput.click());
 
-    fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+    fileInput.addEventListener('change', async (e: Event) => {
+        const file = (e.target as HTMLInputElement).files[0];
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
@@ -113,7 +121,7 @@ function setupImageUploadControl(idPrefix) {
         }
     });
 
-    return (currentUrl) => {
+    return (currentUrl?: string) => {
         urlInput.value = currentUrl || '';
         useUrl = !!currentUrl;
         updateUI();
@@ -124,12 +132,12 @@ function setupImageUploadControl(idPrefix) {
 const resetAvatarControl = setupImageUploadControl('edit-profile-avatar');
 const resetBannerControl = setupImageUploadControl('edit-profile-banner');
 
-export async function loadProfile(username) {
+export async function loadProfile(username: string): Promise<void> {
     document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
     profilePage.classList.add('active');
 
     document.getElementById('profile-banner').style.backgroundImage = '';
-    document.getElementById('profile-avatar').src = '/assets/appicon.png';
+    (document.getElementById('profile-avatar') as HTMLImageElement).src = '/assets/appicon.png';
     document.getElementById('profile-display-name').textContent = 'Loading...';
     document.getElementById('profile-username').textContent = '@' + username;
     document.getElementById('profile-status').style.display = 'none';
@@ -173,7 +181,7 @@ export async function loadProfile(username) {
 
     document.getElementById('profile-display-name').textContent = profile.display_name || username;
     if (profile.banner) document.getElementById('profile-banner').style.backgroundImage = `url('${profile.banner}')`;
-    if (profile.avatar_url) document.getElementById('profile-avatar').src = profile.avatar_url;
+    if (profile.avatar_url) (document.getElementById('profile-avatar') as HTMLImageElement).src = profile.avatar_url;
 
     if (profile.status) {
         const statusEl = document.getElementById('profile-status');
@@ -184,7 +192,7 @@ export async function loadProfile(username) {
                 <img src="${statusObj.image}" style="width: 20px; height: 20px; border-radius: 2px; vertical-align: middle; margin-right: 0.5rem;">
                 <a href="${statusObj.link}" class="status-link" style="color: inherit; text-decoration: none; font-weight: 500;">${statusObj.text}</a>
             `;
-            statusEl.querySelector('.status-link').onclick = (e) => {
+            (statusEl.querySelector('.status-link') as HTMLElement).onclick = (e: MouseEvent) => {
                 e.preventDefault();
                 navigate(statusObj.link);
             };
@@ -199,7 +207,7 @@ export async function loadProfile(username) {
     }
 
     if (profile.website) {
-        const webEl = document.getElementById('profile-website');
+        const webEl = document.getElementById('profile-website') as HTMLAnchorElement;
         webEl.href = profile.website;
         webEl.style.display = 'inline-block';
     }
@@ -233,7 +241,7 @@ export async function loadProfile(username) {
     }
 
     if (profile.lastfm_username && profile.privacy?.lastfm !== 'private') {
-        const lfmEl = document.getElementById('profile-lastfm');
+        const lfmEl = document.getElementById('profile-lastfm') as HTMLAnchorElement;
         lfmEl.href = `https://last.fm/user/${profile.lastfm_username}`;
         lfmEl.style.display = 'inline-block';
     }
@@ -278,8 +286,9 @@ export async function loadProfile(username) {
                     .join('');
 
                 recentContainer.querySelectorAll('.track-item').forEach((item) => {
-                    item.addEventListener('click', () => handleTrackClick(item.dataset.title, item.dataset.artist));
-                    item.addEventListener('contextmenu', (e) => {
+                    const el = item as HTMLElement;
+                    el.addEventListener('click', () => handleTrackClick(el.dataset.title, el.dataset.artist));
+                    el.addEventListener('contextmenu', (e) => {
                         e.preventDefault();
                         return false;
                     });
@@ -321,8 +330,9 @@ export async function loadProfile(username) {
                     .join('');
 
                 topArtistsContainer.querySelectorAll('.card').forEach((card) => {
-                    card.addEventListener('click', () => handleArtistClick(card.dataset.name));
-                    card.addEventListener('contextmenu', (e) => {
+                    const el = card as HTMLElement;
+                    el.addEventListener('click', () => handleArtistClick(el.dataset.name));
+                    el.addEventListener('contextmenu', (e) => {
                         e.preventDefault();
                         return false;
                     });
@@ -370,8 +380,9 @@ export async function loadProfile(username) {
                     .join('');
 
                 topAlbumsContainer.querySelectorAll('.card').forEach((card) => {
-                    card.addEventListener('click', () => handleAlbumClick(card.dataset.name, card.dataset.artist));
-                    card.addEventListener('contextmenu', (e) => {
+                    const el = card as HTMLElement;
+                    el.addEventListener('click', () => handleAlbumClick(el.dataset.name, el.dataset.artist));
+                    el.addEventListener('contextmenu', (e) => {
                         e.preventDefault();
                         return false;
                     });
@@ -420,8 +431,9 @@ export async function loadProfile(username) {
                     .join('');
 
                 topTracksContainer.querySelectorAll('.track-item').forEach((item) => {
-                    item.addEventListener('click', () => handleTrackClick(item.dataset.title, item.dataset.artist));
-                    item.addEventListener('contextmenu', (e) => {
+                    const el = item as HTMLElement;
+                    el.addEventListener('click', () => handleTrackClick(el.dataset.title, el.dataset.artist));
+                    el.addEventListener('contextmenu', (e) => {
                         e.preventDefault();
                         return false;
                     });
@@ -447,7 +459,7 @@ export async function loadProfile(username) {
         const container = document.getElementById('profile-playlists-container');
         const playlists = profile.user_playlists || {};
 
-        Object.values(playlists).forEach((playlist) => {
+        Object.values(playlists).forEach((playlist: any) => {
             if (!playlist.isPublic && !isOwner) return;
 
             const card = document.createElement('div');
@@ -474,7 +486,7 @@ export async function loadProfile(username) {
     }
 }
 
-export function openEditProfile() {
+export function openEditProfile(): void {
     syncManager.getUserData().then((data) => {
         if (!data || !data.profile) return;
         const p = data.profile;
@@ -516,7 +528,7 @@ export function openEditProfile() {
     });
 }
 
-async function saveProfile() {
+async function saveProfile(): Promise<void> {
     const newUsername = editUsername.value.trim();
     if (!newUsername) {
         usernameError.textContent = 'Username cannot be empty';
@@ -588,15 +600,15 @@ authManager.onAuthStateChanged((user) => {
     viewMyProfileBtn.style.display = user ? 'inline-block' : 'none';
 });
 
-function showStatusPreview(data) {
-    document.getElementById('status-preview-img').src = data.image;
+function showStatusPreview(data: { image: string; title: string; subtitle: string }): void {
+    (document.getElementById('status-preview-img') as HTMLImageElement).src = data.image;
     document.getElementById('status-preview-title').textContent = data.title;
     document.getElementById('status-preview-subtitle').textContent = data.subtitle;
     statusPreview.style.display = 'flex';
     editStatusSearch.style.display = 'none';
 }
 
-function hideStatusPreview() {
+function hideStatusPreview(): void {
     statusPreview.style.display = 'none';
     editStatusSearch.style.display = 'block';
     editStatusJson.value = '';
@@ -608,7 +620,7 @@ clearStatusBtn.addEventListener('click', () => {
     editStatusSearch.focus();
 });
 
-const performStatusSearch = debounce(async (query) => {
+const performStatusSearch = debounce(async (query: string) => {
     if (!query) {
         statusSearchResults.style.display = 'none';
         return;
@@ -622,7 +634,7 @@ const performStatusSearch = debounce(async (query) => {
 
         statusSearchResults.innerHTML = '';
 
-        const createItem = (item, type) => {
+        const createItem = (item: any, type: string) => {
             const div = document.createElement('div');
             div.className = 'search-result-item';
             const title = item.title;
@@ -664,14 +676,14 @@ const performStatusSearch = debounce(async (query) => {
     }
 }, 300);
 
-editStatusSearch.addEventListener('input', (e) => performStatusSearch(e.target.value.trim()));
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('.status-picker-container')) {
+editStatusSearch.addEventListener('input', (e: Event) => performStatusSearch((e.target as HTMLInputElement).value.trim()));
+document.addEventListener('click', (e: MouseEvent) => {
+    if (!(e.target as HTMLElement).closest('.status-picker-container')) {
         statusSearchResults.style.display = 'none';
     }
 });
 
-function renderEditFavoriteAlbums() {
+function renderEditFavoriteAlbums(): void {
     editFavoriteAlbumsList.innerHTML = currentFavoriteAlbums
         .map(
             (album, index) => `
@@ -691,17 +703,19 @@ function renderEditFavoriteAlbums() {
         .join('');
 
     editFavoriteAlbumsList.querySelectorAll('.remove-album-btn').forEach((btn) => {
-        btn.onclick = () => {
-            const idx = parseInt(btn.dataset.index);
+        const el = btn as HTMLElement;
+        el.onclick = () => {
+            const idx = parseInt(el.dataset.index);
             currentFavoriteAlbums.splice(idx, 1);
             renderEditFavoriteAlbums();
         };
     });
 
     editFavoriteAlbumsList.querySelectorAll('.album-description-input').forEach((input) => {
-        input.oninput = () => {
-            const idx = parseInt(input.dataset.index);
-            currentFavoriteAlbums[idx].description = input.value;
+        const el = input as HTMLTextAreaElement;
+        el.oninput = () => {
+            const idx = parseInt(el.dataset.index);
+            currentFavoriteAlbums[idx].description = el.value;
         };
     });
 
@@ -714,7 +728,7 @@ function renderEditFavoriteAlbums() {
     }
 }
 
-const performFavoriteAlbumSearch = debounce(async (query) => {
+const performFavoriteAlbumSearch = debounce(async (query: string) => {
     if (!query || currentFavoriteAlbums.length >= 5) {
         editFavoriteAlbumsResults.style.display = 'none';
         return;
@@ -763,16 +777,16 @@ const performFavoriteAlbumSearch = debounce(async (query) => {
     }
 }, 300);
 
-editFavoriteAlbumsSearch.addEventListener('input', (e) => performFavoriteAlbumSearch(e.target.value.trim()));
+editFavoriteAlbumsSearch.addEventListener('input', (e: Event) => performFavoriteAlbumSearch((e.target as HTMLInputElement).value.trim()));
 
-function getLastFmImage(images) {
+function getLastFmImage(images: any): string | null {
     if (!images) return null;
     const imgArray = Array.isArray(images) ? images : [images];
     const sizes = ['extralarge', 'large', 'medium', 'small'];
 
     const placeholders = ['2a96cbd8b46e442fc41c2b86b821562f', 'c6f59c1e5e7240a4c0d427abd71f3dbb'];
 
-    const isValidUrl = (url) => {
+    const isValidUrl = (url: string) => {
         if (!url) return false;
         return !placeholders.some((ph) => url.includes(ph));
     };
@@ -786,7 +800,7 @@ function getLastFmImage(images) {
     return null;
 }
 
-async function handleArtistClick(name) {
+async function handleArtistClick(name: string): Promise<void> {
     try {
         const results = await api.searchArtists(name, { limit: 1 });
         if (results.items.length > 0) {
@@ -799,7 +813,7 @@ async function handleArtistClick(name) {
     }
 }
 
-async function handleAlbumClick(name, artist) {
+async function handleAlbumClick(name: string, artist: string): Promise<void> {
     try {
         const query = `${name} ${artist}`;
         const results = await api.searchAlbums(query, { limit: 1 });
@@ -813,7 +827,7 @@ async function handleAlbumClick(name, artist) {
     }
 }
 
-async function handleTrackClick(title, artist) {
+async function handleTrackClick(title: string, artist: string): Promise<void> {
     try {
         const query = `${title} ${artist}`;
         const results = await api.searchTracks(query, { limit: 1 });
@@ -831,7 +845,7 @@ async function handleTrackClick(title, artist) {
     }
 }
 
-async function fetchFallbackCover(title, artist, imgId) {
+async function fetchFallbackCover(title: string, artist: string, imgId: string): Promise<void> {
     try {
         const query = `${title} ${artist}`;
         await new Promise((r) => setTimeout(r, 100));
@@ -844,7 +858,7 @@ async function fetchFallbackCover(title, artist, imgId) {
                 const newUrl = api.getCoverUrl(found.album.cover);
                 const imgEl = document.getElementById(imgId);
                 if (imgEl) {
-                    imgEl.src = newUrl;
+                    (imgEl as HTMLImageElement).src = newUrl;
                     foundCover = true;
                 }
             }
@@ -858,7 +872,7 @@ async function fetchFallbackCover(title, artist, imgId) {
     }
 }
 
-async function fetchFallbackAlbumCover(title, artist, imgId) {
+async function fetchFallbackAlbumCover(title: string, artist: string, imgId: string): Promise<void> {
     try {
         const query = `${title} ${artist}`;
         await new Promise((r) => setTimeout(r, 100));
@@ -871,7 +885,7 @@ async function fetchFallbackAlbumCover(title, artist, imgId) {
                 const newUrl = api.getCoverUrl(found.cover);
                 const imgEl = document.getElementById(imgId);
                 if (imgEl) {
-                    imgEl.src = newUrl;
+                    (imgEl as HTMLImageElement).src = newUrl;
                     foundCover = true;
                 }
             }
@@ -885,7 +899,7 @@ async function fetchFallbackAlbumCover(title, artist, imgId) {
     }
 }
 
-async function fetchFallbackArtistImage(artistName, imgId) {
+async function fetchFallbackArtistImage(artistName: string, imgId: string): Promise<void> {
     try {
         await new Promise((r) => setTimeout(r, 100));
         const results = await api.searchArtists(artistName, { limit: 3 });
@@ -894,7 +908,7 @@ async function fetchFallbackArtistImage(artistName, imgId) {
             if (found) {
                 const newUrl = api.getArtistPictureUrl(found.picture);
                 const imgEl = document.getElementById(imgId);
-                if (imgEl) imgEl.src = newUrl;
+                if (imgEl) (imgEl as HTMLImageElement).src = newUrl;
             }
         }
     } catch {
@@ -902,7 +916,7 @@ async function fetchFallbackArtistImage(artistName, imgId) {
     }
 }
 
-async function fetchLastFmRecentTracks(username) {
+async function fetchLastFmRecentTracks(username: string): Promise<any[]> {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=5`;
     try {
@@ -917,7 +931,7 @@ async function fetchLastFmRecentTracks(username) {
     }
 }
 
-async function fetchLastFmTopArtists(username) {
+async function fetchLastFmTopArtists(username: string): Promise<any[]> {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=6`;
     try {
@@ -930,7 +944,7 @@ async function fetchLastFmTopArtists(username) {
     }
 }
 
-async function fetchLastFmTopAlbums(username) {
+async function fetchLastFmTopAlbums(username: string): Promise<any[]> {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=6`;
     try {
@@ -943,7 +957,7 @@ async function fetchLastFmTopAlbums(username) {
     }
 }
 
-async function fetchLastFmTopTracks(username) {
+async function fetchLastFmTopTracks(username: string): Promise<any[]> {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=5`;
     try {
