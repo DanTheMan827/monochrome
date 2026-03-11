@@ -1,18 +1,6 @@
 <!doctype html>
 <html lang="en">
     <head>
-        <script>
-            // Capture real iOS state before spoofing (needed for background audio)
-            var _ua = navigator.userAgent.toLowerCase();
-            window.__IS_IOS__ = /iphone|ipad|ipod/.test(_ua) || (_ua.includes('mac') && navigator.maxTouchPoints > 1);
-
-            // Spoof User-Agent to bypass Google's embedded browser check
-            Object.defineProperty(navigator, 'userAgent', {
-                get: function () {
-                    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-                },
-            });
-        </script>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Monochrome Music</title>
@@ -45,50 +33,44 @@
             rel="stylesheet"
         />
         <link rel="stylesheet" href="/styles.css" />
-
-        <!-- Privacy-friendly analytics by Plausible -->
-        <script async src="https://plausible.canine.tools/js/pa-dCMvQpiD1-AJmi8o3xviO.js"></script>
-        <script>
-            window.plausible =
-                window.plausible ||
-                function () {
-                    (plausible.q = plausible.q || []).push(arguments);
-                };
-            plausible.init =
-                plausible.init ||
-                function (i) {
-                    plausible.o = i || {};
-                };
-            plausible.init();
-        </script>
     </head>
 
     <body>
-        <audio id="audio-player" crossorigin="anonymous"></audio>
+        <audio id="audio-player" crossorigin="anonymous" style="display: none"></audio>
+        <video id="video-player" crossorigin="anonymous" style="display: none"></video>
         <div id="context-menu">
             <ul>
                 <li data-action="shuffle-play-card" data-type-filter="album,playlist,mix,user-playlist">
                     Shuffle play
                 </li>
-                <li data-action="start-mix" data-type-filter="album,track">Start mix</li>
+                <li data-action="start-infinite-radio" data-type-filter="track,album,playlist,user-playlist">
+                    Start Infinite Radio
+                </li>
+                <li data-action="start-mix" data-type-filter="album,track,video">Start mix</li>
                 <li data-action="play-next">Play next</li>
                 <li data-action="add-to-queue">Add to queue</li>
                 <li
                     data-action="toggle-like"
                     data-label-track="Like"
+                    data-label-unlike-track="Unlike"
                     data-label-album="Save album to library"
+                    data-label-unlike-album="Remove album from library"
                     data-label-playlist="Save playlist to library"
+                    data-label-unlike-playlist="Remove playlist from library"
+                    data-label-video="Like"
+                    data-label-unlike-video="Unlike"
                 >
                     Like
                 </li>
                 <li data-action="toggle-pin" data-type-filter="album,artist,playlist,user-playlist">Pin</li>
-                <li data-action="add-to-playlist" data-type-filter="track">Add to playlist</li>
-                <li data-action="go-to-artist" data-type-filter="track,album">Go to artist</li>
-                <li data-action="go-to-album" data-type-filter="track">Go to album</li>
+                <li data-action="add-to-playlist" data-type-filter="track,video">Add to playlist</li>
+                <li data-action="go-to-artist" data-type-filter="track,album,video">Go to artist</li>
+                <li data-action="go-to-album" data-type-filter="track,video">Go to album</li>
                 <li data-action="copy-link">Copy link</li>
                 <li data-action="open-in-new-tab">Open in new tab</li>
-                <li data-action="track-info" data-type-filter="track">Track info</li>
-                <li data-action="open-original-url" data-type-filter="track">Open original URL</li>
+                <li data-action="open-in-harmony" data-type-filter="album">Open in Harmony</li>
+                <li data-action="track-info" data-type-filter="track,video">Track info</li>
+                <li data-action="open-original-url" data-type-filter="track,video">Open original URL</li>
                 <li data-action="download">Download</li>
                 <li class="separator"></li>
                 <li
@@ -143,7 +125,23 @@
 
         <div id="fullscreen-cover-overlay" style="display: none">
             <div class="fullscreen-cover-content">
-                <canvas id="visualizer-canvas"></canvas>
+                <div id="visualizer-container">
+                    <canvas id="visualizer-canvas"></canvas>
+                </div>
+                <div
+                    id="fullscreen-video-container"
+                    style="
+                        display: none;
+                        position: absolute;
+                        inset: 0;
+                        width: 100%;
+                        height: 100%;
+                        justify-content: center;
+                        align-items: center;
+                        background: black;
+                        z-index: 0;
+                    "
+                ></div>
                 <button id="toggle-ui-btn" class="fullscreen-ui-toggle" title="Toggle UI">
                     <svg
                         xmlns="http://www.w3.org/2000/svg"
@@ -185,6 +183,7 @@
                         src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
                         alt="Album Cover"
                     />
+
                     <div class="fullscreen-track-info">
                         <h2 id="fullscreen-track-title"></h2>
                         <h3 id="fullscreen-track-artist"></h3>
@@ -377,12 +376,30 @@
                                     stroke-linejoin="round"
                                     class="lucide lucide-repeat-icon lucide-repeat"
                                 >
-                                    <path d="m17 2 4 4-4 4" />
-                                    <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
-                                    <path d="m7 22-4-4 4-4" />
-                                    <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+                                    <path d="m17 2 4 4-4 4"></path>
+                                    <path d="M3 11v-1a4 4 0 0 1 4-4h14"></path>
+                                    <path d="m7 22-4-4 4-4"></path>
+                                    <path d="M21 13v1a4 4 0 0 1-4 4H3"></path>
                                 </svg>
                             </button>
+                            <button id="fs-quality-btn" class="fs-quality-btn" title="Quality" style="display: none">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="20"
+                                    height="20"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                >
+                                    <path d="M12 20h9"></path>
+                                    <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+                                </svg>
+                                <span class="fs-quality-label">Auto</span>
+                            </button>
+                            <div id="fs-quality-menu" class="fs-quality-menu" style="display: none"></div>
                         </div>
                         <div class="fullscreen-volume-container">
                             <button id="fs-volume-btn" class="fs-volume-btn" title="Mute">
@@ -1124,6 +1141,27 @@
                     <div class="shortcut-item"><kbd>L</kbd><span>Toggle lyrics</span></div>
                     <div class="shortcut-item"><kbd>/</kbd><span>Focus search</span></div>
                     <div class="shortcut-item"><kbd>Esc</kbd><span>Close modals</span></div>
+                    <div class="shortcut-item"><kbd>[</kbd><span>Previous visualizer preset</span></div>
+                    <div class="shortcut-item"><kbd>]</kbd><span>Next visualizer preset</span></div>
+                    <div class="shortcut-item"><kbd>\</kbd><span>Toggle visualizer auto-cycle</span></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="customize-shortcuts-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content medium">
+                <div class="shortcuts-header">
+                    <h3>Customize Shortcuts</h3>
+                    <button class="close-customize-shortcuts">&times;</button>
+                </div>
+                <div class="customize-shortcuts-content">
+                    <p class="shortcut-hint">Click on a shortcut to rebind it. Press the new key combination.</p>
+                    <div id="shortcuts-list" class="shortcuts-list"></div>
+                </div>
+                <div class="customize-shortcuts-actions">
+                    <button id="reset-shortcuts-btn" class="btn-secondary">Reset to Defaults</button>
+                    <button id="close-customize-shortcuts-btn" class="btn-primary">Done</button>
                 </div>
             </div>
         </div>
@@ -1563,7 +1601,15 @@
                             ></textarea>
                         </div>
                         <div class="modal-actions">
-                            <button type="submit" class="btn-primary">Upload Theme</button>
+                            <button
+                                type="button"
+                                id="theme-upload-cancel-edit"
+                                class="btn-secondary"
+                                style="display: none"
+                            >
+                                Cancel Edit
+                            </button>
+                            <button type="submit" id="theme-upload-submit-btn" class="btn-primary">Upload Theme</button>
                         </div>
                     </form>
                 </div>
@@ -1641,6 +1687,125 @@
                     </button>
                     <button id="epilepsy-cancel-btn" class="btn-secondary" style="width: 100%">Cancel</button>
                 </div>
+            </div>
+        </div>
+
+        <div id="maintenance-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content" style="text-align: center">
+                <h3 style="color: #ef4444; display: flex; align-items: center; gap: 0.5rem; justify-content: center">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="24"
+                        height="24"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path
+                            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+                        />
+                    </svg>
+                    Maintenance Notice
+                </h3>
+                <p style="margin: 1.5rem 0; line-height: 1.6; font-size: 1.1rem">
+                    The desktop version of Monochrome is currently undergoing essential maintenance to address critical
+                    issues.
+                </p>
+                <p style="margin-bottom: 2rem; color: var(--muted-foreground); line-height: 1.5">
+                    Downloads are temporarily disabled while we work on fixing these issues. Please check back later.
+                </p>
+                <div class="modal-actions" style="justify-content: center">
+                    <button id="maintenance-home-btn" class="btn-primary" style="padding: 0.75rem 2rem">
+                        Back to Home
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="donate-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h3 style="text-align: center; margin-bottom: 1rem">Support Monochrome</h3>
+                <p style="text-align: center; margin-bottom: 1.5rem; line-height: 1.6; color: var(--muted-foreground)">
+                    If Monochrome has been useful to you and you're able to, consider making a donation. It helps pay
+                    for the server and domain, and you get to support us :)
+                </p>
+                <div style="display: flex; justify-content: center; margin-bottom: 2rem">
+                    <a
+                        href="https://ko-fi.com/monochromemusic"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn-primary"
+                        style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem"
+                    >
+                        Donate on Ko-fi
+                    </a>
+                </div>
+                <div style="text-align: center; padding-top: 1rem; border-top: 1px solid var(--border)">
+                    <p style="font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 0.5rem">
+                        An alternative way to support us is by starring us on GitHub, and it's completely free!
+                    </p>
+                    <a
+                        href="https://github.com/monochrome-music/monochrome"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn-secondary"
+                        style="
+                            text-decoration: none;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            margin-top: 0.5rem;
+                        "
+                    >
+                        Star on GitHub
+                    </a>
+                </div>
+                <div class="modal-actions" style="justify-content: center; margin-top: 1.5rem">
+                    <button id="close-donate-modal-btn" class="btn-secondary">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="desktop-update-modal" class="modal">
+            <div class="modal-overlay"></div>
+            <div class="modal-content">
+                <h3>Update Available</h3>
+                <p>A new version of Monochrome is available.</p>
+                <div
+                    id="desktop-update-notes"
+                    style="
+                        margin: 1rem 0;
+                        padding: 1rem;
+                        background: var(--background-secondary);
+                        border-radius: var(--radius);
+                        max-height: 200px;
+                        overflow-y: auto;
+                        font-size: 0.9rem;
+                    "
+                ></div>
+                <div class="modal-actions">
+                    <button id="desktop-update-cancel" class="btn-secondary">Later</button>
+                    <button id="desktop-update-confirm" class="btn-primary">Update Now</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="command-palette-overlay" style="display: none">
+            <div class="command-palette">
+                <div class="command-palette-header">
+                    <input
+                        type="text"
+                        id="command-palette-input"
+                        placeholder="Type > to start a command..."
+                        autocomplete="off"
+                    />
+                </div>
+                <div id="command-palette-results" class="command-palette-results"></div>
             </div>
         </div>
 
@@ -1796,7 +1961,7 @@
                                 </a>
                             </li>
                             <li class="nav-item" id="sidebar-nav-donate">
-                                <a href="https://ko-fi.com/monochromemusic" target="_blank" rel="noopener noreferrer">
+                                <a id="sidebar-donate-link" style="cursor: pointer">
                                     <svg
                                         xmlns="http://www.w3.org/2000/svg"
                                         width="24"
@@ -1899,6 +2064,27 @@
                                                 </g>
                                             </svg>
                                             <span>Discord</span>
+                                        </a>
+                                    </li>
+                                    <li class="nav-item" id="sidebar-nav-githubbtn" style="display: none">
+                                        <a href="https://github.com/monochrome-music/monochrome" target="_blank">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path
+                                                    d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
+                                                />
+                                                <path d="M9 18c-4.51 2-5-2-7-2" />
+                                            </svg>
+                                            <span>GitHub</span>
                                         </a>
                                     </li>
                                     <li class="nav-item" id="sidebar-nav-download-bottom">
@@ -2055,166 +2241,20 @@
                 </header>
 
                 <div id="page-home" class="page">
-                    <div id="home-welcome" style="display: none; text-align: center; padding: 4rem 2rem">
-                        <h2 style="margin-bottom: 1rem">Welcome to Monochrome</h2>
-                        <p style="color: var(--muted-foreground)">
-                            You haven't listened to anything yet. Search for your favorite songs to get started!
-                        </p>
+                    <div class="home-header-tabs">
+                        <button class="home-tab active" data-tab="for-you">Home</button>
+                        <button class="home-tab" data-tab="explore">Hot & New</button>
                     </div>
 
-                    <section class="content-section" id="home-editors-picks-section-empty" style="margin-top: 0">
-                        <div
-                            style="
-                                display: flex;
-                                align-items: center;
-                                justify-content: space-between;
-                                margin-bottom: 1rem;
-                            "
-                        >
-                            <h2 class="section-title" style="margin-bottom: 0">Editor's Picks</h2>
+                    <div id="home-view-for-you" class="home-view active">
+                        <div id="home-welcome" style="display: none; text-align: center; padding: 4rem 2rem">
+                            <h2 style="margin-bottom: 1rem">Welcome to Monochrome</h2>
+                            <p style="color: var(--muted-foreground)">
+                                You haven't listened to anything yet. Search for your favorite songs to get started!
+                            </p>
                         </div>
-                        <div class="card-grid" id="home-editors-picks-empty"></div>
-                    </section>
 
-                    <div id="home-content" style="display: none">
-                        <section class="content-section">
-                            <div
-                                style="
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: space-between;
-                                    margin-bottom: 1rem;
-                                "
-                            >
-                                <h2 class="section-title" style="margin-bottom: 0">Recommended Songs</h2>
-                                <button
-                                    class="btn-secondary"
-                                    id="refresh-songs-btn"
-                                    title="Refresh"
-                                    style="padding: 4px 8px"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    >
-                                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                                        <path d="M21 3v5h-5" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="track-list" id="home-recommended-songs"></div>
-                        </section>
-                        <section class="content-section">
-                            <div
-                                style="
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: space-between;
-                                    margin-bottom: 1rem;
-                                "
-                            >
-                                <h2 class="section-title" style="margin-bottom: 0">Recommended Albums</h2>
-                                <button
-                                    class="btn-secondary"
-                                    id="refresh-albums-btn"
-                                    title="Refresh"
-                                    style="padding: 4px 8px"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    >
-                                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                                        <path d="M21 3v5h-5" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="card-grid" id="home-recommended-albums"></div>
-                        </section>
-                        <section class="content-section">
-                            <div
-                                style="
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: space-between;
-                                    margin-bottom: 1rem;
-                                "
-                            >
-                                <h2 class="section-title" style="margin-bottom: 0">Recommended Artists</h2>
-                                <button
-                                    class="btn-secondary"
-                                    id="refresh-artists-btn"
-                                    title="Refresh"
-                                    style="padding: 4px 8px"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    >
-                                        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-                                        <path d="M21 3v5h-5" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="card-grid" id="home-recommended-artists"></div>
-                        </section>
-                        <section class="content-section">
-                            <div
-                                style="
-                                    display: flex;
-                                    align-items: center;
-                                    justify-content: space-between;
-                                    margin-bottom: 1rem;
-                                "
-                            >
-                                <h2 class="section-title" style="margin-bottom: 0">Jump Back In</h2>
-                                <button
-                                    class="btn-secondary"
-                                    id="clear-recent-btn"
-                                    title="Clear History"
-                                    style="padding: 4px 8px"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        width="16"
-                                        height="16"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                    >
-                                        <path d="M3 6h18" />
-                                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                    </svg>
-                                </button>
-                            </div>
-                            <div class="card-grid" id="home-recent-mixed"></div>
-                        </section>
-                        <section class="content-section" id="home-editors-picks-section">
+                        <section class="content-section" id="home-editors-picks-section-empty" style="margin-top: 0">
                             <div
                                 style="
                                     display: flex;
@@ -2225,8 +2265,188 @@
                             >
                                 <h2 class="section-title" style="margin-bottom: 0">Editor's Picks</h2>
                             </div>
-                            <div class="card-grid" id="home-editors-picks"></div>
+                            <div class="card-grid" id="home-editors-picks-empty"></div>
                         </section>
+
+                        <div id="home-content" style="display: none">
+                            <section class="content-section">
+                                <div class="header-actions">
+                                    <h2 class="section-title">Recommended Songs</h2>
+                                    <div style="display: flex; gap: 8px">
+                                        <button
+                                            class="btn-primary"
+                                            id="home-start-infinite-radio-btn"
+                                            title="Start Infinite Radio"
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 8px;
+                                                padding: 6px 12px;
+                                                font-size: 0.85rem;
+                                            "
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" />
+                                                <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.4" />
+                                                <circle cx="12" cy="12" r="2" />
+                                                <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.4" />
+                                                <path d="M19.1 4.9C23 8.8 23 15.2 19.1 19.1" />
+                                            </svg>
+                                            Start Infinite Radio
+                                        </button>
+                                        <button class="btn-secondary" id="refresh-songs-btn" title="Refresh">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="16"
+                                                height="16"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                            >
+                                                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                                                <path d="M21 3v5h-5" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="track-list" id="home-recommended-songs"></div>
+                            </section>
+                            <section class="content-section">
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        margin-bottom: 1rem;
+                                    "
+                                >
+                                    <h2 class="section-title" style="margin-bottom: 0">Recommended Albums</h2>
+                                    <button
+                                        class="btn-secondary"
+                                        id="refresh-albums-btn"
+                                        title="Refresh"
+                                        style="padding: 4px 8px"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                                            <path d="M21 3v5h-5" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="card-grid" id="home-recommended-albums"></div>
+                            </section>
+                            <section class="content-section">
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        margin-bottom: 1rem;
+                                    "
+                                >
+                                    <h2 class="section-title" style="margin-bottom: 0">Recommended Artists</h2>
+                                    <button
+                                        class="btn-secondary"
+                                        id="refresh-artists-btn"
+                                        title="Refresh"
+                                        style="padding: 4px 8px"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                                            <path d="M21 3v5h-5" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="card-grid" id="home-recommended-artists"></div>
+                            </section>
+                            <section class="content-section">
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        margin-bottom: 1rem;
+                                    "
+                                >
+                                    <h2 class="section-title" style="margin-bottom: 0">Jump Back In</h2>
+                                    <button
+                                        class="btn-secondary"
+                                        id="clear-recent-btn"
+                                        title="Clear History"
+                                        style="padding: 4px 8px"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        >
+                                            <path d="M3 6h18" />
+                                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                            <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                <div class="card-grid" id="home-recent-mixed"></div>
+                            </section>
+                            <section class="content-section" id="home-editors-picks-section">
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        justify-content: space-between;
+                                        margin-bottom: 1rem;
+                                    "
+                                >
+                                    <h2 class="section-title" style="margin-bottom: 0">Editor's Picks</h2>
+                                </div>
+                                <div class="card-grid" id="home-editors-picks"></div>
+                            </section>
+                        </div>
+                    </div>
+
+                    <div id="home-view-explore" class="home-view" style="display: none">
+                        <div id="explore-content">
+                            <div class="card-grid" id="explore-grid"></div>
+                        </div>
                     </div>
                 </div>
 
@@ -2234,12 +2454,16 @@
                     <h2 class="section-title" id="search-results-title">Search Results</h2>
                     <div class="search-tabs">
                         <button class="search-tab active" data-tab="tracks">Tracks</button>
+                        <button class="search-tab" data-tab="videos">Videos</button>
                         <button class="search-tab" data-tab="albums">Albums</button>
                         <button class="search-tab" data-tab="artists">Artists</button>
                         <button class="search-tab" data-tab="playlists">Playlists</button>
                     </div>
                     <div class="search-tab-content active" id="search-tab-tracks">
                         <div class="track-list" id="search-tracks-container"></div>
+                    </div>
+                    <div class="search-tab-content" id="search-tab-videos">
+                        <div class="card-grid" id="search-videos-container"></div>
                     </div>
                     <div class="search-tab-content" id="search-tab-albums">
                         <div class="card-grid" id="search-albums-container"></div>
@@ -2279,6 +2503,7 @@
                         <h2 class="section-title">Favorites</h2>
                         <div class="search-tabs">
                             <button class="search-tab active" data-tab="tracks">Liked Tracks</button>
+                            <button class="search-tab" data-tab="videos">Videos</button>
                             <button class="search-tab" data-tab="albums">Albums</button>
                             <button class="search-tab" data-tab="artists">Artists</button>
                             <button class="search-tab" data-tab="playlists">Playlists and Mixes</button>
@@ -2350,6 +2575,9 @@
                                 </button>
                             </div>
                             <div class="track-list" id="library-tracks-container"></div>
+                        </div>
+                        <div class="search-tab-content" id="library-tab-videos">
+                            <div class="card-grid" id="library-videos-container"></div>
                         </div>
                         <div class="search-tab-content" id="library-tab-albums">
                             <div class="card-grid" id="library-albums-container"></div>
@@ -2614,6 +2842,29 @@
                                         ></path>
                                     </svg>
                                     <span>Save</span>
+                                </button>
+                                <button
+                                    id="album-menu-btn"
+                                    class="btn-secondary"
+                                    data-action="card-menu"
+                                    data-type="album"
+                                    title="More options"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                    >
+                                        <circle cx="12" cy="12" r="1"></circle>
+                                        <circle cx="12" cy="5" r="1"></circle>
+                                        <circle cx="12" cy="19" r="1"></circle>
+                                    </svg>
                                 </button>
                             </div>
                         </div>
@@ -3030,6 +3281,10 @@
                         <h2 class="section-title">Albums</h2>
                         <div class="card-grid" id="artist-detail-albums"></div>
                     </section>
+                    <section class="content-section" id="artist-section-videos" style="display: none">
+                        <h2 class="section-title">Videos</h2>
+                        <div class="card-grid" id="artist-detail-videos"></div>
+                    </section>
                     <section class="content-section" id="artist-section-eps" style="display: none">
                         <h2 class="section-title">EPs and Singles</h2>
                         <div class="card-grid" id="artist-detail-eps"></div>
@@ -3286,6 +3541,7 @@
                         <button class="settings-tab" data-tab="scrobbling">Scrobbling</button>
                         <button class="settings-tab" data-tab="audio">Audio</button>
                         <button class="settings-tab" data-tab="downloads">Downloads</button>
+                        <button class="settings-tab" data-tab="instances">Instances</button>
                         <button class="settings-tab" data-tab="system">System</button>
                     </div>
                     <div class="settings-tab-content active" id="settings-tab-appearance">
@@ -3523,10 +3779,13 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
+                            </div>
+
+                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Full-screen Visualizer</span>
-                                        <span class="description">Enable particle visualizer in full-screen mode</span>
+                                        <span class="description">Enable the visualizer in full-screen mode</span>
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="visualizer-enabled-toggle" checked />
@@ -3543,6 +3802,7 @@
                                         <option value="particles">Particles</option>
                                         <option value="unknown-pleasures">Unknown Pleasures</option>
                                         <option value="butterchurn">Butterchurn (Milkdrop)</option>
+                                        <option value="kawarp">Kawarp</option>
                                     </select>
                                 </div>
                                 <div class="setting-item" id="visualizer-mode-setting">
@@ -3595,6 +3855,31 @@
                                             id="visualizer-sensitivity-value"
                                             style="font-size: 0.9rem; min-width: 3em; text-align: right"
                                             >60%</span
+                                        >
+                                    </div>
+                                </div>
+                                <div class="setting-item" id="visualizer-dimming-setting">
+                                    <div class="info">
+                                        <span class="label">Visualizer Brightness</span>
+                                        <span class="description"
+                                            >Adjust the brightness of the visualizer. Lower this if the visualizer is
+                                            too bright for you.</span
+                                        >
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 10px">
+                                        <input
+                                            type="range"
+                                            id="visualizer-dimming-slider"
+                                            min="0.1"
+                                            max="1.0"
+                                            step="0.05"
+                                            value="1.0"
+                                            style="width: 100px"
+                                        />
+                                        <span
+                                            id="visualizer-dimming-value"
+                                            style="font-size: 0.9rem; min-width: 3em; text-align: right"
+                                            >100%</span
                                         >
                                     </div>
                                 </div>
@@ -3726,6 +4011,33 @@
                                 </div>
                             </div>
 
+                            <div class="settings-group">
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Compact Artists</span>
+                                        <span class="description"
+                                            >Show artist cards in a compact, horizontal layout</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="compact-artist-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Compact Albums</span>
+                                        <span class="description"
+                                            >Show album cards in a compact, horizontal layout</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="compact-album-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+
                             <div class="settings-group" id="sidebar-order-settings-group">
                                 <div class="sidebar-settings-section sidebar-settings-main">
                                     <span class="sidebar-settings-section-label">TOP SECTION</span>
@@ -3840,6 +4152,18 @@
                                             <span class="slider"></span>
                                         </label>
                                     </div>
+                                    <div class="setting-item">
+                                        <div class="info">
+                                            <span class="label">Show GitHub in Sidebar</span>
+                                            <span class="description"
+                                                >Display the GitHub link in the sidebar navigation</span
+                                            >
+                                        </div>
+                                        <label class="toggle-switch">
+                                            <input type="checkbox" id="sidebar-show-githubbtn-toggle" checked />
+                                            <span class="slider"></span>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
 
@@ -3869,6 +4193,35 @@
                                         <input type="checkbox" id="intercept-back-to-close-modals-toggle" />
                                         <span class="slider"></span>
                                     </label>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Now Playing View Mode</span>
+                                        <span class="description">Choose what shows when you click the album art</span>
+                                    </div>
+                                    <select id="now-playing-mode">
+                                        <option value="album">Go to Album</option>
+                                        <option value="cover">Fullscreen Mode</option>
+                                        <option value="lyrics">Lyrics Panel</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Fullscreen Cover Click Action</span>
+                                        <span class="description"
+                                            >Choose what happens when you click the cover in fullscreen mode</span
+                                        >
+                                    </div>
+                                    <select id="fullscreen-cover-click-action">
+                                        <option value="exit">Exit fullscreen mode</option>
+                                        <option value="hide-ui">Hide UI</option>
+                                        <option value="pause-resume">Pause/resume track</option>
+                                        <option value="next">Skip song</option>
+                                        <option value="previous">Previous song</option>
+                                        <option value="nothing">Do nothing</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -4321,43 +4674,6 @@
                                 </div>
                                 <div class="setting-item">
                                     <div class="info">
-                                        <span class="label">Download Quality</span>
-                                        <span class="description">Quality for track downloads</span>
-                                    </div>
-                                    <select id="download-quality-setting">
-                                        <option value="HI_RES_LOSSLESS">Hi-Res FLAC (24-bit)</option>
-                                        <option value="LOSSLESS">FLAC (Lossless)</option>
-                                        <option value="MP3_320">MP3 320kbps</option>
-                                        <option value="HIGH">AAC 320kbps</option>
-                                        <option value="LOW">AAC 96kbps</option>
-                                    </select>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Lossless Container</span>
-                                        <span class="description">Container format for lossless downloads</span>
-                                    </div>
-                                    <select id="lossless-container-setting">
-                                        <option value="flac">FLAC</option>
-                                        <option value="alac">Apple Lossless</option>
-                                        <option value="nochange">Don't change</option>
-                                    </select>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Cover Art Size</span>
-                                        <span class="description">Size for downloaded/embedded cover art</span>
-                                    </div>
-                                    <input
-                                        type="text"
-                                        id="cover-art-size-setting"
-                                        class="template-input"
-                                        style="width: 120px; text-align: right"
-                                        placeholder="1280x1280"
-                                    />
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
                                         <span class="label">Show Quality Badges</span>
                                         <span class="description">Display "HD" badge for Hi-Res tracks</span>
                                     </div>
@@ -4388,6 +4704,9 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
+                            </div>
+
+                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">ReplayGain Mode</span>
@@ -4441,7 +4760,7 @@
                                         <span class="label">Playback Speed</span>
                                         <span class="description">Adjust playback speed (0.01x - 100x)</span>
                                     </div>
-                                    <div style="display: flex; align-items: center; gap: 12px">
+                                    <div class="playback-speed-control">
                                         <input
                                             type="range"
                                             id="playback-speed-slider"
@@ -4449,7 +4768,7 @@
                                             max="4.0"
                                             step="0.01"
                                             value="1.0"
-                                            style="width: 150px"
+                                            class="playback-speed-slider"
                                         />
                                         <input
                                             type="number"
@@ -4458,19 +4777,29 @@
                                             max="100"
                                             step="0.01"
                                             value="1.0"
-                                            style="
-                                                width: 80px;
-                                                text-align: center;
-                                                font-family: var(--font-family);
-                                                padding: 4px 8px;
-                                                border: 1px solid var(--border-color);
-                                                border-radius: 4px;
-                                                background: var(--bg-secondary);
-                                                color: var(--text-primary);
-                                            "
+                                            class="playback-speed-number-input"
                                         />
-                                        <span style="font-family: var(--font-family)">x</span>
+                                        <span class="playback-speed-unit">x</span>
+                                        <button
+                                            id="playback-speed-reset"
+                                            class="btn-secondary"
+                                            title="Reset to default"
+                                        >
+                                            Reset
+                                        </button>
                                     </div>
+                                </div>
+
+                                <!-- Preserve Pitch Control -->
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Preserve Pitch</span>
+                                        <span class="description">Keep original pitch when changing speed</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="preserve-pitch-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
                                 </div>
 
                                 <!-- 16-Band Equalizer -->
@@ -4729,45 +5058,6 @@
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="settings-group">
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Now Playing View Mode</span>
-                                        <span class="description">Choose what shows when you click the album art</span>
-                                    </div>
-                                    <select id="now-playing-mode">
-                                        <option value="album">Go to Album</option>
-                                        <option value="cover">Fullscreen Mode</option>
-                                        <option value="lyrics">Lyrics Panel</option>
-                                    </select>
-                                </div>
-
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Compact Artists</span>
-                                        <span class="description"
-                                            >Show artist cards in a compact, horizontal layout</span
-                                        >
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="compact-artist-toggle" />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="setting-item">
-                                    <div class="info">
-                                        <span class="label">Compact Albums</span>
-                                        <span class="description"
-                                            >Show album cards in a compact, horizontal layout</span
-                                        >
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" id="compact-album-toggle" />
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            </div>
                         </div>
                     </div>
                     <div class="settings-tab-content" id="settings-tab-downloads">
@@ -4812,6 +5102,43 @@
                                 </div>
                                 <div class="setting-item">
                                     <div class="info">
+                                        <span class="label">Download Quality</span>
+                                        <span class="description">Quality for track downloads</span>
+                                    </div>
+                                    <select id="download-quality-setting">
+                                        <option value="HI_RES_LOSSLESS">Hi-Res FLAC (24-bit)</option>
+                                        <option value="LOSSLESS">FLAC (Lossless)</option>
+                                        <option value="MP3_320">MP3 320kbps</option>
+                                        <option value="HIGH">AAC 320kbps</option>
+                                        <option value="LOW">AAC 96kbps</option>
+                                    </select>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Lossless Container</span>
+                                        <span class="description">Container format for lossless downloads</span>
+                                    </div>
+                                    <select id="lossless-container-setting">
+                                        <option value="flac">FLAC</option>
+                                        <option value="alac">Apple Lossless</option>
+                                        <option value="nochange">Don't change</option>
+                                    </select>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Cover Art Size</span>
+                                        <span class="description">Size for downloaded/embedded cover art</span>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        id="cover-art-size-setting"
+                                        class="template-input"
+                                        style="width: 120px; text-align: right"
+                                        placeholder="1280x1280"
+                                    />
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
                                         <span class="label">Filename Template</span>
                                         <span class="description"
                                             >Customize download filenames. Available: {trackNumber}, {artist}, {title},
@@ -4840,6 +5167,9 @@
                                         placeholder="{albumTitle} - {albumArtist} - monochrome.tf"
                                     />
                                 </div>
+                            </div>
+
+                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Generate M3U</span>
@@ -4896,6 +5226,9 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
+                            </div>
+
+                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Relative Paths</span>
@@ -4921,15 +5254,47 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="settings-tab-content" id="settings-tab-instances">
+                        <div class="settings-list">
+                            <div class="settings-group">
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">ADVANCED: Custom Database/Auth</span>
+                                        <span class="description"
+                                            >Configure custom PocketBase and Firebase instances</span
+                                        >
+                                    </div>
+                                    <button id="custom-db-btn" class="btn-secondary">Configure</button>
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <div id="api-instance-manager">
+                                    <div class="setting-item">
+                                        <div class="info">
+                                            <span class="label">API Instances</span>
+                                            <span class="description">Manage and prioritize API instances.</span>
+                                        </div>
+                                        <button id="refresh-speed-test-btn" class="btn-secondary">
+                                            Refresh Instance List
+                                        </button>
+                                    </div>
+                                    <ul id="api-instance-list"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="settings-tab-content" id="settings-tab-system">
                         <div class="settings-list">
                             <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Keyboard Shortcuts</span>
-                                        <span class="description">View available keyboard shortcuts</span>
+                                        <span class="description">View and customize keyboard shortcuts</span>
                                     </div>
-                                    <button id="show-shortcuts-btn" class="btn-secondary">Show Shortcuts</button>
+                                    <button id="customize-shortcuts-btn" class="btn-secondary">Customize</button>
                                 </div>
                                 <div class="setting-item">
                                     <div class="info">
@@ -4952,6 +5317,15 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
+                                <div class="setting-item" id="desktop-update-container" style="display: none">
+                                    <div class="info">
+                                        <span class="label">Desktop Update</span>
+                                        <span class="description">Check for updates to the desktop application</span>
+                                    </div>
+                                    <button id="check-desktop-updates-btn" class="btn-secondary">
+                                        Check for Updates
+                                    </button>
+                                </div>
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Analytics</span>
@@ -4964,6 +5338,9 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
+                            </div>
+
+                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Reset Local Data</span>
@@ -4984,6 +5361,9 @@
                                         Clear Cloud Data
                                     </button>
                                 </div>
+                            </div>
+
+                            <div class="settings-group">
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Backup & Restore</span>
@@ -5004,30 +5384,24 @@
                                 </div>
                                 <div class="setting-item">
                                     <div class="info">
-                                        <span class="label">ADVANCED: Custom Database/Auth</span>
-                                        <span class="description"
-                                            >Configure custom PocketBase and Firebase instances</span
-                                        >
+                                        <span class="label">Export All Settings</span>
+                                        <span class="description">Export all app settings as JSON</span>
                                     </div>
-                                    <button id="custom-db-btn" class="btn-secondary">Configure</button>
-                                </div>
-                                <div id="api-instance-manager">
-                                    <div class="setting-item" style="padding-bottom: 1rem; border: none">
-                                        <div class="info">
-                                            <span class="label">API Instances</span>
-                                            <span class="description">Manage and prioritize API instances.</span>
-                                        </div>
-                                        <button id="refresh-speed-test-btn" class="btn-secondary">
-                                            Refresh Instance List
-                                        </button>
+                                    <div style="display: flex; gap: 0.5rem">
+                                        <button id="export-settings-btn" class="btn-secondary">Export</button>
+                                        <button id="import-settings-btn" class="btn-secondary">Import</button>
+                                        <input
+                                            type="file"
+                                            id="import-settings-input"
+                                            style="display: none"
+                                            accept=".json"
+                                        />
                                     </div>
-                                    <ul id="api-instance-list"></ul>
                                 </div>
+                            </div>
 
-                                <div
-                                    class="setting-item"
-                                    style="padding-bottom: 1rem; border-top: 1px solid var(--border)"
-                                >
+                            <div class="settings-group">
+                                <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Blocked Content</span>
                                         <span class="description"
@@ -5046,62 +5420,13 @@
                                         </button>
                                     </div>
                                 </div>
-                                <div id="blocked-content-list" style="display: none">
-                                    <div id="blocked-artists-section" style="margin-bottom: 1rem">
-                                        <h4
-                                            style="
-                                                font-size: 0.9rem;
-                                                margin-bottom: 0.5rem;
-                                                color: var(--muted-foreground);
-                                            "
-                                        >
-                                            Blocked Artists
-                                        </h4>
-                                        <ul id="blocked-artists-list" class="blocked-items-list"></ul>
-                                    </div>
-                                    <div id="blocked-albums-section" style="margin-bottom: 1rem">
-                                        <h4
-                                            style="
-                                                font-size: 0.9rem;
-                                                margin-bottom: 0.5rem;
-                                                color: var(--muted-foreground);
-                                            "
-                                        >
-                                            Blocked Albums
-                                        </h4>
-                                        <ul id="blocked-albums-list" class="blocked-items-list"></ul>
-                                    </div>
-                                    <div id="blocked-tracks-section" style="margin-bottom: 1rem">
-                                        <h4
-                                            style="
-                                                font-size: 0.9rem;
-                                                margin-bottom: 0.5rem;
-                                                color: var(--muted-foreground);
-                                            "
-                                        >
-                                            Blocked Tracks
-                                        </h4>
-                                        <ul id="blocked-tracks-list" class="blocked-items-list"></ul>
-                                    </div>
-                                    <div
-                                        id="blocked-empty-message"
-                                        style="
-                                            text-align: center;
-                                            padding: 1rem;
-                                            color: var(--muted-foreground);
-                                            display: none;
-                                        "
-                                    >
-                                        No blocked content
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div id="page-about" class="page">
-                    <h2 class="section-title">About Monochrome</h2>
+                    <h2 class="section-title" style="text-align: center">About Monochrome</h2>
                     <div class="about-content">
                         <p class="about-description">
                             Monochrome is a lightweight, privacy-focused music streaming client designed for
@@ -5109,36 +5434,16 @@
                             distraction-free listening experience.
                             <br />
                         </p>
-                        <br />
-                        <div class="about-features">
-                            <h4>Features</h4>
-                            <ul>
-                                <li>High-quality lossless audio streaming</li>
-                                <li>Lyrics support with karaoke mode</li>
-                                <li>Recently Played tracking for easy history access</li>
-                                <li>Comprehensive Personal Library for favorites</li>
-                                <li>Intelligent API caching for improved performance</li>
-                                <li>Offline-capable Progressive Web App (PWA)</li>
-                                <li>Media Session API integration for system controls</li>
-                                <li>Queue management with shuffle and repeat modes</li>
-                                <li>Track downloads with automatic metadata embedding</li>
-                                <li>Multiple API instance support with failover</li>
-                                <li>Dark, minimalist interface optimized for focus</li>
-                                <li>Customizable themes</li>
-                                <li>Keyboard shortcuts for power users</li>
-                            </ul>
-                        </div>
-                        <div class="about-tech">
-                            <h4>Technology Stack</h4>
-                            <p>Vanilla JavaScript • ES6 Modules • IndexedDB • Service Workers • Media Session API</p>
-                        </div>
-                        <br /><br /><br />
                         <div class="about-donate">
-                            <h2 class="section-title" style="text-align: center">Donate to Monochrome</h2>
+                            <h2 class="section-title" style="text-align: center">Support Monochrome</h2>
                             <p style="text-align: center" class="donate-description">
                                 If Monochrome has been useful to you and you're able to, consider making a donation.
                                 <br />
                                 It helps pay for the server and domain, and you get to support us :)
+                            </p>
+                            <p style="text-align: center; color: var(--muted-foreground); margin-top: 1rem">
+                                If you cannot financially support us, please consider starring the project on GitHub and
+                                sharing with friends!
                             </p>
                             <div
                                 class="donate-button"
@@ -5148,42 +5453,39 @@
                                     gap: 20px;
                                     align-items: center;
                                     justify-content: center;
-                                    margin-top: 50px;
+                                    margin-top: 30px;
                                     flex-wrap: wrap;
                                 "
                             >
-                                <a href="https://ko-fi.com/monochromemusic">
-                                    <button id="donate-btn" class="btn-secondary">Donate to Monochrome</button>
+                                <a
+                                    href="https://ko-fi.com/monochromemusic"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="btn-secondary"
+                                    style="
+                                        text-decoration: none;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 0.5rem;
+                                    "
+                                >
+                                    Donate to Monochrome
+                                </a>
+                                <a
+                                    href="https://github.com/monochrome-music/monochrome"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="btn-secondary"
+                                    style="
+                                        text-decoration: none;
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 0.5rem;
+                                    "
+                                >
+                                    Star on GitHub
                                 </a>
                             </div>
-                        </div>
-                        <br /><br /><br />
-                        <div class="about-links">
-                            <a
-                                href="https://github.com/monochrome-music/monochrome"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                class="github-link"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    width="24"
-                                    height="24"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    class="lucide lucide-github-icon lucide-github"
-                                >
-                                    <path
-                                        d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"
-                                    />
-                                    <path d="M9 18c-4.51 2-5-2-7-2" />
-                                </svg>
-                                View on GitHub
-                            </a>
                         </div>
                         <p style="text-align: center; color: grey">
                             made with ‪‪❤︎‬ by
@@ -5369,8 +5671,14 @@
                             If Monochrome has been useful to you and you're able to, consider making a donation. <br />
                             It helps pay for the domain, and you get to support us :)
                         </p>
-                        <a href="https://ko-fi.com/monochromemusic">
-                            <button id="donate-btn-page" class="btn-secondary">Donate to Monochrome</button>
+                        <a
+                            href="https://ko-fi.com/monochromemusic"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="btn-secondary"
+                            style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.5rem"
+                        >
+                            Donate to Monochrome
                         </a>
                     </div>
                 </div>
@@ -5386,6 +5694,10 @@
                     </div>
                 </div>
                 <div class="player-controls">
+                    <div id="radio-loading-indicator">
+                        <div class="animate-spin"></div>
+                        <span>Finding more songs for you...</span>
+                    </div>
                     <div class="buttons">
                         <button id="shuffle-btn" title="Shuffle">
                             <svg
