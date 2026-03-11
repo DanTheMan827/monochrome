@@ -2,6 +2,24 @@
 import { getTrackTitle, getTrackArtists, buildTrackFilename, SVG_CLOSE } from './utils.js';
 import { sidePanelManager } from './side-panel.js';
 
+declare global {
+    interface Window {
+        _originalXHROpen?: typeof XMLHttpRequest.prototype.open;
+        _originalFetch?: typeof fetch;
+        Kuroshiro?: any;
+        KuromojiAnalyzer?: any;
+    }
+}
+
+interface GeniusAnnotatedElement extends Element {
+    __geniusAnnotations?: any[];
+}
+
+interface LyricsPanel {
+    lyricsCleanup?: (() => void) | null;
+    lyricsManager?: LyricsManager;
+}
+
 const SVG_GENIUS_ACTIVE = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12z" fill="#ffff64"/><path d="M6.3 6.3h11.4v11.4H6.3z" fill="#000"/></svg>`;
 
 // Check if text contains Japanese, Chinese, or Korean characters
@@ -24,6 +42,9 @@ function trackHasAsianText(track) {
 const SVG_GENIUS_INACTIVE = `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.7;"><path d="M12 24c6.627 0 12-5.373 12-12S18.627 0 12 0 0 5.373 0 12s5.373 12 12 12z" /><path d="M6.3 6.3h11.4v11.4H6.3z" fill="var(--card)"/></svg>`;
 
 class GeniusManager {
+    cache: Map<string, { song: any; referents: any[] }>;
+    loading: boolean;
+
     constructor() {
         this.cache = new Map();
         this.loading = false;
@@ -127,7 +148,30 @@ class GeniusManager {
 }
 
 export class LyricsManager {
-    constructor(api) {
+    api: any;
+    currentLyrics: any;
+    syncedLyrics: Array<{ time: number; text: string }>;
+    lyricsCache: Map<string, any>;
+    componentLoaded: boolean;
+    amLyricsElement: Element | null;
+    animationFrameId: number | null;
+    currentTrackId: string | null;
+    mutationObserver: MutationObserver | null;
+    romajiObserver: MutationObserver | null;
+    isRomajiMode: boolean;
+    originalLyricsData: any;
+    kuroshiroLoaded: boolean;
+    kuroshiroLoading: boolean;
+    romajiTextCache: Map<string, string>;
+    convertedTracksCache: Set<string>;
+    geniusManager: GeniusManager;
+    isGeniusMode: boolean;
+    currentGeniusData: { song: any; referents: any[] } | null;
+    timingOffset: number;
+    kuroshiro: any;
+    observerTimeout: ReturnType<typeof setTimeout> | null;
+
+    constructor(api?: any) {
         this.api = api;
         this.currentLyrics = null;
         this.syncedLyrics = [];
@@ -272,8 +316,8 @@ export class LyricsManager {
     }
 
     // Helper to load external scripts
-    loadScript(src) {
-        return new Promise((resolve, reject) => {
+    loadScript(src: string): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
             // Check if script already exists
             if (document.querySelector(`script[src="${src}"]`)) {
                 resolve();
@@ -281,7 +325,7 @@ export class LyricsManager {
             }
             const script = document.createElement('script');
             script.src = src;
-            script.onload = resolve;
+            script.onload = () => resolve();
             script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
             document.head.appendChild(script);
         });
@@ -365,7 +409,7 @@ export class LyricsManager {
             return;
         }
 
-        return new Promise((resolve, reject) => {
+        return new Promise<void>((resolve, reject) => {
             const script = document.createElement('script');
             script.type = 'module';
             script.src = 'https://cdn.jsdelivr.net/npm/@uimaxbai/am-lyrics/dist/src/am-lyrics.min.js';
@@ -518,7 +562,7 @@ export class LyricsManager {
                     let relevant = false;
                     if (mutation.addedNodes.length > 0) {
                         for (const node of mutation.addedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('genius-indicator'))
+                            if (node.nodeType === Node.ELEMENT_NODE && (node as Element).classList.contains('genius-indicator'))
                                 continue;
                             relevant = true;
                             break;
@@ -526,7 +570,7 @@ export class LyricsManager {
                     }
                     if (!relevant && mutation.removedNodes.length > 0) {
                         for (const node of mutation.removedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('genius-indicator'))
+                            if (node.nodeType === Node.ELEMENT_NODE && (node as Element).classList.contains('genius-indicator'))
                                 continue;
                             relevant = true;
                             break;
@@ -594,7 +638,7 @@ export class LyricsManager {
 
         // Find all text nodes in the component
         const textNodes = [];
-        const walker = document.createTreeWalker(rootToTraverse, NodeFilter.SHOW_TEXT, null, false);
+        const walker = document.createTreeWalker(rootToTraverse, NodeFilter.SHOW_TEXT, null);
 
         let node;
         while ((node = walker.nextNode())) {
@@ -680,12 +724,12 @@ export class LyricsManager {
         return this.isRomajiMode;
     }
 
-    async applyGeniusAnnotations(amLyricsElement, referents) {
+    async applyGeniusAnnotations(amLyricsElement: Element, referents: any[]) {
         if (!amLyricsElement || !referents) return;
 
         const root = amLyricsElement.shadowRoot || amLyricsElement;
 
-        const lineElements = Array.from(root.querySelectorAll('p, .line, .lyric-line, .lrc-line'));
+        const lineElements = Array.from(root.querySelectorAll<GeniusAnnotatedElement>('p, .line, .lyric-line, .lrc-line'));
 
         if (lineElements.length === 0) return;
 
@@ -694,7 +738,7 @@ export class LyricsManager {
             delete el.__geniusAnnotations;
         });
 
-        const normalize = (str) =>
+        const normalize = (str: string) =>
             str
                 .toLowerCase()
                 .replace(/[^\p{L}\p{N}\s]/gu, '')
@@ -707,12 +751,12 @@ export class LyricsManager {
 
             for (let i = 0; i < lineElements.length; i++) {
                 let combinedText = '';
-                let currentLines = [];
+                let currentLines: GeniusAnnotatedElement[] = [];
 
                 for (let j = i; j < lineElements.length; j++) {
                     const line = lineElements[j];
 
-                    const lineClone = line.cloneNode(true);
+                    const lineClone = line.cloneNode(true) as Element;
                     lineClone
                         .querySelectorAll('.time, .timestamp, [class*="time"], .genius-indicator')
                         .forEach((n) => n.remove());
@@ -896,7 +940,7 @@ export function openLyricsPanel(track, audioPlayer, lyricsManager, forceOpen = f
                     const amLyrics = sidePanelManager.panel.querySelector('am-lyrics');
                     if (amLyrics) {
                         const root = amLyrics.shadowRoot || amLyrics;
-                        const lineElements = Array.from(root.querySelectorAll('.genius-annotated'));
+                        const lineElements = Array.from(root.querySelectorAll<GeniusAnnotatedElement>('.genius-annotated'));
                         lineElements.forEach((el) => {
                             el.classList.remove(
                                 'genius-annotated',
@@ -914,12 +958,12 @@ export function openLyricsPanel(track, audioPlayer, lyricsManager, forceOpen = f
         }
     };
 
-    const renderContent = async (container) => {
+    const renderContent = async (container: HTMLElement & LyricsPanel) => {
         clearLyricsPanelSync(audioPlayer, sidePanelManager.panel);
         await renderLyricsComponent(container, track, audioPlayer, manager);
         if (container.lyricsCleanup) {
-            sidePanelManager.panel.lyricsCleanup = container.lyricsCleanup;
-            sidePanelManager.panel.lyricsManager = container.lyricsManager;
+            (sidePanelManager.panel as HTMLElement & LyricsPanel).lyricsCleanup = container.lyricsCleanup;
+            (sidePanelManager.panel as HTMLElement & LyricsPanel).lyricsManager = container.lyricsManager;
         }
     };
 
@@ -949,7 +993,7 @@ themeObserver.observe(document.documentElement, {
     attributeFilter: ['data-theme', 'style'],
 });
 
-async function renderLyricsComponent(container, track, audioPlayer, lyricsManager) {
+async function renderLyricsComponent(container: HTMLElement & LyricsPanel, track: any, audioPlayer: HTMLAudioElement, lyricsManager: LyricsManager) {
     container.innerHTML = '<div class="lyrics-loading">Loading lyrics...</div>';
 
     try {
@@ -970,7 +1014,7 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
         amLyrics.setAttribute('song-title', title);
         amLyrics.setAttribute('song-artist', artist);
         if (album) amLyrics.setAttribute('song-album', album);
-        if (durationMs) amLyrics.setAttribute('song-duration', durationMs);
+        if (durationMs) amLyrics.setAttribute('song-duration', durationMs.toString());
         amLyrics.setAttribute('query', `${title} ${artist}`.trim());
         if (isrc) amLyrics.setAttribute('isrc', isrc);
 
@@ -1009,7 +1053,7 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
 
         // Wait for lyrics to appear, then do an immediate conversion
         const waitForLyrics = () => {
-            return new Promise((resolve) => {
+            return new Promise<void>((resolve) => {
                 // Check if lyrics are already loaded
                 const checkForLyrics = () => {
                     const hasLyrics =
@@ -1108,7 +1152,7 @@ function setupSync(track, audioPlayer, amLyrics, lyricsManager) {
 
     const onLineClick = (e) => {
         if (e.detail && e.detail.timestamp !== undefined) {
-            const manager = lyricsManager || sidePanelManager.panel.lyricsManager;
+            const manager = lyricsManager || (sidePanelManager.panel as HTMLElement & LyricsPanel).lyricsManager;
             if (manager && manager.isGeniusMode) {
                 const timestampSeconds = e.detail.timestamp / 1000;
 
@@ -1201,11 +1245,11 @@ function showGeniusAnnotations(annotations, lineText) {
     });
 }
 
-export async function renderLyricsInFullscreen(track, audioPlayer, lyricsManager, container) {
+export async function renderLyricsInFullscreen(track: any, audioPlayer: HTMLAudioElement, lyricsManager: LyricsManager, container: HTMLElement & LyricsPanel) {
     return renderLyricsComponent(container, track, audioPlayer, lyricsManager);
 }
 
-export function clearFullscreenLyricsSync(container) {
+export function clearFullscreenLyricsSync(container: HTMLElement & LyricsPanel) {
     if (container && container.lyricsCleanup) {
         container.lyricsCleanup();
         container.lyricsCleanup = null;
@@ -1215,7 +1259,7 @@ export function clearFullscreenLyricsSync(container) {
     }
 }
 
-export function clearLyricsPanelSync(audioPlayer, panel) {
+export function clearLyricsPanelSync(audioPlayer: HTMLAudioElement, panel: HTMLElement & LyricsPanel) {
     if (panel && panel.lyricsCleanup) {
         panel.lyricsCleanup();
         panel.lyricsCleanup = null;
