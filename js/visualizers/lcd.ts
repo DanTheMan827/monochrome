@@ -1,4 +1,20 @@
 export class LCDPreset {
+    name: string;
+    gridCols: number;
+    maxVol: number;
+    volDecay: number;
+    prevData: Float32Array;
+    peakData: Float32Array;
+    primaryColor: string;
+    disableShake: boolean;
+    glCanvas: HTMLCanvasElement | null;
+    gl: WebGLRenderingContext | null;
+    glProgram: WebGLProgram | null;
+    glInitialized: boolean;
+    uResolution: WebGLUniformLocation | null;
+    uTime: WebGLUniformLocation | null;
+    startTime: number;
+
     constructor() {
         this.name = 'LCD Pixels';
         this.gridCols = 48;
@@ -19,10 +35,13 @@ export class LCDPreset {
         this.gl = null;
         this.glProgram = null;
         this.glInitialized = false;
+        this.uResolution = null;
+        this.uTime = null;
+        this.startTime = 0;
     }
 
     // Initialize WebGL grid overlay
-    initWebGL(width, height) {
+    initWebGL(width: number, height: number): void {
         if (this.glInitialized) return;
 
         // Create overlay canvas
@@ -148,7 +167,7 @@ export class LCDPreset {
         this.glInitialized = true;
     }
 
-    compileShader(gl, type, source) {
+    compileShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
         const shader = gl.createShader(type);
         gl.shaderSource(shader, source);
         gl.compileShader(shader);
@@ -161,7 +180,7 @@ export class LCDPreset {
     }
 
     // Render WebGL grid overlay
-    renderHoneycomb(width, height) {
+    renderHoneycomb(width: number, height: number): void {
         if (!this.gl || !this.glProgram) return;
 
         const gl = this.gl;
@@ -183,9 +202,9 @@ export class LCDPreset {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
-    resize() {}
+    resize(): void {}
 
-    draw(ctx, canvas, analyser, dataArray, params) {
+    draw(ctx: CanvasRenderingContext2D, canvas: HTMLCanvasElement, analyser: AnalyserNode, dataArray: Uint8Array, params: { kick: number; primaryColor: string; mode: string }): void {
         const { width, height } = canvas;
         const { kick, primaryColor, mode } = params;
 
@@ -279,7 +298,7 @@ export class LCDPreset {
     }
 
     // Process audio with improved dynamics
-    processAudio(dataArray, analyser) {
+    processAudio(dataArray: Uint8Array, analyser: AnalyserNode): Float32Array {
         const result = new Float32Array(this.gridCols);
         const center = Math.floor(this.gridCols / 2);
         const totalBins = dataArray.length;
@@ -362,7 +381,7 @@ export class LCDPreset {
     }
 
     // Draw rounded capsule shape
-    drawCapsule(ctx, cx, cy, w, h) {
+    drawCapsule(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number): void {
         if (h < w) {
             ctx.beginPath();
             ctx.arc(cx, cy, Math.max(0.5, h / 2), 0, Math.PI * 2);
@@ -381,15 +400,15 @@ export class LCDPreset {
     }
 
     // Adjust hex color brightness
-    adjustBrightness(hex, factor) {
+    adjustBrightness(hex: string, factor: number): string {
         const r = parseInt(hex.slice(1, 3), 16);
         const g = parseInt(hex.slice(3, 5), 16);
         const b = parseInt(hex.slice(5, 7), 16);
-        const clamp = (v) => Math.min(255, Math.max(0, Math.round(v * factor)));
+        const clamp = (v: number): number => Math.min(255, Math.max(0, Math.round(v * factor)));
         return `rgb(${clamp(r)},${clamp(g)},${clamp(b)})`;
     }
 
-    destroy() {
+    destroy(): void {
         if (this.glCanvas) {
             this.glCanvas.remove();
             this.glCanvas = null;
