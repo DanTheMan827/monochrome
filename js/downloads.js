@@ -12,7 +12,13 @@ import {
     escapeHtml,
     getTrackDiscNumber,
 } from './utils.js';
-import { lyricsSettings, bulkDownloadSettings, losslessContainerSettings, playlistSettings } from './storage.js';
+import {
+    lyricsSettings,
+    bulkDownloadSettings,
+    losslessContainerSettings,
+    playlistSettings,
+    coverDownloadSettings,
+} from './storage.js';
 import { addMetadataToAudio, prefetchMetadataObjects } from './metadata.js';
 import { rebuildFlacWithoutMetadata } from './metadata.flac.js';
 import { DashDownloader } from './dash-downloader.js';
@@ -470,7 +476,7 @@ async function bulkDownloadSequentially(tracks, api, quality, lyricsManager, not
     const signal = abortController.signal;
 
     for (let i = 0; i < tracks.length; i++) {
-        if (signal.aborted) break;
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
         const track = tracks[i];
         const trackTitle = getTrackTitle(track);
 
@@ -523,7 +529,7 @@ async function bulkDownloadToZipStream(
 
     async function* yieldFiles() {
         // Add cover if available
-        if (coverBlob) {
+        if (coverBlob && coverDownloadSettings.shouldDownloadCover()) {
             yield { name: `${folderName}/cover.jpg`, lastModified: new Date(), input: coverBlob };
         }
 
@@ -534,7 +540,7 @@ async function bulkDownloadToZipStream(
         // Download tracks, yielding each immediately and collecting actual paths for playlist generation
         const trackPaths = [];
         for (let i = 0; i < tracks.length; i++) {
-            if (signal.aborted) break;
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             const track = tracks[i];
             const trackTitle = getTrackTitle(track);
 
@@ -669,7 +675,10 @@ async function bulkDownloadToZipStream(
         const response = downloadZip(yieldFiles());
         await response.body.pipeTo(writable);
     } catch (error) {
-        if (error.name === 'AbortError') return;
+        try {
+            await writable.abort(); // Clean up the writable; ignore errors since pipeTo error is what matters
+            // eslint-disable-next-line no-empty
+        } catch {}
         throw error;
     }
 }
@@ -692,7 +701,7 @@ async function bulkDownloadToZipBlob(
 
     async function* yieldFiles() {
         // Add cover if available
-        if (coverBlob) {
+        if (coverBlob && coverDownloadSettings.shouldDownloadCover()) {
             yield { name: `${folderName}/cover.jpg`, lastModified: new Date(), input: coverBlob };
         }
 
@@ -703,7 +712,7 @@ async function bulkDownloadToZipBlob(
         // Download tracks, yielding each immediately and collecting actual paths for playlist generation
         const trackPaths = [];
         for (let i = 0; i < tracks.length; i++) {
-            if (signal.aborted) break;
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             const track = tracks[i];
             const trackTitle = getTrackTitle(track);
 
@@ -821,14 +830,9 @@ async function bulkDownloadToZipBlob(
         }
     }
 
-    try {
-        const response = downloadZip(yieldFiles());
-        const blob = await response.blob();
-        triggerDownload(blob, `${folderName}.zip`);
-    } catch (error) {
-        if (error.name === 'AbortError') return;
-        throw error;
-    }
+    const response = downloadZip(yieldFiles());
+    const blob = await response.blob();
+    triggerDownload(blob, `${folderName}.zip`);
 }
 
 async function bulkDownloadToZipNeutralino(
@@ -849,7 +853,7 @@ async function bulkDownloadToZipNeutralino(
     // Re-use logic for generating file entries
     async function* yieldFiles() {
         // Add cover if available
-        if (coverBlob) {
+        if (coverBlob && coverDownloadSettings.shouldDownloadCover()) {
             yield { name: `${folderName}/cover.jpg`, lastModified: new Date(), input: coverBlob };
         }
 
@@ -860,7 +864,7 @@ async function bulkDownloadToZipNeutralino(
         // Download tracks, yielding each immediately and collecting actual paths for playlist generation
         const trackPaths = [];
         for (let i = 0; i < tracks.length; i++) {
-            if (signal.aborted) break;
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             const track = tracks[i];
             const trackTitle = getTrackTitle(track);
 
@@ -978,57 +982,52 @@ async function bulkDownloadToZipNeutralino(
         }
     }
 
-    try {
-        // Load the bridge explicitly to ensure we go through the parent shell
-        const bridge = await import('./desktop/neutralino-bridge.js');
+    // Load the bridge explicitly to ensure we go through the parent shell
+    const bridge = await import('./desktop/neutralino-bridge.js');
 
-        // Native Save Dialog via Bridge
-        const savePath = await bridge.os.showSaveDialog(`Select save location for ${folderName}.zip`, {
-            defaultPath: `${folderName}.zip`,
-            filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
-        });
+    // Native Save Dialog via Bridge
+    const savePath = await bridge.os.showSaveDialog(`Select save location for ${folderName}.zip`, {
+        defaultPath: `${folderName}.zip`,
+        filters: [{ name: 'ZIP Archive', extensions: ['zip'] }],
+    });
 
-        if (!savePath) {
-            // Cancelled
-            removeBulkDownloadTask(notification);
-            return;
-        }
-
-        const response = downloadZip(yieldFiles());
-
-        // Initialize file (empty) to ensure it exists
-        // We use writeBinaryFile with an empty buffer to create/overwrite
-        await bridge.filesystem.writeBinaryFile(savePath, new ArrayBuffer(0));
-
-        // Stream the response body
-        if (!response.body) throw new Error('ZIP response body is null');
-
-        const reader = response.body.getReader();
-        let receivedLength = 0;
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            // 'value' is a Uint8Array. Neutralino filesystem expects ArrayBuffer.
-            // value.buffer might contain the whole backing store, so we should be careful to slice if offset is non-zero
-            // but usually read() returns fresh chunks.
-            // However, neutralino bridge's appendBinaryFile takes ArrayBuffer.
-            const chunk = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
-
-            await bridge.filesystem.appendBinaryFile(savePath, chunk);
-            receivedLength += value.length;
-
-            // Optional: Update granular progress if we want, but we typically update per-track in yieldFiles
-        }
-
-        console.log(`[ZIP] Download complete. Total size: ${receivedLength} bytes.`);
-
-        completeBulkDownload(notification, true);
-    } catch (error) {
-        if (error.name === 'AbortError') return;
-        throw error;
+    if (!savePath) {
+        // Cancelled
+        removeBulkDownloadTask(notification);
+        return;
     }
+
+    const response = downloadZip(yieldFiles());
+
+    // Initialize file (empty) to ensure it exists
+    // We use writeBinaryFile with an empty buffer to create/overwrite
+    await bridge.filesystem.writeBinaryFile(savePath, new ArrayBuffer(0));
+
+    // Stream the response body
+    if (!response.body) throw new Error('ZIP response body is null');
+
+    const reader = response.body.getReader();
+    let receivedLength = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // 'value' is a Uint8Array. Neutralino filesystem expects ArrayBuffer.
+        // value.buffer might contain the whole backing store, so we should be careful to slice if offset is non-zero
+        // but usually read() returns fresh chunks.
+        // However, neutralino bridge's appendBinaryFile takes ArrayBuffer.
+        const chunk = value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+
+        await bridge.filesystem.appendBinaryFile(savePath, chunk);
+        receivedLength += value.length;
+
+        // Optional: Update granular progress if we want, but we typically update per-track in yieldFiles
+    }
+
+    console.log(`[ZIP] Download complete. Total size: ${receivedLength} bytes.`);
+
+    completeBulkDownload(notification, true);
 }
 
 async function startBulkDownload(
@@ -1049,8 +1048,9 @@ async function startBulkDownload(
         const hasFileSystemAccess =
             'showSaveFilePicker' in window && 'createWritable' in FileSystemFileHandle.prototype;
         const forceIndividual = bulkDownloadSettings.shouldForceIndividual();
-        const useZip = hasFileSystemAccess && !forceIndividual;
-        const useZipBlob = !hasFileSystemAccess && !forceIndividual;
+        const forceZipBlob = bulkDownloadSettings.shouldForceZipBlob();
+        const useZip = hasFileSystemAccess && !forceIndividual && !forceZipBlob;
+        const useZipBlob = (!hasFileSystemAccess || forceZipBlob) && !forceIndividual;
 
         if (isNeutralino) {
             // Neutralino Native Logic
@@ -1112,6 +1112,10 @@ async function startBulkDownload(
             completeBulkDownload(notification, true);
         }
     } catch (error) {
+        if (error.name === 'AbortError') {
+            removeBulkDownloadTask(notification);
+            return;
+        }
         console.error('Bulk download failed:', error);
         completeBulkDownload(notification, false, error.message);
     }
@@ -1179,12 +1183,13 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
     const signal = abortController.signal;
 
     const hasFileSystemAccess = 'showSaveFilePicker' in window && 'createWritable' in FileSystemFileHandle.prototype;
-    const useZip = hasFileSystemAccess && !bulkDownloadSettings.shouldForceIndividual();
-    const useZipBlob = !hasFileSystemAccess && !bulkDownloadSettings.shouldForceIndividual();
+    const forceZipBlob = bulkDownloadSettings.shouldForceZipBlob();
+    const useZip = hasFileSystemAccess && !bulkDownloadSettings.shouldForceIndividual() && !forceZipBlob;
+    const useZipBlob = (!hasFileSystemAccess || forceZipBlob) && !bulkDownloadSettings.shouldForceIndividual();
 
     async function* yieldDiscography() {
         for (let albumIndex = 0; albumIndex < selectedReleases.length; albumIndex++) {
-            if (signal.aborted) break;
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
             const album = selectedReleases[albumIndex];
             updateBulkDownloadProgress(notification, albumIndex, selectedReleases.length, album.title);
 
@@ -1208,7 +1213,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
                 );
 
                 const fullFolderPath = `${rootFolder}/${albumFolder}`;
-                if (coverBlob)
+                if (coverBlob && coverDownloadSettings.shouldDownloadCover())
                     yield { name: `${fullFolderPath}/cover.jpg`, lastModified: new Date(), input: coverBlob };
 
                 // Generate playlist files for each album
@@ -1220,7 +1225,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
                 const trackPaths = [];
                 for (let i = 0; i < tracks.length; i++) {
                     const track = tracks[i];
-                    if (signal.aborted) break;
+                    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
                     try {
                         const { blob, extension } = await downloadTrackBlob(
                             track,
@@ -1349,7 +1354,7 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
         } else {
             // Sequential individual downloads for discography
             for (let albumIndex = 0; albumIndex < selectedReleases.length; albumIndex++) {
-                if (signal.aborted) break;
+                if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
                 const album = selectedReleases[albumIndex];
                 updateBulkDownloadProgress(notification, albumIndex, selectedReleases.length, album.title);
                 const { tracks: rawTracks } = await api.getAlbum(album.id);

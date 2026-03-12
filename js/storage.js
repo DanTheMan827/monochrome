@@ -559,7 +559,9 @@ export const losslessContainerSettings = {
     STORAGE_KEY: 'lossless-container',
     getContainer() {
         try {
-            return localStorage.getItem(this.STORAGE_KEY) || 'flac';
+            const stored = localStorage.getItem(this.STORAGE_KEY);
+            if (!stored || stored === 'nochange') return 'flac';
+            return stored;
         } catch {
             return 'flac';
         }
@@ -651,6 +653,7 @@ export const trackDateSettings = {
 
 export const bulkDownloadSettings = {
     STORAGE_KEY: 'force-individual-downloads',
+    FORCE_ZIP_BLOB_KEY: 'force-zip-blob',
 
     shouldForceIndividual() {
         try {
@@ -662,6 +665,18 @@ export const bulkDownloadSettings = {
 
     setForceIndividual(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
+    },
+
+    shouldForceZipBlob() {
+        try {
+            return localStorage.getItem(this.FORCE_ZIP_BLOB_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    },
+
+    setForceZipBlob(enabled) {
+        localStorage.setItem(this.FORCE_ZIP_BLOB_KEY, enabled ? 'true' : 'false');
     },
 };
 
@@ -759,6 +774,23 @@ export const playlistSettings = {
 
     setSeparateDiscsInZip(enabled) {
         localStorage.setItem(this.SEPARATE_DISCS_KEY, enabled ? 'true' : 'false');
+    },
+};
+
+export const coverDownloadSettings = {
+    STORAGE_KEY: 'download-cover',
+
+    shouldDownloadCover() {
+        try {
+            const val = localStorage.getItem(this.STORAGE_KEY);
+            return val === null ? true : val === 'true';
+        } catch {
+            return true;
+        }
+    },
+
+    setDownloadCover(enabled) {
+        localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 };
 

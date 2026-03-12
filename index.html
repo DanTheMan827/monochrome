@@ -5085,6 +5085,19 @@
                                         <span class="slider"></span>
                                     </label>
                                 </div>
+                                <div class="setting-item" id="force-zip-blob-setting">
+                                    <div class="info">
+                                        <span class="label">Force ZIP as Blob</span>
+                                        <span class="description"
+                                            >Force ZIP downloads to use blob mode instead of the File System Access API
+                                            (avoids the save dialog)</span
+                                        >
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="force-zip-blob-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
                                 <div class="setting-item">
                                     <div class="info">
                                         <span class="label">Download Lyrics</span>
@@ -5094,6 +5107,16 @@
                                     </div>
                                     <label class="toggle-switch">
                                         <input type="checkbox" id="download-lyrics-toggle" />
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="setting-item">
+                                    <div class="info">
+                                        <span class="label">Download Cover</span>
+                                        <span class="description">Include cover art file when bulk downloading</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="download-cover-toggle" checked />
                                         <span class="slider"></span>
                                     </label>
                                 </div>
@@ -5121,7 +5144,7 @@
                                         <option value="LOW">AAC 96kbps</option>
                                     </select>
                                 </div>
-                                <div class="setting-item">
+                                <div class="setting-item" id="lossless-container-setting-item">
                                     <div class="info">
                                         <span class="label">Lossless Container</span>
                                         <span class="description">Container format for lossless downloads</span>
@@ -5245,7 +5268,7 @@
                                 </div>
                                 <div class="setting-item">
                                     <div class="info">
-                                        <span class="label">Separate Discs in ZIP</span>
+                                        <span class="label">Separate Discs</span>
                                         <span class="description"
                                             >Put tracks in Disc folders when a release has multiple discs</span
                                         >

@@ -19,6 +19,7 @@ import {
     visualizerSettings,
     bulkDownloadSettings,
     playlistSettings,
+    coverDownloadSettings,
     equalizerSettings,
     listenBrainzSettings,
     malojaSettings,
@@ -860,8 +861,19 @@ export function initializeSettings(scrobbler, player, api, ui) {
 
         downloadQualitySetting.value = downloadQualitySettings.getQuality();
 
+        const updateLosslessContainerVisibility = (quality) => {
+            const losslessContainerSettingItem = document.getElementById('lossless-container-setting-item');
+            if (losslessContainerSettingItem) {
+                const isLossless = quality === 'HI_RES_LOSSLESS' || quality === 'LOSSLESS';
+                losslessContainerSettingItem.style.display = isLossless ? '' : 'none';
+            }
+        };
+
+        updateLosslessContainerVisibility(downloadQualitySettings.getQuality());
+
         downloadQualitySetting.addEventListener('change', (e) => {
             downloadQualitySettings.setQuality(e.target.value);
+            updateLosslessContainerVisibility(e.target.value);
         });
     }
 
@@ -911,11 +923,41 @@ export function initializeSettings(scrobbler, player, api, ui) {
         });
     }
 
+    const hasFileSystemAccess =
+        'showSaveFilePicker' in window &&
+        typeof FileSystemFileHandle !== 'undefined' &&
+        'createWritable' in FileSystemFileHandle.prototype;
+
+    const updateForceZipBlobVisibility = (zippedEnabled) => {
+        const forceZipBlobSetting = document.getElementById('force-zip-blob-setting');
+        if (forceZipBlobSetting) {
+            forceZipBlobSetting.style.display = zippedEnabled && hasFileSystemAccess ? '' : 'none';
+        }
+    };
+
     const zippedBulkDownloadsToggle = document.getElementById('zipped-bulk-downloads-toggle');
     if (zippedBulkDownloadsToggle) {
         zippedBulkDownloadsToggle.checked = !bulkDownloadSettings.shouldForceIndividual();
         zippedBulkDownloadsToggle.addEventListener('change', (e) => {
             bulkDownloadSettings.setForceIndividual(!e.target.checked);
+            updateForceZipBlobVisibility(e.target.checked);
+        });
+    }
+
+    const forceZipBlobToggle = document.getElementById('force-zip-blob-toggle');
+    if (forceZipBlobToggle) {
+        forceZipBlobToggle.checked = bulkDownloadSettings.shouldForceZipBlob();
+        forceZipBlobToggle.addEventListener('change', (e) => {
+            bulkDownloadSettings.setForceZipBlob(e.target.checked);
+        });
+    }
+    updateForceZipBlobVisibility(!bulkDownloadSettings.shouldForceIndividual());
+
+    const downloadCoverToggle = document.getElementById('download-cover-toggle');
+    if (downloadCoverToggle) {
+        downloadCoverToggle.checked = coverDownloadSettings.shouldDownloadCover();
+        downloadCoverToggle.addEventListener('change', (e) => {
+            coverDownloadSettings.setDownloadCover(e.target.checked);
         });
     }
 
