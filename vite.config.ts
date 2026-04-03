@@ -42,7 +42,10 @@ export default defineConfig(({ mode }) => {
                 '!lucide': '/node_modules/lucide-static/icons',
                 '!simpleicons': '/node_modules/simple-icons/icons',
                 '!': '/node_modules',
-
+                react: 'preact/compat',
+                'react-dom/test-utils': 'preact/test-utils',
+                'react-dom': 'preact/compat',
+                'react/jsx-runtime': 'preact/jsx-runtime',
                 events: '/node_modules/events/events.js',
                 pocketbase: '/node_modules/pocketbase/dist/pocketbase.es.js',
                 stream: path.resolve(__dirname, 'stream-stub.js'), // Stub for stream module
