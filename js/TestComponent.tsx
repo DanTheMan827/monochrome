@@ -1,3 +1,4 @@
+import React from 'react';
 import { type PropsWithChildren, useEffect, useState } from 'react';
 
 export default function TestComponent({ children, text }: PropsWithChildren<{ text?: string }>) {

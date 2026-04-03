@@ -49,6 +49,16 @@ import { authManager } from './accounts/auth.js';
 import { syncManager } from './accounts/pocketbase.js';
 import { containerFormats, customFormats } from './ffmpegFormats.ts';
 import { modernSettings } from './ModernSettings.js';
+import React from 'react';
+import { appendPortal } from './preact-utils.tsx';
+import {
+    SettingsGroup,
+    SettingInput,
+    settingVisibility,
+    SettingButton,
+    SettingDropdown,
+    SettingToggle,
+} from './settings-components.tsx';
 
 async function getButterchurnPresets(...args) {
     const butterchurnModule = await import('./visualizers/butterchurn.js');
@@ -4897,6 +4907,45 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     // Watch for downloads tab becoming active and update setting visibility
     const downloadsTabContent = document.getElementById('settings-tab-downloads');
+    console.log(settingVisibility);
+    await appendPortal(
+        <SettingsGroup>
+            <SettingInput
+                visibilityKey="showHiResWarning"
+                title="Test Option"
+                description="This does absolutely nothing, but here it is."
+                value="test"
+                onChange={console.log}
+                placeholder="Blah"
+            />
+            <SettingToggle
+                title="Test Toggle"
+                description="This does absolutely nothing, but here it is."
+                value={false}
+                onChange={(value) => {
+                    settingVisibility.showHiResWarning = value;
+                    console.log('Updated visibility:', settingVisibility);
+                }}
+            />
+            <SettingButton
+                title="Test Button"
+                label="Click Me!"
+                description="This does absolutely nothing, but here it is."
+                onClick={console.log}
+            />
+            <SettingDropdown
+                title="Test Dropdown"
+                description="This does absolutely nothing, but here it is."
+                value="option2"
+                onChange={console.log}
+            >
+                <option value="option1">Option 1</option>
+                <option value="option2">Option 2</option>
+                <option value="option3">Option 3</option>
+            </SettingDropdown>
+        </SettingsGroup>,
+        downloadsTabContent.querySelector('div')
+    );
     if (downloadsTabContent) {
         const observer = new MutationObserver(async (mutations) => {
             for (const mutation of mutations) {

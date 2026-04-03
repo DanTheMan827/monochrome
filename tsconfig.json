@@ -16,8 +16,7 @@
         "verbatimModuleSyntax": true,
         "skipLibCheck": true,
         "noEmit": true,
-        "jsx": "react-jsx",
-        "jsxImportSource": "preact"
+        "jsx": "react"
     },
     "include": ["js/**/*.ts", "js/**/*.d.ts", "js/**/*.tsx"]
 }

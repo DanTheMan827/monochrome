@@ -118,7 +118,7 @@ let metadataModule = null;
 
 async function loadSettingsModule() {
     if (!settingsModule) {
-        settingsModule = await import('./settings.js');
+        settingsModule = await import('./settings.jsx');
     }
     return settingsModule;
 }
