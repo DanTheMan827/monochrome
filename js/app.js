@@ -78,6 +78,9 @@ import {
     SVG_RESET,
 } from './icons.js';
 import { HiFiClient } from './HiFi.js';
+import { appendPortal } from './preact-utils.js';
+import { createElement } from 'react';
+import TestComponent from './TestComponent.js';
 
 // Capture real iOS state before spoofing (needed for background audio)
 if (typeof window !== 'undefined') {
@@ -386,6 +389,8 @@ async function uploadCoverImage(file) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     await modernSettings.waitPending();
+
+    await appendPortal(createElement(TestComponent, { text: '1' }), document.body);
 
     if (import.meta.env.DEV) {
         window.monochrome = {
