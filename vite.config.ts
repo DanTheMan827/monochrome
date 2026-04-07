@@ -9,6 +9,8 @@ import svgUse from './vite-plugin-svg-use.js';
 import purgecss from 'vite-plugin-purgecss';
 import { execSync } from 'child_process';
 import { playwright } from '@vitest/browser-playwright';
+import pkg from 'vite-plugin-minify';
+const { ViteMinifyPlugin } = pkg;
 
 function getGitCommitHash() {
     try {
@@ -67,16 +69,41 @@ export default defineConfig((_options) => {
         build: {
             outDir: 'dist',
             emptyOutDir: true,
-            sourcemap: true,
+            sourcemap: false,
+            target: 'es2022',
             minify: 'terser',
+            cssMinify: 'lightningcss',
             terserOptions: {
                 compress: {
                     drop_console: true,
                     drop_debugger: true,
+                    passes: 3,
+                    ecma: 2022,
+                    unsafe: true,
+                    unsafe_arrows: true,
+                    unsafe_methods: true,
+                    unsafe_comps: true,
+                    unsafe_proto: true,
+                    pure_getters: true,
+                    module: true,
+                    toplevel: true,
+                    keep_fargs: false,
+                },
+                mangle: {
+                    toplevel: true,
+                    module: true,
+                },
+                format: {
+                    comments: false,
                 },
             },
             rollupOptions: {
-                treeshake: true,
+                treeshake: {
+                    preset: 'recommended',
+                    moduleSideEffects: false,
+                    propertyReadSideEffects: false,
+                    unknownGlobalSideEffects: false,
+                },
             },
         },
         plugins: [
@@ -101,6 +128,7 @@ export default defineConfig((_options) => {
             uploadPlugin(),
             blobAssetPlugin(),
             svgUse(),
+            ViteMinifyPlugin(),
             VitePWA({
                 registerType: 'prompt',
                 workbox: {
