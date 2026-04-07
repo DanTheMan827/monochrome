@@ -72,7 +72,6 @@ export default defineConfig((_options) => {
             sourcemap: false,
             target: 'es2022',
             minify: 'terser',
-            cssMinify: 'lightningcss',
             terserOptions: {
                 compress: {
                     drop_console: true,
@@ -98,12 +97,7 @@ export default defineConfig((_options) => {
                 },
             },
             rollupOptions: {
-                treeshake: {
-                    preset: 'recommended',
-                    moduleSideEffects: false,
-                    propertyReadSideEffects: false,
-                    unknownGlobalSideEffects: false,
-                },
+                treeshake: 'recommended',
             },
         },
         plugins: [
