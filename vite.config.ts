@@ -86,7 +86,6 @@ export default defineConfig((_options) => {
                     pure_getters: true,
                     module: true,
                     toplevel: true,
-                    keep_fargs: false,
                 },
                 mangle: {
                     toplevel: true,
