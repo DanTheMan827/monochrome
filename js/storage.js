@@ -1,3 +1,4 @@
+// @ts-check
 //storage.js
 
 import { SVG_RIGHT_ARROW } from './icons';
@@ -13,6 +14,10 @@ export const apiSettings = {
     instancesLoaded: false,
     _loadPromise: null,
 
+    /**
+     * Loads user-defined instances from localStorage.
+     * @returns {object} Loaded user instances object.
+     */
     _loadUserInstances() {
         if (this.userInstances) return this.userInstances;
         try {
@@ -24,10 +29,19 @@ export const apiSettings = {
         return this.userInstances;
     },
 
+    /**
+     * Saves user-defined instances to localStorage.
+     * @returns {void}
+     */
     _saveUserInstances() {
         localStorage.setItem('monochrome-user-api-instances-v1', JSON.stringify(this.userInstances));
     },
 
+    /**
+     * Loads API instances from GitHub, using a 15-minute cache when available.
+     * @async
+     * @returns {Promise<object>} Loaded instances object with `api` and `streaming` arrays.
+     */
     async loadInstancesFromGitHub() {
         if (this.instancesLoaded) {
             return this.defaultInstances;
@@ -142,6 +156,13 @@ export const apiSettings = {
         return this._loadPromise;
     },
 
+    /**
+     * Returns a combined list of default and user-defined instances for the given type.
+     * @async
+     * @param {string} type - Instance type, e.g. `'api'` or `'streaming'`.
+     * @param {boolean} _sortBySpeed - Reserved for future use.
+     * @returns {Promise<Array>} Combined instance list.
+     */
     async getInstances(type = 'api', _sortBySpeed = false) {
         let instancesObj;
 
@@ -161,6 +182,12 @@ export const apiSettings = {
         return combined;
     },
 
+    /**
+     * Adds a user-defined instance URL for the given type.
+     * @param {string} type - Instance type, e.g. `'api'` or `'streaming'`.
+     * @param {string} url - The instance URL to add.
+     * @returns {boolean} True if the instance was added successfully, false if it already exists.
+     */
     addUserInstance(type, url) {
         const userInst = this._loadUserInstances();
         if (!userInst[type]) userInst[type] = [];
@@ -173,6 +200,12 @@ export const apiSettings = {
         return false;
     },
 
+    /**
+     * Removes a user-defined instance URL for the given type.
+     * @param {string} type - Instance type, e.g. `'api'` or `'streaming'`.
+     * @param {string} url - The instance URL to remove.
+     * @returns {boolean} True if the instance was removed, false if it was not found.
+     */
     removeUserInstance(type, url) {
         const userInst = this._loadUserInstances();
         if (!userInst[type]) return false;
@@ -187,6 +220,11 @@ export const apiSettings = {
         return false;
     },
 
+    /**
+     * Clears the instance cache and reloads instances from GitHub with priority sorting.
+     * @async
+     * @returns {Promise<Array>} Refreshed API instance list.
+     */
     async refreshInstances() {
         this.instancesLoaded = false;
         this._loadPromise = null;
@@ -229,6 +267,12 @@ export const apiSettings = {
         // Return API instances for the UI to render (default view)
         return this.getInstances('api');
     },
+    /**
+     * Saves instances to localStorage, optionally scoped to a specific type.
+     * @param {object|Array} instances - Instances data to save.
+     * @param {string} [type] - If provided, saves only instances of this type.
+     * @returns {void}
+     */
     saveInstances(instances, type) {
         if (type) {
             try {
@@ -262,6 +306,10 @@ export const recentActivityManager = {
     STORAGE_KEY: 'monochrome-recent-activity',
     LIMIT: 10,
 
+    /**
+     * Retrieves the stored recent activity data from localStorage.
+     * @returns {object} Stored recent activity data with `artists`, `albums`, `playlists`, and `mixes` arrays.
+     */
     _get() {
         try {
             const data = localStorage.getItem(this.STORAGE_KEY);
@@ -274,14 +322,29 @@ export const recentActivityManager = {
         }
     },
 
+    /**
+     * Persists recent activity data to localStorage.
+     * @param {object} data - Recent activity data to save.
+     * @returns {void}
+     */
     _save(data) {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
     },
 
+    /**
+     * Gets all recent activity data.
+     * @returns {object} All recent activity data.
+     */
     getRecents() {
         return this._get();
     },
 
+    /**
+     * Adds an item to the specified recent activity list, deduplicating and trimming to the limit.
+     * @param {string} type - The activity list key, e.g. `'artists'`, `'albums'`.
+     * @param {object} item - The item to add; must have an `id` property.
+     * @returns {void}
+     */
     _add(type, item) {
         const data = this._get();
         data[type] = data[type].filter((i) => i.id !== item.id);
@@ -290,22 +353,46 @@ export const recentActivityManager = {
         this._save(data);
     },
 
+    /**
+     * Clears all recent activity data.
+     * @returns {void}
+     */
     clear() {
         this._save({ artists: [], albums: [], playlists: [], mixes: [] });
     },
 
+    /**
+     * Adds an artist to the recent activity list.
+     * @param {object} artist - The artist item to add.
+     * @returns {void}
+     */
     addArtist(artist) {
         this._add('artists', artist);
     },
 
+    /**
+     * Adds an album to the recent activity list.
+     * @param {object} album - The album item to add.
+     * @returns {void}
+     */
     addAlbum(album) {
         this._add('albums', album);
     },
 
+    /**
+     * Adds a playlist to the recent activity list.
+     * @param {object} playlist - The playlist item to add.
+     * @returns {void}
+     */
     addPlaylist(playlist) {
         this._add('playlists', playlist);
     },
 
+    /**
+     * Adds a mix to the recent activity list.
+     * @param {object} mix - The mix item to add.
+     * @returns {void}
+     */
     addMix(mix) {
         this._add('mixes', mix);
     },
@@ -328,6 +415,10 @@ export const themeManager = {
         latte: {},
     },
 
+    /**
+     * Gets the current theme name.
+     * @returns {string} Current theme name.
+     */
     getTheme() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) || 'system';
@@ -336,6 +427,11 @@ export const themeManager = {
         }
     },
 
+    /**
+     * Sets and applies the active theme.
+     * @param {string} theme - The theme name to activate.
+     * @returns {void}
+     */
     setTheme(theme) {
         localStorage.setItem(this.STORAGE_KEY, theme);
 
@@ -361,6 +457,10 @@ export const themeManager = {
         window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
     },
 
+    /**
+     * Gets the saved custom theme colors.
+     * @returns {object|null} Custom theme color map, or null if not set.
+     */
     getCustomTheme() {
         try {
             const stored = localStorage.getItem(this.CUSTOM_THEME_KEY);
@@ -370,12 +470,22 @@ export const themeManager = {
         }
     },
 
+    /**
+     * Saves and applies a custom theme color map.
+     * @param {object} colors - Map of CSS variable names to color values.
+     * @returns {void}
+     */
     setCustomTheme(colors) {
         localStorage.setItem(this.CUSTOM_THEME_KEY, JSON.stringify(colors));
         this.applyCustomTheme(colors);
         this.setTheme('custom');
     },
 
+    /**
+     * Applies a custom theme color map to the document root CSS variables.
+     * @param {object} colors - Map of CSS variable names to color values.
+     * @returns {void}
+     */
     applyCustomTheme(colors) {
         const root = document.documentElement;
         for (const [key, value] of Object.entries(colors)) {
@@ -384,13 +494,22 @@ export const themeManager = {
     },
 };
 
-// Simple obfuscation to avoid clear-text storage of sensitive data
+/**
+ * Encodes sensitive text using base64 with character-reversal obfuscation.
+ * @param {string} text - The plain text to encode.
+ * @returns {string} Obfuscated encoded string.
+ */
 function encodeSensitiveData(text) {
     if (!text) return '';
     const encoded = btoa(text.split('').reverse().join(''));
     return encoded;
 }
 
+/**
+ * Decodes sensitive data that was encoded with {@link encodeSensitiveData}.
+ * @param {string} encoded - The obfuscated encoded string.
+ * @returns {string} Decoded plain text, or empty string on failure.
+ */
 function decodeSensitiveData(encoded) {
     if (!encoded) return '';
     try {
@@ -408,6 +527,10 @@ export const lastFMStorage = {
     CUSTOM_API_SECRET: 'lastfm-custom-api-secret',
     USE_CUSTOM_CREDENTIALS_KEY: 'lastfm-use-custom-credentials',
 
+    /**
+     * Returns whether Last.fm scrobbling is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) === 'true';
@@ -416,10 +539,19 @@ export const lastFMStorage = {
         }
     },
 
+    /**
+     * Sets whether Last.fm scrobbling is enabled.
+     * @param {boolean} enabled - True to enable, false to disable.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether tracks should be loved on Last.fm when liked.
+     * @returns {boolean}
+     */
     shouldLoveOnLike() {
         try {
             return localStorage.getItem(this.LOVE_ON_LIKE_KEY) === 'true';
@@ -428,10 +560,19 @@ export const lastFMStorage = {
         }
     },
 
+    /**
+     * Sets whether tracks should be loved on Last.fm when liked.
+     * @param {boolean} enabled - True to enable love-on-like.
+     * @returns {void}
+     */
     setLoveOnLike(enabled) {
         localStorage.setItem(this.LOVE_ON_LIKE_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Gets the scrobble percentage threshold.
+     * @returns {number} Scrobble percentage (1–100).
+     */
     getScrobblePercentage() {
         try {
             const value = localStorage.getItem(this.SCROBBLE_PERCENTAGE_KEY);
@@ -441,12 +582,21 @@ export const lastFMStorage = {
         }
     },
 
+    /**
+     * Sets the scrobble percentage threshold.
+     * @param {number} percentage - Scrobble threshold (1–100).
+     * @returns {void}
+     */
     setScrobblePercentage(percentage) {
-        const parsed = parseInt(percentage, 10);
+        const parsed = parseInt(String(percentage), 10);
         const validPercentage = Math.max(1, Math.min(100, isNaN(parsed) ? 75 : parsed));
         localStorage.setItem(this.SCROBBLE_PERCENTAGE_KEY, validPercentage.toString());
     },
 
+    /**
+     * Returns whether custom Last.fm API credentials are in use.
+     * @returns {boolean}
+     */
     useCustomCredentials() {
         try {
             return localStorage.getItem(this.USE_CUSTOM_CREDENTIALS_KEY) === 'true';
@@ -455,10 +605,19 @@ export const lastFMStorage = {
         }
     },
 
+    /**
+     * Sets whether custom Last.fm API credentials should be used.
+     * @param {boolean} enabled - True to use custom credentials.
+     * @returns {void}
+     */
     setUseCustomCredentials(enabled) {
         localStorage.setItem(this.USE_CUSTOM_CREDENTIALS_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Gets the stored custom Last.fm API key.
+     * @returns {string} Decoded API key, or empty string if not set.
+     */
     getCustomApiKey() {
         try {
             const stored = localStorage.getItem(this.CUSTOM_API_KEY);
@@ -468,10 +627,19 @@ export const lastFMStorage = {
         }
     },
 
+    /**
+     * Saves the custom Last.fm API key in obfuscated form.
+     * @param {string} key - The API key to store.
+     * @returns {void}
+     */
     setCustomApiKey(key) {
         localStorage.setItem(this.CUSTOM_API_KEY, encodeSensitiveData(key));
     },
 
+    /**
+     * Gets the stored custom Last.fm API secret.
+     * @returns {string} Decoded API secret, or empty string if not set.
+     */
     getCustomApiSecret() {
         try {
             const stored = localStorage.getItem(this.CUSTOM_API_SECRET);
@@ -481,10 +649,19 @@ export const lastFMStorage = {
         }
     },
 
+    /**
+     * Saves the custom Last.fm API secret in obfuscated form.
+     * @param {string} secret - The API secret to store.
+     * @returns {void}
+     */
     setCustomApiSecret(secret) {
         localStorage.setItem(this.CUSTOM_API_SECRET, encodeSensitiveData(secret));
     },
 
+    /**
+     * Removes all stored custom Last.fm API credentials.
+     * @returns {void}
+     */
     clearCustomCredentials() {
         localStorage.removeItem(this.CUSTOM_API_KEY);
         localStorage.removeItem(this.CUSTOM_API_SECRET);
@@ -495,6 +672,10 @@ export const lastFMStorage = {
 export const nowPlayingSettings = {
     STORAGE_KEY: 'now-playing-mode',
 
+    /**
+     * Gets the current now-playing display mode.
+     * @returns {string} Current mode name.
+     */
     getMode() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) || 'cover';
@@ -503,6 +684,11 @@ export const nowPlayingSettings = {
         }
     },
 
+    /**
+     * Sets the now-playing display mode.
+     * @param {string} mode - The mode name to set.
+     * @returns {void}
+     */
     setMode(mode) {
         localStorage.setItem(this.STORAGE_KEY, mode);
     },
@@ -511,6 +697,10 @@ export const nowPlayingSettings = {
 export const gaplessPlaybackSettings = {
     STORAGE_KEY: 'gapless-playback-enabled',
 
+    /**
+     * Returns whether gapless playback is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             const val = localStorage.getItem(this.STORAGE_KEY);
@@ -520,6 +710,11 @@ export const gaplessPlaybackSettings = {
         }
     },
 
+    /**
+     * Sets whether gapless playback is enabled.
+     * @param {boolean} enabled - True to enable gapless playback.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -528,6 +723,10 @@ export const gaplessPlaybackSettings = {
 export const fullscreenCoverClickSettings = {
     STORAGE_KEY: 'fullscreen-cover-click-action',
 
+    /**
+     * Gets the action performed when the fullscreen cover is clicked.
+     * @returns {string} The click action name.
+     */
     getAction() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) || 'exit';
@@ -536,6 +735,11 @@ export const fullscreenCoverClickSettings = {
         }
     },
 
+    /**
+     * Sets the action performed when the fullscreen cover is clicked.
+     * @param {string} action - The action name to set.
+     * @returns {void}
+     */
     setAction(action) {
         localStorage.setItem(this.STORAGE_KEY, action);
     },
@@ -544,6 +748,10 @@ export const fullscreenCoverClickSettings = {
 export const lyricsSettings = {
     DOWNLOAD_WITH_TRACKS: 'lyrics-download-with-tracks',
 
+    /**
+     * Returns whether lyrics should be downloaded along with tracks.
+     * @returns {boolean}
+     */
     shouldDownloadLyrics() {
         try {
             return localStorage.getItem(this.DOWNLOAD_WITH_TRACKS) === 'true';
@@ -552,6 +760,11 @@ export const lyricsSettings = {
         }
     },
 
+    /**
+     * Sets whether lyrics should be downloaded along with tracks.
+     * @param {boolean} enabled - True to enable lyrics download.
+     * @returns {void}
+     */
     setDownloadLyrics(enabled) {
         localStorage.setItem(this.DOWNLOAD_WITH_TRACKS, enabled ? 'true' : 'false');
     },
@@ -560,6 +773,10 @@ export const lyricsSettings = {
 export const backgroundSettings = {
     STORAGE_KEY: 'album-background-enabled',
 
+    /**
+     * Returns whether the album art background is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             // Default to true if not set
@@ -569,6 +786,11 @@ export const backgroundSettings = {
         }
     },
 
+    /**
+     * Sets whether the album art background is enabled.
+     * @param {boolean} enabled - True to enable the background.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -577,6 +799,10 @@ export const backgroundSettings = {
 export const dynamicColorSettings = {
     STORAGE_KEY: 'dynamic-color-enabled',
 
+    /**
+     * Returns whether dynamic color extraction is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             // Default to true if not set
@@ -586,6 +812,11 @@ export const dynamicColorSettings = {
         }
     },
 
+    /**
+     * Sets whether dynamic color extraction is enabled.
+     * @param {boolean} enabled - True to enable dynamic color.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -594,6 +825,10 @@ export const dynamicColorSettings = {
 export const fullscreenCoverNoRoundSettings = {
     STORAGE_KEY: 'fullscreen-cover-no-round',
 
+    /**
+     * Returns whether the fullscreen cover corners are shown without rounding.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) !== 'false';
@@ -602,6 +837,11 @@ export const fullscreenCoverNoRoundSettings = {
         }
     },
 
+    /**
+     * Sets whether the fullscreen cover corners are shown without rounding.
+     * @param {boolean} enabled - True to disable rounding.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -610,6 +850,10 @@ export const fullscreenCoverNoRoundSettings = {
 export const fullscreenCoverVanillaTiltSettings = {
     STORAGE_KEY: 'fullscreen-cover-vanilla-tilt',
 
+    /**
+     * Returns whether vanilla-tilt is enabled on the fullscreen cover.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) !== 'false';
@@ -618,6 +862,11 @@ export const fullscreenCoverVanillaTiltSettings = {
         }
     },
 
+    /**
+     * Sets whether vanilla-tilt is enabled on the fullscreen cover.
+     * @param {boolean} enabled - True to enable vanilla-tilt.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -626,6 +875,10 @@ export const fullscreenCoverVanillaTiltSettings = {
 export const fullscreenCoverTiltDistanceSettings = {
     STORAGE_KEY: 'fullscreen-cover-tilt-distance',
 
+    /**
+     * Gets the fullscreen cover tilt distance value.
+     * @returns {number} Tilt distance value.
+     */
     getValue() {
         try {
             const val = parseInt(localStorage.getItem(this.STORAGE_KEY));
@@ -635,14 +888,23 @@ export const fullscreenCoverTiltDistanceSettings = {
         }
     },
 
+    /**
+     * Sets the fullscreen cover tilt distance value.
+     * @param {number} value - The tilt distance to store.
+     * @returns {void}
+     */
     setValue(value) {
-        localStorage.setItem(this.STORAGE_KEY, value);
+        localStorage.setItem(this.STORAGE_KEY, String(value));
     },
 };
 
 export const fullscreenCoverTiltSpeedSettings = {
     STORAGE_KEY: 'fullscreen-cover-tilt-speed',
 
+    /**
+     * Gets the fullscreen cover tilt speed value.
+     * @returns {number} Tilt speed value.
+     */
     getValue() {
         try {
             const val = parseInt(localStorage.getItem(this.STORAGE_KEY));
@@ -652,8 +914,13 @@ export const fullscreenCoverTiltSpeedSettings = {
         }
     },
 
+    /**
+     * Sets the fullscreen cover tilt speed value.
+     * @param {number} value - The tilt speed to store.
+     * @returns {void}
+     */
     setValue(value) {
-        localStorage.setItem(this.STORAGE_KEY, value);
+        localStorage.setItem(this.STORAGE_KEY, String(value));
     },
 };
 
@@ -661,6 +928,10 @@ export const cardSettings = {
     COMPACT_ARTIST_KEY: 'card-compact-artist',
     COMPACT_ALBUM_KEY: 'card-compact-album',
 
+    /**
+     * Returns whether artist cards use the compact layout.
+     * @returns {boolean}
+     */
     isCompactArtist() {
         try {
             const val = localStorage.getItem(this.COMPACT_ARTIST_KEY);
@@ -670,10 +941,19 @@ export const cardSettings = {
         }
     },
 
+    /**
+     * Sets whether artist cards use the compact layout.
+     * @param {boolean} enabled - True to enable compact artist cards.
+     * @returns {void}
+     */
     setCompactArtist(enabled) {
         localStorage.setItem(this.COMPACT_ARTIST_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether album cards use the compact layout.
+     * @returns {boolean}
+     */
     isCompactAlbum() {
         try {
             return localStorage.getItem(this.COMPACT_ALBUM_KEY) === 'true';
@@ -682,6 +962,11 @@ export const cardSettings = {
         }
     },
 
+    /**
+     * Sets whether album cards use the compact layout.
+     * @param {boolean} enabled - True to enable compact album cards.
+     * @returns {void}
+     */
     setCompactAlbum(enabled) {
         localStorage.setItem(this.COMPACT_ALBUM_KEY, enabled ? 'true' : 'false');
     },
@@ -690,23 +975,45 @@ export const cardSettings = {
 export const replayGainSettings = {
     STORAGE_KEY_MODE: 'replay-gain-mode', // 'off', 'track', 'album'
     STORAGE_KEY_PREAMP: 'replay-gain-preamp',
+    /**
+     * Gets the ReplayGain mode.
+     * @returns {string} Current mode, e.g. `'track'`, `'album'`, or `'off'`.
+     */
     getMode() {
         return localStorage.getItem(this.STORAGE_KEY_MODE) || 'track';
     },
+    /**
+     * Sets the ReplayGain mode.
+     * @param {string} mode - The mode to set, e.g. `'track'`, `'album'`, or `'off'`.
+     * @returns {void}
+     */
     setMode(mode) {
         localStorage.setItem(this.STORAGE_KEY_MODE, mode);
     },
+    /**
+     * Gets the ReplayGain preamp value in dB.
+     * @returns {number} Preamp value in dB.
+     */
     getPreamp() {
         const val = parseFloat(localStorage.getItem(this.STORAGE_KEY_PREAMP));
         return isNaN(val) ? 3 : val;
     },
+    /**
+     * Sets the ReplayGain preamp value.
+     * @param {number} db - The preamp value in dB.
+     * @returns {void}
+     */
     setPreamp(db) {
-        localStorage.setItem(this.STORAGE_KEY_PREAMP, db);
+        localStorage.setItem(this.STORAGE_KEY_PREAMP, String(db));
     },
 };
 
 export const downloadQualitySettings = {
     STORAGE_KEY: 'download-quality',
+    /**
+     * Gets the download quality setting.
+     * @returns {string} Current download quality value.
+     */
     getQuality() {
         try {
             const stored = localStorage.getItem(this.STORAGE_KEY) || 'HI_RES_LOSSLESS';
@@ -728,6 +1035,11 @@ export const downloadQualitySettings = {
             return 'HI_RES_LOSSLESS';
         }
     },
+    /**
+     * Sets the download quality setting.
+     * @param {string} quality - The quality value to store.
+     * @returns {void}
+     */
     setQuality(quality) {
         localStorage.setItem(this.STORAGE_KEY, quality);
     },
@@ -735,6 +1047,10 @@ export const downloadQualitySettings = {
 
 export const preferDolbyAtmosSettings = {
     STORAGE_KEY: 'prefer-dolby-atmos',
+    /**
+     * Returns whether Dolby Atmos is preferred over standard lossless.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             const stored = localStorage.getItem(this.STORAGE_KEY) || 'false';
@@ -743,6 +1059,11 @@ export const preferDolbyAtmosSettings = {
             return false;
         }
     },
+    /**
+     * Sets whether Dolby Atmos is preferred over standard lossless.
+     * @param {boolean} enabled - True to prefer Dolby Atmos.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -750,6 +1071,10 @@ export const preferDolbyAtmosSettings = {
 
 export const losslessContainerSettings = {
     STORAGE_KEY: 'lossless-container',
+    /**
+     * Gets the preferred lossless container format.
+     * @returns {string} Container format, e.g. `'flac'`.
+     */
     getContainer() {
         try {
             const stored = localStorage.getItem(this.STORAGE_KEY) || 'flac';
@@ -758,6 +1083,11 @@ export const losslessContainerSettings = {
             return 'flac';
         }
     },
+    /**
+     * Sets the preferred lossless container format.
+     * @param {string} container - The container format to store, e.g. `'flac'`.
+     * @returns {void}
+     */
     setContainer(container) {
         localStorage.setItem(this.STORAGE_KEY, container);
     },
@@ -765,6 +1095,10 @@ export const losslessContainerSettings = {
 
 export const coverArtSizeSettings = {
     STORAGE_KEY: 'cover-art-size',
+    /**
+     * Gets the preferred cover art size.
+     * @returns {string} Cover art size value.
+     */
     getSize() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) || '1280';
@@ -772,6 +1106,11 @@ export const coverArtSizeSettings = {
             return '1280';
         }
     },
+    /**
+     * Sets the preferred cover art size.
+     * @param {string} size - The size value to store.
+     * @returns {void}
+     */
     setSize(size) {
         localStorage.setItem(this.STORAGE_KEY, size);
     },
@@ -780,6 +1119,10 @@ export const coverArtSizeSettings = {
 export const waveformSettings = {
     STORAGE_KEY: 'waveform-seekbar-enabled',
 
+    /**
+     * Returns whether the waveform seekbar is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) === 'true';
@@ -788,6 +1131,11 @@ export const waveformSettings = {
         }
     },
 
+    /**
+     * Sets whether the waveform seekbar is enabled.
+     * @param {boolean} enabled - True to enable the waveform seekbar.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -796,6 +1144,10 @@ export const waveformSettings = {
 export const qualityBadgeSettings = {
     STORAGE_KEY: 'show-quality-badges',
 
+    /**
+     * Returns whether quality badges are shown on tracks.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             const val = localStorage.getItem(this.STORAGE_KEY);
@@ -805,6 +1157,11 @@ export const qualityBadgeSettings = {
         }
     },
 
+    /**
+     * Sets whether quality badges are shown on tracks.
+     * @param {boolean} enabled - True to show quality badges.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -813,6 +1170,10 @@ export const qualityBadgeSettings = {
 export const trackDateSettings = {
     STORAGE_KEY: 'use-album-release-year',
 
+    /**
+     * Returns whether the album release year is used as the track date.
+     * @returns {boolean}
+     */
     useAlbumYear() {
         try {
             const val = localStorage.getItem(this.STORAGE_KEY);
@@ -822,6 +1183,11 @@ export const trackDateSettings = {
         }
     },
 
+    /**
+     * Sets whether the album release year should be used as the track date.
+     * @param {boolean} enabled - True to use album year.
+     * @returns {void}
+     */
     setUseAlbumYear(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -837,6 +1203,10 @@ export const playlistSettings = {
     SEPARATE_DISCS_KEY: 'playlist-separate-discs-in-zip',
     INCLUDE_COVER_KEY: 'playlist-include-cover',
 
+    /**
+     * Returns whether M3U playlist files should be generated on download.
+     * @returns {boolean}
+     */
     shouldGenerateM3U() {
         try {
             const val = localStorage.getItem(this.M3U_KEY);
@@ -846,6 +1216,10 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Returns whether M3U8 playlist files should be generated on download.
+     * @returns {boolean}
+     */
     shouldGenerateM3U8() {
         try {
             return localStorage.getItem(this.M3U8_KEY) === 'true';
@@ -854,6 +1228,10 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Returns whether CUE sheet files should be generated on download.
+     * @returns {boolean}
+     */
     shouldGenerateCUE() {
         try {
             return localStorage.getItem(this.CUE_KEY) === 'true';
@@ -862,6 +1240,10 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Returns whether NFO metadata files should be generated on download.
+     * @returns {boolean}
+     */
     shouldGenerateNFO() {
         try {
             return localStorage.getItem(this.NFO_KEY) === 'true';
@@ -870,6 +1252,10 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Returns whether JSON metadata files should be generated on download.
+     * @returns {boolean}
+     */
     shouldGenerateJSON() {
         try {
             return localStorage.getItem(this.JSON_KEY) === 'true';
@@ -878,6 +1264,10 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Returns whether relative paths should be used in generated playlist files.
+     * @returns {boolean}
+     */
     shouldUseRelativePaths() {
         try {
             const val = localStorage.getItem(this.RELATIVE_PATHS_KEY);
@@ -887,6 +1277,10 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Returns whether multi-disc albums should have their discs separated into subfolders in the zip.
+     * @returns {boolean}
+     */
     shouldSeparateDiscsInZip() {
         try {
             const val = localStorage.getItem(this.SEPARATE_DISCS_KEY);
@@ -896,34 +1290,73 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Sets whether M3U playlist files should be generated on download.
+     * @param {boolean} enabled - True to generate M3U files.
+     * @returns {void}
+     */
     setGenerateM3U(enabled) {
         localStorage.setItem(this.M3U_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Sets whether M3U8 playlist files should be generated on download.
+     * @param {boolean} enabled - True to generate M3U8 files.
+     * @returns {void}
+     */
     setGenerateM3U8(enabled) {
         localStorage.setItem(this.M3U8_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Sets whether CUE sheet files should be generated on download.
+     * @param {boolean} enabled - True to generate CUE files.
+     * @returns {void}
+     */
     setGenerateCUE(enabled) {
         localStorage.setItem(this.CUE_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Sets whether NFO metadata files should be generated on download.
+     * @param {boolean} enabled - True to generate NFO files.
+     * @returns {void}
+     */
     setGenerateNFO(enabled) {
         localStorage.setItem(this.NFO_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Sets whether JSON metadata files should be generated on download.
+     * @param {boolean} enabled - True to generate JSON files.
+     * @returns {void}
+     */
     setGenerateJSON(enabled) {
         localStorage.setItem(this.JSON_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Sets whether relative paths should be used in generated playlist files.
+     * @param {boolean} enabled - True to use relative paths.
+     * @returns {void}
+     */
     setUseRelativePaths(enabled) {
         localStorage.setItem(this.RELATIVE_PATHS_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Sets whether multi-disc albums should have their discs separated into subfolders in the zip.
+     * @param {boolean} enabled - True to separate discs in zip.
+     * @returns {void}
+     */
     setSeparateDiscsInZip(enabled) {
         localStorage.setItem(this.SEPARATE_DISCS_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether cover art should be included in the download zip.
+     * @returns {boolean}
+     */
     shouldIncludeCover() {
         try {
             const val = localStorage.getItem(this.INCLUDE_COVER_KEY);
@@ -933,6 +1366,11 @@ export const playlistSettings = {
         }
     },
 
+    /**
+     * Sets whether cover art should be included in the download zip.
+     * @param {boolean} enabled - True to include cover art.
+     * @returns {void}
+     */
     setIncludeCover(enabled) {
         localStorage.setItem(this.INCLUDE_COVER_KEY, enabled ? 'true' : 'false');
     },
@@ -947,6 +1385,10 @@ export const visualizerSettings = {
     BUTTERCHURN_CYCLE_KEY: 'butterchurn-cycle-duration',
     DIM_AMOUNT_KEY: 'visualizer-dim-amount',
 
+    /**
+     * Gets the active visualizer preset name.
+     * @returns {string} Current preset name.
+     */
     getPreset() {
         try {
             return localStorage.getItem(this.PRESET_KEY) || 'kawarp';
@@ -955,10 +1397,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets the active visualizer preset name.
+     * @param {string} preset - The preset name to store.
+     * @returns {void}
+     */
     setPreset(preset) {
         localStorage.setItem(this.PRESET_KEY, preset);
     },
 
+    /**
+     * Returns whether the visualizer is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             const val = localStorage.getItem(this.ENABLED_KEY);
@@ -968,10 +1419,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets whether the visualizer is enabled.
+     * @param {boolean} enabled - True to enable the visualizer.
+     * @returns {void}
+     */
     setEnabled(enabled) {
-        localStorage.setItem(this.ENABLED_KEY, enabled);
+        localStorage.setItem(this.ENABLED_KEY, String(enabled));
     },
 
+    /**
+     * Gets the visualizer color mode.
+     * @returns {string} Current mode, e.g. `'solid'` or `'blended'`.
+     */
     getMode() {
         try {
             return localStorage.getItem(this.MODE_KEY) || 'solid';
@@ -980,10 +1440,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets the visualizer color mode.
+     * @param {string} mode - The mode to set, e.g. `'solid'` or `'blended'`.
+     * @returns {void}
+     */
     setMode(mode) {
         localStorage.setItem(this.MODE_KEY, mode);
     },
 
+    /**
+     * Gets the visualizer sensitivity multiplier.
+     * @returns {number} Sensitivity value.
+     */
     getSensitivity() {
         try {
             const val = localStorage.getItem(this.SENSITIVITY_KEY);
@@ -994,10 +1463,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets the visualizer sensitivity multiplier.
+     * @param {number} value - The sensitivity value to store.
+     * @returns {void}
+     */
     setSensitivity(value) {
-        localStorage.setItem(this.SENSITIVITY_KEY, value);
+        localStorage.setItem(this.SENSITIVITY_KEY, String(value));
     },
 
+    /**
+     * Returns whether smart intensity adjustment is enabled.
+     * @returns {boolean}
+     */
     isSmartIntensityEnabled() {
         try {
             const val = localStorage.getItem(this.SMART_INTENSITY_KEY);
@@ -1007,10 +1485,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets whether smart intensity adjustment is enabled.
+     * @param {boolean} enabled - True to enable smart intensity.
+     * @returns {void}
+     */
     setSmartIntensity(enabled) {
-        localStorage.setItem(this.SMART_INTENSITY_KEY, enabled);
+        localStorage.setItem(this.SMART_INTENSITY_KEY, String(enabled));
     },
 
+    /**
+     * Gets the visualizer dim amount during playback.
+     * @returns {number} Dim amount value.
+     */
     getDimAmount() {
         try {
             const val = localStorage.getItem(this.DIM_AMOUNT_KEY);
@@ -1021,10 +1508,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets the visualizer dim amount during playback.
+     * @param {number} value - The dim amount to store.
+     * @returns {void}
+     */
     setDimAmount(value) {
-        localStorage.setItem(this.DIM_AMOUNT_KEY, value);
+        localStorage.setItem(this.DIM_AMOUNT_KEY, String(value));
     },
 
+    /**
+     * Gets the Butterchurn preset auto-cycle duration in seconds.
+     * @returns {number} Cycle duration in seconds.
+     */
     // Butterchurn preset cycle duration in seconds
     getButterchurnCycleDuration() {
         try {
@@ -1035,10 +1531,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets the Butterchurn preset auto-cycle duration.
+     * @param {number} seconds - Duration in seconds between preset changes.
+     * @returns {void}
+     */
     setButterchurnCycleDuration(seconds) {
         localStorage.setItem(this.BUTTERCHURN_CYCLE_KEY, seconds.toString());
     },
 
+    /**
+     * Returns whether Butterchurn preset auto-cycling is enabled.
+     * @returns {boolean}
+     */
     // Butterchurn cycle enabled
     isButterchurnCycleEnabled() {
         try {
@@ -1048,10 +1553,19 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets whether Butterchurn preset auto-cycling is enabled.
+     * @param {boolean} enabled - True to enable auto-cycling.
+     * @returns {void}
+     */
     setButterchurnCycleEnabled(enabled) {
-        localStorage.setItem('butterchurn-cycle-enabled', enabled);
+        localStorage.setItem('butterchurn-cycle-enabled', String(enabled));
     },
 
+    /**
+     * Returns whether Butterchurn should randomize preset order during cycling.
+     * @returns {boolean}
+     */
     // Butterchurn randomize preset
     isButterchurnRandomizeEnabled() {
         try {
@@ -1061,8 +1575,13 @@ export const visualizerSettings = {
         }
     },
 
+    /**
+     * Sets whether Butterchurn should randomize preset order during cycling.
+     * @param {boolean} enabled - True to randomize preset order.
+     * @returns {void}
+     */
     setButterchurnRandomizeEnabled(enabled) {
-        localStorage.setItem('butterchurn-randomize-enabled', enabled);
+        localStorage.setItem('butterchurn-randomize-enabled', String(enabled));
     },
 };
 
@@ -1096,6 +1615,10 @@ export const equalizerSettings = {
     PREAMP_MIN: -20,
     PREAMP_MAX: 20,
 
+    /**
+     * Returns whether the equalizer is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             // Disabled by default
@@ -1105,10 +1628,19 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Sets whether the equalizer is enabled.
+     * @param {boolean} enabled - True to enable the equalizer.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Gets the current equalizer band count.
+     * @returns {number} Number of EQ bands.
+     */
     getBandCount() {
         try {
             const stored = localStorage.getItem(this.BAND_COUNT_KEY);
@@ -1124,8 +1656,13 @@ export const equalizerSettings = {
         return this.DEFAULT_BAND_COUNT;
     },
 
+    /**
+     * Sets the equalizer band count.
+     * @param {number} count - The number of EQ bands (clamped to MIN_BANDS–MAX_BANDS).
+     * @returns {void}
+     */
     setBandCount(count) {
-        const parsedCount = parseInt(count, 10);
+        const parsedCount = parseInt(String(count), 10);
         const validCount = Math.max(
             this.MIN_BANDS,
             Math.min(this.MAX_BANDS, isNaN(parsedCount) ? this.DEFAULT_BAND_COUNT : parsedCount)
@@ -1133,6 +1670,10 @@ export const equalizerSettings = {
         localStorage.setItem(this.BAND_COUNT_KEY, validCount.toString());
     },
 
+    /**
+     * Gets the minimum dB value for the EQ gain range.
+     * @returns {number} Minimum range value in dB.
+     */
     getRangeMin() {
         try {
             const stored = localStorage.getItem(this.RANGE_MIN_KEY);
@@ -1148,8 +1689,13 @@ export const equalizerSettings = {
         return this.DEFAULT_RANGE_MIN;
     },
 
+    /**
+     * Sets the minimum dB value for the EQ gain range.
+     * @param {number} value - The minimum range value in dB.
+     * @returns {boolean} True if the value was valid and saved.
+     */
     setRangeMin(value) {
-        const val = parseInt(value, 10);
+        const val = parseInt(String(value), 10);
         if (!isNaN(val) && val >= this.ABSOLUTE_MIN && val < 0) {
             localStorage.setItem(this.RANGE_MIN_KEY, val.toString());
             return true;
@@ -1157,6 +1703,10 @@ export const equalizerSettings = {
         return false;
     },
 
+    /**
+     * Gets the maximum dB value for the EQ gain range.
+     * @returns {number} Maximum range value in dB.
+     */
     getRangeMax() {
         try {
             const stored = localStorage.getItem(this.RANGE_MAX_KEY);
@@ -1172,8 +1722,13 @@ export const equalizerSettings = {
         return this.DEFAULT_RANGE_MAX;
     },
 
+    /**
+     * Sets the maximum dB value for the EQ gain range.
+     * @param {number} value - The maximum range value in dB.
+     * @returns {boolean} True if the value was valid and saved.
+     */
     setRangeMax(value) {
-        const val = parseInt(value, 10);
+        const val = parseInt(String(value), 10);
         if (!isNaN(val) && val > 0 && val <= this.ABSOLUTE_MAX) {
             localStorage.setItem(this.RANGE_MAX_KEY, val.toString());
             return true;
@@ -1181,6 +1736,10 @@ export const equalizerSettings = {
         return false;
     },
 
+    /**
+     * Gets the EQ gain range as an object with min and max.
+     * @returns {{ min: number, max: number }} Current gain range.
+     */
     getRange() {
         return {
             min: this.getRangeMin(),
@@ -1188,12 +1747,22 @@ export const equalizerSettings = {
         };
     },
 
+    /**
+     * Sets both the min and max dB values for the EQ gain range.
+     * @param {number} min - The minimum range value in dB.
+     * @param {number} max - The maximum range value in dB.
+     * @returns {boolean} True if both values were valid and saved.
+     */
     setRange(min, max) {
         const validMin = this.setRangeMin(min);
         const validMax = this.setRangeMax(max);
         return validMin && validMax;
     },
 
+    /**
+     * Gets the minimum displayed frequency (Hz) for the EQ.
+     * @returns {number} Minimum frequency in Hz.
+     */
     getFreqMin() {
         try {
             const stored = localStorage.getItem(this.FREQ_MIN_KEY);
@@ -1209,8 +1778,13 @@ export const equalizerSettings = {
         return this.DEFAULT_FREQ_MIN;
     },
 
+    /**
+     * Sets the minimum displayed frequency (Hz) for the EQ.
+     * @param {number} value - The minimum frequency in Hz.
+     * @returns {boolean} True if the value was valid and saved.
+     */
     setFreqMin(value) {
-        const val = parseInt(value, 10);
+        const val = parseInt(String(value), 10);
         // Get effective max from storage without recursive call
         let effectiveMax = this.DEFAULT_FREQ_MAX;
         try {
@@ -1231,6 +1805,10 @@ export const equalizerSettings = {
         return false;
     },
 
+    /**
+     * Gets the maximum displayed frequency (Hz) for the EQ.
+     * @returns {number} Maximum frequency in Hz.
+     */
     getFreqMax() {
         try {
             const storedMax = localStorage.getItem(this.FREQ_MAX_KEY);
@@ -1258,8 +1836,13 @@ export const equalizerSettings = {
         return this.DEFAULT_FREQ_MAX;
     },
 
+    /**
+     * Sets the maximum displayed frequency (Hz) for the EQ.
+     * @param {number} value - The maximum frequency in Hz.
+     * @returns {boolean} True if the value was valid and saved.
+     */
     setFreqMax(value) {
-        const maxVal = parseInt(value, 10);
+        const maxVal = parseInt(String(value), 10);
         if (!isNaN(maxVal) && maxVal > this.ABSOLUTE_FREQ_MIN && maxVal <= this.ABSOLUTE_FREQ_MAX) {
             // Check against stored min without recursive call
             try {
@@ -1279,6 +1862,10 @@ export const equalizerSettings = {
         return false;
     },
 
+    /**
+     * Gets the EQ frequency range as an object with min and max.
+     * @returns {{ min: number, max: number }} Current frequency range in Hz.
+     */
     getFreqRange() {
         return {
             min: this.getFreqMin(),
@@ -1286,12 +1873,22 @@ export const equalizerSettings = {
         };
     },
 
+    /**
+     * Sets both the min and max frequencies (Hz) for the EQ display range.
+     * @param {number} min - The minimum frequency in Hz.
+     * @param {number} max - The maximum frequency in Hz.
+     * @returns {boolean} True if both values were valid and saved.
+     */
     setFreqRange(min, max) {
         const validMax = this.setFreqMax(max);
         const validMin = this.setFreqMin(min);
         return validMin && validMax;
     },
 
+    /**
+     * Gets the EQ preamp value in dB.
+     * @returns {number} Preamp value in dB.
+     */
     getPreamp() {
         try {
             const stored = localStorage.getItem(this.PREAMP_KEY);
@@ -1307,8 +1904,13 @@ export const equalizerSettings = {
         return this.DEFAULT_PREAMP;
     },
 
+    /**
+     * Sets the EQ preamp value in dB.
+     * @param {number} value - The preamp value in dB.
+     * @returns {boolean} True if the value was valid and saved.
+     */
     setPreamp(value) {
-        const val = parseFloat(value);
+        const val = value;
         if (!isNaN(val) && val >= this.PREAMP_MIN && val <= this.PREAMP_MAX) {
             localStorage.setItem(this.PREAMP_KEY, val.toString());
             return true;
@@ -1316,6 +1918,11 @@ export const equalizerSettings = {
         return false;
     },
 
+    /**
+     * Gets the EQ band gains, interpolating if the stored count differs from the requested count.
+     * @param {number} bandCount - The target number of bands.
+     * @returns {number[]} Array of gain values in dB.
+     */
     getGains(bandCount) {
         const count = bandCount || this.getBandCount();
         try {
@@ -1340,6 +1947,11 @@ export const equalizerSettings = {
         return new Array(count).fill(0);
     },
 
+    /**
+     * Saves the EQ band gains array.
+     * @param {number[]} gains - Array of gain values in dB.
+     * @returns {void}
+     */
     setGains(gains) {
         try {
             if (Array.isArray(gains) && gains.length >= this.MIN_BANDS && gains.length <= this.MAX_BANDS) {
@@ -1350,6 +1962,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Gets the custom center frequencies for EQ bands if they match the given band count.
+     * @param {number} bandCount - The target number of bands.
+     * @returns {number[]|null} Array of frequencies in Hz, or null if not set or mismatched.
+     */
     getCustomFrequencies(bandCount) {
         const count = bandCount || this.getBandCount();
         try {
@@ -1366,6 +1983,11 @@ export const equalizerSettings = {
         return null;
     },
 
+    /**
+     * Saves custom center frequencies for EQ bands.
+     * @param {number[]} frequencies - Array of frequencies in Hz.
+     * @returns {void}
+     */
     setCustomFrequencies(frequencies) {
         try {
             if (
@@ -1380,6 +2002,10 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Clears any stored custom EQ center frequencies.
+     * @returns {void}
+     */
     clearCustomFrequencies() {
         try {
             localStorage.removeItem(this.CUSTOM_FREQUENCIES_KEY);
@@ -1388,6 +2014,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Gets the EQ band filter types if they match the given band count.
+     * @param {number} bandCount - The target number of bands.
+     * @returns {string[]} Array of filter type strings (e.g. `'peaking'`).
+     */
     getBandTypes(bandCount) {
         const count = bandCount || this.getBandCount();
         try {
@@ -1404,6 +2035,11 @@ export const equalizerSettings = {
         return new Array(count).fill('peaking');
     },
 
+    /**
+     * Saves the EQ band filter types array.
+     * @param {string[]} types - Array of filter type strings.
+     * @returns {void}
+     */
     setBandTypes(types) {
         try {
             if (Array.isArray(types) && types.length >= this.MIN_BANDS && types.length <= this.MAX_BANDS) {
@@ -1414,6 +2050,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Gets the EQ band Q-factor values, interpolating if the stored count differs.
+     * @param {number} bandCount - The target number of bands.
+     * @returns {number[]|null} Array of Q values, or null if not stored.
+     */
     getBandQs(bandCount) {
         const count = bandCount || this.getBandCount();
         try {
@@ -1434,6 +2075,11 @@ export const equalizerSettings = {
         return null;
     },
 
+    /**
+     * Saves the EQ band Q-factor values array.
+     * @param {number[]} qs - Array of Q-factor values.
+     * @returns {void}
+     */
     setBandQs(qs) {
         try {
             if (Array.isArray(qs) && qs.length >= this.MIN_BANDS && qs.length <= this.MAX_BANDS) {
@@ -1471,7 +2117,10 @@ export const equalizerSettings = {
     },
 
     /**
-     * Interpolate gains array to match target band count
+     * Interpolates a gains array to match a target band count using linear interpolation.
+     * @param {number[]} sourceGains - The source array of gain values.
+     * @param {number} targetCount - The desired number of output bands.
+     * @returns {number[]} Interpolated gains array of length targetCount.
      */
     interpolateGains(sourceGains, targetCount) {
         if (sourceGains.length === targetCount) {
@@ -1495,6 +2144,10 @@ export const equalizerSettings = {
         return result;
     },
 
+    /**
+     * Gets the active equalizer preset name.
+     * @returns {string} Current preset name.
+     */
     getPreset() {
         try {
             return localStorage.getItem(this.PRESET_KEY) || 'flat';
@@ -1503,10 +2156,19 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Sets the active equalizer preset name.
+     * @param {string} preset - The preset name to store.
+     * @returns {void}
+     */
     setPreset(preset) {
         localStorage.setItem(this.PRESET_KEY, preset);
     },
 
+    /**
+     * Gets all saved custom EQ presets.
+     * @returns {Object} Map of preset IDs to preset objects.
+     */
     // Custom Preset Methods
     getCustomPresets() {
         try {
@@ -1523,6 +2185,12 @@ export const equalizerSettings = {
         return {};
     },
 
+    /**
+     * Saves a new custom EQ preset with the given name and gains.
+     * @param {string} name - The display name for the preset.
+     * @param {number[]} gains - Array of gain values in dB.
+     * @returns {string|false} The generated preset ID, or false on failure.
+     */
     saveCustomPreset(name, gains) {
         try {
             if (!name || !Array.isArray(gains) || gains.length < this.MIN_BANDS || gains.length > this.MAX_BANDS) {
@@ -1558,6 +2226,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Deletes a custom EQ preset by its ID.
+     * @param {string} presetId - The ID of the preset to delete.
+     * @returns {boolean} True if deleted, false if not found.
+     */
     deleteCustomPreset(presetId) {
         try {
             const presets = this.getCustomPresets();
@@ -1573,6 +2246,13 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Updates an existing custom EQ preset's name and/or gains.
+     * @param {string} presetId - The ID of the preset to update.
+     * @param {string} name - The new display name.
+     * @param {number[]} gains - The new array of gain values in dB.
+     * @returns {boolean} True if updated successfully, false if preset not found.
+     */
     updateCustomPreset(presetId, name, gains) {
         try {
             const presets = this.getCustomPresets();
@@ -1610,6 +2290,10 @@ export const equalizerSettings = {
     AUTOEQ_ACTIVE_PROFILE_KEY: 'autoeq-active-profile',
     AUTOEQ_SAMPLE_RATE_KEY: 'autoeq-sample-rate',
 
+    /**
+     * Gets all saved AutoEQ headphone profiles.
+     * @returns {Object} Map of profile IDs to profile objects.
+     */
     getAutoEQProfiles() {
         try {
             const stored = localStorage.getItem(this.AUTOEQ_PROFILES_KEY);
@@ -1619,6 +2303,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Saves an AutoEQ headphone profile, generating an ID if not provided.
+     * @param {object} profile - The profile object to save.
+     * @returns {string|false} The profile ID, or false on failure.
+     */
     saveAutoEQProfile(profile) {
         try {
             const profiles = this.getAutoEQProfiles();
@@ -1633,6 +2322,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Deletes an AutoEQ headphone profile by its ID.
+     * @param {string} profileId - The ID of the profile to delete.
+     * @returns {boolean} True if deleted, false if not found.
+     */
     deleteAutoEQProfile(profileId) {
         try {
             const profiles = this.getAutoEQProfiles();
@@ -1651,6 +2345,10 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Gets the currently active AutoEQ profile ID.
+     * @returns {string|null} Active profile ID, or null if none is set.
+     */
     getActiveAutoEQProfile() {
         try {
             return localStorage.getItem(this.AUTOEQ_ACTIVE_PROFILE_KEY) || null;
@@ -1659,6 +2357,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Sets the currently active AutoEQ profile ID.
+     * @param {string|null} profileId - The profile ID to activate, or null to clear.
+     * @returns {void}
+     */
     setActiveAutoEQProfile(profileId) {
         if (profileId) {
             localStorage.setItem(this.AUTOEQ_ACTIVE_PROFILE_KEY, profileId);
@@ -1667,6 +2370,10 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Gets the AutoEQ sample rate.
+     * @returns {number} Sample rate in Hz (44100, 48000, or 96000).
+     */
     getSampleRate() {
         try {
             const stored = localStorage.getItem(this.AUTOEQ_SAMPLE_RATE_KEY);
@@ -1677,6 +2384,11 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Sets the AutoEQ sample rate.
+     * @param {number} rate - The sample rate in Hz.
+     * @returns {void}
+     */
     setSampleRate(rate) {
         localStorage.setItem(this.AUTOEQ_SAMPLE_RATE_KEY, rate.toString());
     },
@@ -1723,6 +2435,10 @@ export const equalizerSettings = {
         }
     },
 
+    /**
+     * Clears the last selected headphone entry and measurement cache.
+     * @returns {void}
+     */
     clearLastHeadphone() {
         localStorage.removeItem(this.AUTOEQ_LAST_HEADPHONE_KEY);
     },
@@ -1853,6 +2569,10 @@ export const equalizerSettings = {
 export const monoAudioSettings = {
     STORAGE_KEY: 'mono-audio-enabled',
 
+    /**
+     * Returns whether mono audio mixing is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) === 'true';
@@ -1861,6 +2581,11 @@ export const monoAudioSettings = {
         }
     },
 
+    /**
+     * Sets whether mono audio mixing is enabled.
+     * @param {boolean} enabled - True to enable mono audio.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -1964,6 +2689,10 @@ export const binauralDspSettings = {
 export const exponentialVolumeSettings = {
     STORAGE_KEY: 'exponential-volume-enabled',
 
+    /**
+     * Returns whether exponential volume scaling is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) === 'true';
@@ -1972,10 +2701,20 @@ export const exponentialVolumeSettings = {
         }
     },
 
+    /**
+     * Sets whether exponential volume scaling is enabled.
+     * @param {boolean} enabled - True to enable exponential volume scaling.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Applies the exponential curve to a linear volume value (0–1).
+     * @param {number} linearVolume - Linear volume value between 0 and 1.
+     * @returns {number} Curved volume value.
+     */
     // Apply exponential curve to linear volume (0-1)
     // Uses a power curve: output = input^3 for more natural volume control
     applyCurve(linearVolume) {
@@ -1987,6 +2726,11 @@ export const exponentialVolumeSettings = {
         return Math.pow(linearVolume, 3);
     },
 
+    /**
+     * Inverts the exponential curve, converting a perceived volume back to linear for UI display.
+     * @param {number} perceivedVolume - Perceived (curved) volume value between 0 and 1.
+     * @returns {number} Linear volume value.
+     */
     // Convert from perceived volume back to linear for UI
     inverseCurve(perceivedVolume) {
         if (!this.isEnabled()) {
@@ -2000,6 +2744,10 @@ export const audioEffectsSettings = {
     SPEED_KEY: 'audio-effects-speed',
     PITCH_PRESERVE_KEY: 'audio-effects-pitch-preserve',
 
+    /**
+     * Gets the current playback speed.
+     * @returns {number} Playback speed multiplier (0.01–100).
+     */
     // Playback speed (0.01 to 100, default 1.0)
     getSpeed() {
         try {
@@ -2010,17 +2758,30 @@ export const audioEffectsSettings = {
         }
     },
 
+    /**
+     * Sets the playback speed.
+     * @param {number} speed - The speed multiplier to store (clamped to 0.01–100).
+     * @returns {void}
+     */
     setSpeed(speed) {
-        const parsed = parseFloat(speed);
+        const parsed = parseFloat(String(speed));
         const validSpeed = Math.max(0.01, Math.min(100, isNaN(parsed) ? 1.0 : parsed));
         localStorage.setItem(this.SPEED_KEY, validSpeed.toString());
     },
 
+    /**
+     * Resets the playback speed to 1.0 (normal).
+     * @returns {number} The reset speed value (always 1.0).
+     */
     resetSpeed() {
         this.setSpeed(1.0);
         return 1.0;
     },
 
+    /**
+     * Returns whether pitch preservation is enabled when changing playback speed.
+     * @returns {boolean}
+     */
     // Preserve pitch when changing speed (default true)
     isPreservePitchEnabled() {
         try {
@@ -2031,6 +2792,11 @@ export const audioEffectsSettings = {
         }
     },
 
+    /**
+     * Sets whether pitch preservation is enabled when changing playback speed.
+     * @param {boolean} enabled - True to preserve pitch.
+     * @returns {void}
+     */
     setPreservePitch(enabled) {
         localStorage.setItem(this.PITCH_PRESERVE_KEY, enabled ? 'true' : 'false');
     },
@@ -2039,6 +2805,10 @@ export const audioEffectsSettings = {
 export const settingsUiState = {
     ACTIVE_TAB_KEY: 'settings-active-tab',
 
+    /**
+     * Gets the currently active settings tab.
+     * @returns {string} Active tab name.
+     */
     getActiveTab() {
         try {
             return localStorage.getItem(this.ACTIVE_TAB_KEY) || 'appearance';
@@ -2047,6 +2817,11 @@ export const settingsUiState = {
         }
     },
 
+    /**
+     * Sets the currently active settings tab.
+     * @param {string} tab - The tab name to persist.
+     * @returns {void}
+     */
     setActiveTab(tab) {
         localStorage.setItem(this.ACTIVE_TAB_KEY, tab);
     },
@@ -2055,6 +2830,10 @@ export const settingsUiState = {
 export const queueManager = {
     STORAGE_KEY: 'monochrome-queue',
 
+    /**
+     * Gets the persisted queue state.
+     * @returns {object|null} Queue state object, or null if none is stored.
+     */
     getQueue() {
         try {
             const data = localStorage.getItem(this.STORAGE_KEY);
@@ -2064,6 +2843,11 @@ export const queueManager = {
         }
     },
 
+    /**
+     * Persists a minimal version of the queue state to localStorage.
+     * @param {object} queueState - The full queue state object to save.
+     * @returns {void}
+     */
     saveQueue(queueState) {
         try {
             // Only save essential data to avoid quota limits
@@ -2085,6 +2869,10 @@ export const queueManager = {
 export const sidebarSettings = {
     STORAGE_KEY: 'monochrome-sidebar-collapsed',
 
+    /**
+     * Returns whether the sidebar is collapsed.
+     * @returns {boolean}
+     */
     isCollapsed() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) === 'true';
@@ -2093,10 +2881,19 @@ export const sidebarSettings = {
         }
     },
 
+    /**
+     * Sets whether the sidebar is collapsed.
+     * @param {boolean} collapsed - True to mark the sidebar as collapsed.
+     * @returns {void}
+     */
     setCollapsed(collapsed) {
         localStorage.setItem(this.STORAGE_KEY, collapsed ? 'true' : 'false');
     },
 
+    /**
+     * Restores the sidebar collapsed state from storage and applies it to the DOM.
+     * @returns {void}
+     */
     restoreState() {
         const isCollapsed = this.isCollapsed();
         if (isCollapsed) {
@@ -2115,6 +2912,10 @@ export const listenBrainzSettings = {
     CUSTOM_URL_KEY: 'listenbrainz-custom-url',
     LOVE_ON_LIKE_KEY: 'listenbrainz-love-on-like',
 
+    /**
+     * Returns whether ListenBrainz scrobbling is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.ENABLED_KEY) === 'true';
@@ -2123,10 +2924,19 @@ export const listenBrainzSettings = {
         }
     },
 
+    /**
+     * Sets whether ListenBrainz scrobbling is enabled.
+     * @param {boolean} enabled - True to enable ListenBrainz.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Gets the stored ListenBrainz user token.
+     * @returns {string} User token, or empty string if not set.
+     */
     getToken() {
         try {
             return localStorage.getItem(this.TOKEN_KEY) || '';
@@ -2135,10 +2945,19 @@ export const listenBrainzSettings = {
         }
     },
 
+    /**
+     * Saves the ListenBrainz user token.
+     * @param {string} token - The token to store.
+     * @returns {void}
+     */
     setToken(token) {
         localStorage.setItem(this.TOKEN_KEY, token);
     },
 
+    /**
+     * Gets the custom ListenBrainz server URL.
+     * @returns {string} Custom URL, or empty string if not set.
+     */
     getCustomUrl() {
         try {
             return localStorage.getItem(this.CUSTOM_URL_KEY) || '';
@@ -2147,10 +2966,19 @@ export const listenBrainzSettings = {
         }
     },
 
+    /**
+     * Saves the custom ListenBrainz server URL.
+     * @param {string} url - The server URL to store.
+     * @returns {void}
+     */
     setCustomUrl(url) {
         localStorage.setItem(this.CUSTOM_URL_KEY, url);
     },
 
+    /**
+     * Returns whether tracks should be loved on ListenBrainz when liked.
+     * @returns {boolean}
+     */
     shouldLoveOnLike() {
         try {
             return localStorage.getItem(this.LOVE_ON_LIKE_KEY) === 'true';
@@ -2159,6 +2987,11 @@ export const listenBrainzSettings = {
         }
     },
 
+    /**
+     * Sets whether tracks should be loved on ListenBrainz when liked.
+     * @param {boolean} enabled - True to enable love-on-like.
+     * @returns {void}
+     */
     setLoveOnLike(enabled) {
         localStorage.setItem(this.LOVE_ON_LIKE_KEY, enabled ? 'true' : 'false');
     },
@@ -2169,6 +3002,10 @@ export const malojaSettings = {
     TOKEN_KEY: 'maloja-token',
     CUSTOM_URL_KEY: 'maloja-custom-url',
 
+    /**
+     * Returns whether Maloja scrobbling is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.ENABLED_KEY) === 'true';
@@ -2177,10 +3014,19 @@ export const malojaSettings = {
         }
     },
 
+    /**
+     * Sets whether Maloja scrobbling is enabled.
+     * @param {boolean} enabled - True to enable Maloja.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Gets the stored Maloja API token.
+     * @returns {string} API token, or empty string if not set.
+     */
     getToken() {
         try {
             return localStorage.getItem(this.TOKEN_KEY) || '';
@@ -2189,10 +3035,19 @@ export const malojaSettings = {
         }
     },
 
+    /**
+     * Saves the Maloja API token.
+     * @param {string} token - The token to store.
+     * @returns {void}
+     */
     setToken(token) {
         localStorage.setItem(this.TOKEN_KEY, token);
     },
 
+    /**
+     * Gets the custom Maloja server URL.
+     * @returns {string} Custom URL, or empty string if not set.
+     */
     getCustomUrl() {
         try {
             return localStorage.getItem(this.CUSTOM_URL_KEY) || '';
@@ -2201,6 +3056,11 @@ export const malojaSettings = {
         }
     },
 
+    /**
+     * Saves the custom Maloja server URL.
+     * @param {string} url - The server URL to store.
+     * @returns {void}
+     */
     setCustomUrl(url) {
         localStorage.setItem(this.CUSTOM_URL_KEY, url);
     },
@@ -2210,6 +3070,10 @@ export const libreFmSettings = {
     ENABLED_KEY: 'librefm-enabled',
     LOVE_ON_LIKE_KEY: 'librefm-love-on-like',
 
+    /**
+     * Returns whether Libre.fm scrobbling is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.ENABLED_KEY) === 'true';
@@ -2218,10 +3082,19 @@ export const libreFmSettings = {
         }
     },
 
+    /**
+     * Sets whether Libre.fm scrobbling is enabled.
+     * @param {boolean} enabled - True to enable Libre.fm.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether tracks should be loved on Libre.fm when liked.
+     * @returns {boolean}
+     */
     shouldLoveOnLike() {
         try {
             return localStorage.getItem(this.LOVE_ON_LIKE_KEY) === 'true';
@@ -2230,6 +3103,11 @@ export const libreFmSettings = {
         }
     },
 
+    /**
+     * Sets whether tracks should be loved on Libre.fm when liked.
+     * @param {boolean} enabled - True to enable love-on-like.
+     * @returns {void}
+     */
     setLoveOnLike(enabled) {
         localStorage.setItem(this.LOVE_ON_LIKE_KEY, enabled ? 'true' : 'false');
     },
@@ -2241,6 +3119,10 @@ export const homePageSettings = {
     SHOW_RECOMMENDED_ARTISTS_KEY: 'home-show-recommended-artists',
     SHOW_JUMP_BACK_IN_KEY: 'home-show-jump-back-in',
 
+    /**
+     * Returns whether recommended songs should be shown on the home page.
+     * @returns {boolean}
+     */
     shouldShowRecommendedSongs() {
         try {
             const val = localStorage.getItem(this.SHOW_RECOMMENDED_SONGS_KEY);
@@ -2250,10 +3132,19 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets whether recommended songs should be shown on the home page.
+     * @param {boolean} enabled - True to show recommended songs.
+     * @returns {void}
+     */
     setShowRecommendedSongs(enabled) {
         localStorage.setItem(this.SHOW_RECOMMENDED_SONGS_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether recommended albums should be shown on the home page.
+     * @returns {boolean}
+     */
     shouldShowRecommendedAlbums() {
         try {
             const val = localStorage.getItem(this.SHOW_RECOMMENDED_ALBUMS_KEY);
@@ -2263,10 +3154,19 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets whether recommended albums should be shown on the home page.
+     * @param {boolean} enabled - True to show recommended albums.
+     * @returns {void}
+     */
     setShowRecommendedAlbums(enabled) {
         localStorage.setItem(this.SHOW_RECOMMENDED_ALBUMS_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether recommended artists should be shown on the home page.
+     * @returns {boolean}
+     */
     shouldShowRecommendedArtists() {
         try {
             const val = localStorage.getItem(this.SHOW_RECOMMENDED_ARTISTS_KEY);
@@ -2276,10 +3176,19 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets whether recommended artists should be shown on the home page.
+     * @param {boolean} enabled - True to show recommended artists.
+     * @returns {void}
+     */
     setShowRecommendedArtists(enabled) {
         localStorage.setItem(this.SHOW_RECOMMENDED_ARTISTS_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the "Jump Back In" section should be shown on the home page.
+     * @returns {boolean}
+     */
     shouldShowJumpBackIn() {
         try {
             const val = localStorage.getItem(this.SHOW_JUMP_BACK_IN_KEY);
@@ -2289,12 +3198,21 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets whether the "Jump Back In" section should be shown on the home page.
+     * @param {boolean} enabled - True to show Jump Back In.
+     * @returns {void}
+     */
     setShowJumpBackIn(enabled) {
         localStorage.setItem(this.SHOW_JUMP_BACK_IN_KEY, enabled ? 'true' : 'false');
     },
 
     SHOW_EDITORS_PICKS_KEY: 'home-show-editors-picks',
 
+    /**
+     * Returns whether the Editor's Picks section should be shown on the home page.
+     * @returns {boolean}
+     */
     shouldShowEditorsPicks() {
         try {
             const val = localStorage.getItem(this.SHOW_EDITORS_PICKS_KEY);
@@ -2304,12 +3222,21 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets whether the Editor's Picks section should be shown on the home page.
+     * @param {boolean} enabled - True to show Editor's Picks.
+     * @returns {void}
+     */
     setShowEditorsPicks(enabled) {
         localStorage.setItem(this.SHOW_EDITORS_PICKS_KEY, enabled ? 'true' : 'false');
     },
 
     SHUFFLE_EDITORS_PICKS_KEY: 'home-shuffle-editors-picks',
 
+    /**
+     * Returns whether Editor's Picks should be shuffled.
+     * @returns {boolean}
+     */
     shouldShuffleEditorsPicks() {
         try {
             const val = localStorage.getItem(this.SHUFFLE_EDITORS_PICKS_KEY);
@@ -2319,12 +3246,21 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets whether Editor's Picks should be shuffled.
+     * @param {boolean} enabled - True to shuffle Editor's Picks.
+     * @returns {void}
+     */
     setShuffleEditorsPicks(enabled) {
         localStorage.setItem(this.SHUFFLE_EDITORS_PICKS_KEY, enabled ? 'true' : 'false');
     },
 
     EDITORS_PICKS_SOURCE_KEY: 'home-editors-picks-source',
 
+    /**
+     * Gets the source for Editor's Picks content.
+     * @returns {string} Source identifier.
+     */
     getEditorsPicksSource() {
         try {
             return localStorage.getItem(this.EDITORS_PICKS_SOURCE_KEY) || 'current';
@@ -2333,6 +3269,11 @@ export const homePageSettings = {
         }
     },
 
+    /**
+     * Sets the source for Editor's Picks content.
+     * @param {string} source - The source identifier to store.
+     * @returns {void}
+     */
     setEditorsPicksSource(source) {
         localStorage.setItem(this.EDITORS_PICKS_SOURCE_KEY, source);
     },
@@ -2341,6 +3282,10 @@ export const homePageSettings = {
 export const radioSettings = {
     ENABLED_KEY: 'radio-enabled',
 
+    /**
+     * Returns whether radio is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             return localStorage.getItem(this.ENABLED_KEY) === 'true';
@@ -2349,6 +3294,11 @@ export const radioSettings = {
         }
     },
 
+    /**
+     * Sets whether radio is enabled.
+     * @param {boolean} enabled - True to enable radio.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
@@ -2357,6 +3307,10 @@ export const radioSettings = {
 export const analyticsSettings = {
     ENABLED_KEY: 'analytics-enabled',
 
+    /**
+     * Returns whether analytics reporting is enabled.
+     * @returns {boolean}
+     */
     isEnabled() {
         try {
             const val = localStorage.getItem(this.ENABLED_KEY);
@@ -2366,6 +3320,11 @@ export const analyticsSettings = {
         }
     },
 
+    /**
+     * Sets whether analytics reporting is enabled.
+     * @param {boolean} enabled - True to enable analytics.
+     * @returns {void}
+     */
     setEnabled(enabled) {
         localStorage.setItem(this.ENABLED_KEY, enabled ? 'true' : 'false');
     },
@@ -2394,12 +3353,20 @@ export const sidebarSectionSettings = {
         'sidebar-nav-githubbtn',
     ],
 
+    /**
+     * Gets the IDs of bottom navigation items from the DOM.
+     * @returns {string[]} Array of element IDs for bottom nav items.
+     */
     getBottomNavIds() {
         const ul = document.querySelector('.sidebar-nav.bottom ul');
         if (!ul) return [];
         return Array.from(ul.children).map((li) => li.id);
     },
 
+    /**
+     * Returns whether the Home sidebar item should be visible.
+     * @returns {boolean}
+     */
     shouldShowHome() {
         try {
             const val = localStorage.getItem(this.SHOW_HOME_KEY);
@@ -2409,10 +3376,19 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the Home sidebar item should be visible.
+     * @param {boolean} enabled - True to show Home.
+     * @returns {void}
+     */
     setShowHome(enabled) {
         localStorage.setItem(this.SHOW_HOME_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the Library sidebar item should be visible.
+     * @returns {boolean}
+     */
     shouldShowLibrary() {
         try {
             const val = localStorage.getItem(this.SHOW_LIBRARY_KEY);
@@ -2422,10 +3398,19 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the Library sidebar item should be visible.
+     * @param {boolean} enabled - True to show Library.
+     * @returns {void}
+     */
     setShowLibrary(enabled) {
         localStorage.setItem(this.SHOW_LIBRARY_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the Recent sidebar item should be visible.
+     * @returns {boolean}
+     */
     shouldShowRecent() {
         try {
             const val = localStorage.getItem(this.SHOW_RECENT_KEY);
@@ -2435,10 +3420,19 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the Recent sidebar item should be visible.
+     * @param {boolean} enabled - True to show Recent.
+     * @returns {void}
+     */
     setShowRecent(enabled) {
         localStorage.setItem(this.SHOW_RECENT_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the Unreleased sidebar item should be visible.
+     * @returns {boolean}
+     */
     shouldShowUnreleased() {
         try {
             const val = localStorage.getItem(this.SHOW_UNRELEASED_KEY);
@@ -2448,10 +3442,19 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the Unreleased sidebar item should be visible.
+     * @param {boolean} enabled - True to show Unreleased.
+     * @returns {void}
+     */
     setShowUnreleased(enabled) {
         localStorage.setItem(this.SHOW_UNRELEASED_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the Donate sidebar item should be visible.
+     * @returns {boolean}
+     */
     shouldShowDonate() {
         try {
             const val = localStorage.getItem(this.SHOW_DONATE_KEY);
@@ -2461,14 +3464,28 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the Donate sidebar item should be visible.
+     * @param {boolean} enabled - True to show Donate.
+     * @returns {void}
+     */
     setShowDonate(enabled) {
         localStorage.setItem(this.SHOW_DONATE_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the Settings sidebar item should be visible (always true).
+     * @returns {boolean}
+     */
     shouldShowSettings() {
         return true;
     },
 
+    /**
+     * Sets whether the Settings sidebar item should be visible.
+     * @param {boolean} enabled - True to show Settings.
+     * @returns {void}
+     */
     setShowSettings(enabled) {
         if (enabled) {
             localStorage.setItem(this.SHOW_SETTINGS_KEY, 'true');
@@ -2477,6 +3494,10 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Returns whether the About sidebar item should be visible.
+     * @returns {boolean}
+     */
     shouldShowAbout() {
         try {
             const val = localStorage.getItem(this.SHOW_ABOUT_KEY);
@@ -2486,10 +3507,19 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the About sidebar item should be visible.
+     * @param {boolean} enabled - True to show About.
+     * @returns {void}
+     */
     setShowAbout(enabled) {
         localStorage.setItem(this.SHOW_ABOUT_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the Discord sidebar button should be visible.
+     * @returns {boolean}
+     */
     shouldShowDiscord() {
         try {
             const val = localStorage.getItem(this.SHOW_DISCORD_KEY);
@@ -2499,10 +3529,19 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the Discord sidebar button should be visible.
+     * @param {boolean} enabled - True to show Discord.
+     * @returns {void}
+     */
     setShowDiscord(enabled) {
         localStorage.setItem(this.SHOW_DISCORD_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the GitHub sidebar button should be visible.
+     * @returns {boolean}
+     */
     shouldShowGithub() {
         try {
             const val = localStorage.getItem(this.SHOW_GITHUB_KEY);
@@ -2512,10 +3551,20 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Sets whether the GitHub sidebar button should be visible.
+     * @param {boolean} enabled - True to show GitHub.
+     * @returns {void}
+     */
     setShowGithub(enabled) {
         localStorage.setItem(this.SHOW_GITHUB_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Normalizes a sidebar order array, filling in any missing items from DEFAULT_ORDER.
+     * @param {string[]} order - Array of sidebar item IDs.
+     * @returns {string[]} Normalized order with all items present.
+     */
     normalizeOrder(order) {
         const baseOrder = this.DEFAULT_ORDER;
         const safeOrder = Array.isArray(order) ? order.filter((id) => baseOrder.includes(id)) : [];
@@ -2524,6 +3573,10 @@ export const sidebarSectionSettings = {
         return [...uniqueOrder, ...missing];
     },
 
+    /**
+     * Gets the current sidebar item order from storage.
+     * @returns {string[]} Normalized array of sidebar item IDs.
+     */
     getOrder() {
         try {
             const stored = localStorage.getItem(this.ORDER_KEY);
@@ -2536,11 +3589,20 @@ export const sidebarSectionSettings = {
         return this.normalizeOrder([]);
     },
 
+    /**
+     * Saves the sidebar item order.
+     * @param {string[]} order - Array of sidebar item IDs in the desired order.
+     * @returns {void}
+     */
     setOrder(order) {
         const normalized = this.normalizeOrder(order);
         localStorage.setItem(this.ORDER_KEY, JSON.stringify(normalized));
     },
 
+    /**
+     * Applies the stored sidebar item order to the DOM.
+     * @returns {void}
+     */
     applySidebarOrder() {
         const mainList = document.querySelector('.sidebar-nav.main ul');
         const bottomList = document.querySelector('.sidebar-nav.bottom ul');
@@ -2564,6 +3626,10 @@ export const sidebarSectionSettings = {
         }
     },
 
+    /**
+     * Applies both sidebar order and visibility settings to the DOM.
+     * @returns {void}
+     */
     applySidebarVisibility() {
         this.applySidebarOrder();
         const items = [
@@ -2603,6 +3669,10 @@ export const fontSettings = {
     FONT_LINK_ID: 'monochrome-dynamic-font',
     FONT_FACE_ID: 'monochrome-dynamic-fontface',
 
+    /**
+     * Returns the default font configuration object.
+     * @returns {object} Default font config.
+     */
     getDefaultConfig() {
         return {
             type: 'preset',
@@ -2612,10 +3682,18 @@ export const fontSettings = {
         };
     },
 
+    /**
+     * Returns the default font size percentage.
+     * @returns {number} Default font size (100).
+     */
     getDefaultFontSize() {
         return 100; // 100% = default size
     },
 
+    /**
+     * Gets the stored font size percentage.
+     * @returns {number} Font size percentage (50–200).
+     */
     getFontSize() {
         try {
             const stored = localStorage.getItem(this.FONT_SIZE_KEY);
@@ -2631,25 +3709,42 @@ export const fontSettings = {
         return this.getDefaultFontSize();
     },
 
+    /**
+     * Sets the font size percentage and applies it to the document.
+     * @param {number} size - The font size percentage (clamped to 50–200).
+     * @returns {number} The clamped font size that was applied.
+     */
     setFontSize(size) {
-        const parsed = parseInt(size, 10);
+        const parsed = parseInt(String(size), 10);
         const validSize = Math.max(50, Math.min(200, isNaN(parsed) ? 100 : parsed));
         localStorage.setItem(this.FONT_SIZE_KEY, validSize.toString());
         this.applyFontSize();
         return validSize;
     },
 
+    /**
+     * Applies the stored font size to the document CSS variable.
+     * @returns {void}
+     */
     applyFontSize() {
         const size = this.getFontSize();
         document.documentElement.style.setProperty('--font-size-scale', `${size}%`);
     },
 
+    /**
+     * Resets the font size to the default and applies it.
+     * @returns {number} The default font size percentage.
+     */
     resetFontSize() {
         localStorage.removeItem(this.FONT_SIZE_KEY);
         this.applyFontSize();
         return this.getDefaultFontSize();
     },
 
+    /**
+     * Gets the stored font configuration object.
+     * @returns {object} Font configuration.
+     */
     getConfig() {
         try {
             const stored = localStorage.getItem(this.STORAGE_KEY);
@@ -2662,10 +3757,20 @@ export const fontSettings = {
         return this.getDefaultConfig();
     },
 
+    /**
+     * Saves the font configuration object.
+     * @param {object} config - The font config to store.
+     * @returns {void}
+     */
     setConfig(config) {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(config));
     },
 
+    /**
+     * Extracts a Google Fonts family name from a Google Fonts URL.
+     * @param {string} url - A Google Fonts specimen or CSS URL.
+     * @returns {string|null} Extracted family name, or null if not parseable.
+     */
     parseGoogleFontsUrl(url) {
         try {
             if (url.includes('fonts.google.com/specimen/')) {
@@ -2686,6 +3791,12 @@ export const fontSettings = {
         return null;
     },
 
+    /**
+     * Loads a Google Font by family name and applies it to the document.
+     * @async
+     * @param {string} familyName - The Google Fonts family name to load.
+     * @returns {Promise<void>}
+     */
     async loadGoogleFont(familyName) {
         // Validate familyName to prevent injection
         if (!familyName || typeof familyName !== 'string') {
@@ -2700,7 +3811,7 @@ export const fontSettings = {
         const encodedFamily = encodeURIComponent(sanitizedFamily);
         const url = `https://fonts.googleapis.com/css2?family=${encodedFamily}:wght@100;200;300;400;500;600;700;800;900&display=swap`;
 
-        let link = document.getElementById(this.FONT_LINK_ID);
+        let link = /** @type {HTMLLinkElement | null} */ (document.getElementById(this.FONT_LINK_ID));
         if (!link) {
             link = document.createElement('link');
             link.id = this.FONT_LINK_ID;
@@ -2720,6 +3831,13 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', `'${familyName}', sans-serif`);
     },
 
+    /**
+     * Loads a font from an arbitrary URL and applies it to the document.
+     * @async
+     * @param {string} url - The URL of the font file.
+     * @param {string} familyName - The CSS family name to assign.
+     * @returns {Promise<void>}
+     */
     async loadFontFromUrl(url, familyName) {
         const weights = [100, 200, 300, 400, 500, 600, 700, 800, 900];
         const fontFaceId = this.FONT_FACE_ID;
@@ -2755,6 +3873,11 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', `'${fontFamily}', sans-serif`);
     },
 
+    /**
+     * Gets the CSS font format string for a given font file URL.
+     * @param {string} url - The font file URL or filename.
+     * @returns {string} Font format string, e.g. `'woff2'` or `'truetype'`.
+     */
     getFontFormat(url) {
         const ext = url.split('.').pop().toLowerCase();
         const formats = {
@@ -2766,6 +3889,12 @@ export const fontSettings = {
         return formats[ext] || 'woff2';
     },
 
+    /**
+     * Reads a font file, encodes it as base64, and saves it to localStorage.
+     * @async
+     * @param {File} file - The font file to save.
+     * @returns {Promise<object>} Saved font metadata object including its generated ID.
+     */
     async saveUploadedFont(file) {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -2790,6 +3919,10 @@ export const fontSettings = {
         });
     },
 
+    /**
+     * Gets all saved custom (uploaded) fonts.
+     * @returns {Object} Map of font IDs to font metadata objects.
+     */
     getCustomFonts() {
         try {
             const stored = localStorage.getItem(this.CUSTOM_FONTS_KEY);
@@ -2799,6 +3932,12 @@ export const fontSettings = {
         }
     },
 
+    /**
+     * Loads a previously uploaded font from storage and applies it to the document.
+     * @async
+     * @param {string} fontId - The ID of the uploaded font to load.
+     * @returns {Promise<void>}
+     */
     async loadUploadedFont(fontId) {
         const customFonts = this.getCustomFonts();
         const font = customFonts[fontId];
@@ -2838,12 +3977,23 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', `'${fontFamily}', sans-serif`);
     },
 
+    /**
+     * Removes a previously uploaded font from storage.
+     * @param {string} fontId - The ID of the font to delete.
+     * @returns {void}
+     */
     deleteUploadedFont(fontId) {
         const customFonts = this.getCustomFonts();
         delete customFonts[fontId];
         localStorage.setItem(this.CUSTOM_FONTS_KEY, JSON.stringify(customFonts));
     },
 
+    /**
+     * Loads a built-in preset font and applies it to the document.
+     * @param {string} family - The CSS font family name.
+     * @param {string} [fallback='sans-serif'] - The fallback font family.
+     * @returns {void}
+     */
     loadPresetFont(family, fallback = 'sans-serif') {
         let link = document.getElementById(this.FONT_LINK_ID);
         if (link) {
@@ -2866,6 +4016,10 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', fontValue);
     },
 
+    /**
+     * Loads the Apple Music (SF Pro Display) font and applies it to the document.
+     * @returns {void}
+     */
     loadAppleMusicFont() {
         const APPLE_FONT_LINK_ID = 'monochrome-apple-font';
 
@@ -2882,7 +4036,7 @@ export const fontSettings = {
         }
 
         // Load Apple font CSS
-        let link = document.getElementById(APPLE_FONT_LINK_ID);
+        let link = /** @type {HTMLLinkElement | null} */ (document.getElementById(APPLE_FONT_LINK_ID));
         if (!link) {
             link = document.createElement('link');
             link.id = APPLE_FONT_LINK_ID;
@@ -2901,6 +4055,11 @@ export const fontSettings = {
         document.documentElement.style.setProperty('--font-family', "'SF Pro Display', sans-serif");
     },
 
+    /**
+     * Applies the currently configured font to the document.
+     * @async
+     * @returns {Promise<void>}
+     */
     async applyFont() {
         const config = this.getConfig();
 
@@ -2925,6 +4084,10 @@ export const fontSettings = {
         }
     },
 
+    /**
+     * Returns a list of all uploaded fonts with their metadata.
+     * @returns {Array} Array of font metadata objects including id, name, size, and uploadedAt.
+     */
     getUploadedFontList() {
         const fonts = this.getCustomFonts();
         return Object.entries(fonts).map(([id, font]) => ({
@@ -2939,6 +4102,10 @@ export const fontSettings = {
 export const pwaUpdateSettings = {
     STORAGE_KEY: 'pwa-auto-update-enabled',
 
+    /**
+     * Returns whether PWA auto-update is enabled.
+     * @returns {boolean}
+     */
     isAutoUpdateEnabled() {
         try {
             // Default to true (auto-update) if not set
@@ -2948,6 +4115,11 @@ export const pwaUpdateSettings = {
         }
     },
 
+    /**
+     * Sets whether PWA auto-update is enabled.
+     * @param {boolean} enabled - True to enable auto-update.
+     * @returns {void}
+     */
     setAutoUpdateEnabled(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
@@ -2956,6 +4128,10 @@ export const pwaUpdateSettings = {
 export const musicProviderSettings = {
     STORAGE_KEY: 'music-provider',
 
+    /**
+     * Gets the selected music provider name.
+     * @returns {string} Current music provider identifier.
+     */
     getProvider() {
         try {
             return localStorage.getItem(this.STORAGE_KEY) || 'tidal';
@@ -2964,6 +4140,11 @@ export const musicProviderSettings = {
         }
     },
 
+    /**
+     * Sets the music provider.
+     * @param {string} provider - The provider identifier to store.
+     * @returns {void}
+     */
     setProvider(provider) {
         localStorage.setItem(this.STORAGE_KEY, provider);
     },
@@ -2973,6 +4154,10 @@ export const modalSettings = {
     STORAGE_KEY: 'close-modals-on-navigation',
     INTERCEPT_BACK_KEY: 'intercept-back-to-close-modals',
 
+    /**
+     * Returns whether modals should close when navigating.
+     * @returns {boolean}
+     */
     shouldCloseOnNavigation() {
         try {
             const saved = localStorage.getItem(this.STORAGE_KEY);
@@ -2985,10 +4170,19 @@ export const modalSettings = {
         }
     },
 
+    /**
+     * Sets whether modals should close when navigating.
+     * @param {boolean} enabled - True to close modals on navigation.
+     * @returns {void}
+     */
     setCloseOnNavigation(enabled) {
         localStorage.setItem(this.STORAGE_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether the back button should be intercepted to close modals.
+     * @returns {boolean}
+     */
     shouldInterceptBackToClose() {
         try {
             const saved = localStorage.getItem(this.INTERCEPT_BACK_KEY);
@@ -3001,10 +4195,19 @@ export const modalSettings = {
         }
     },
 
+    /**
+     * Sets whether the back button should be intercepted to close modals.
+     * @param {boolean} enabled - True to intercept back button.
+     * @returns {void}
+     */
     setInterceptBackToClose(enabled) {
         localStorage.setItem(this.INTERCEPT_BACK_KEY, enabled ? 'true' : 'false');
     },
 
+    /**
+     * Returns whether any modals or side panels are currently open in the DOM.
+     * @returns {boolean}
+     */
     hasOpenModalsOrPanels() {
         const sidePanel = document.getElementById('side-panel');
         if (sidePanel && sidePanel.classList.contains('active')) {
@@ -3037,6 +4240,10 @@ export const modalSettings = {
         return false;
     },
 
+    /**
+     * Closes all currently open modals and overlay panels in the DOM.
+     * @returns {void}
+     */
     closeAllModals() {
         // Close all modal overlays
         document.querySelectorAll('.modal-overlay').forEach((modal) => {
@@ -3076,7 +4283,10 @@ export const contentBlockingSettings = {
     BLOCKED_TRACKS_KEY: 'blocked-tracks',
     BLOCKED_ALBUMS_KEY: 'blocked-albums',
 
-    // Blocked Artists
+    /**
+     * Gets the list of blocked artists.
+     * @returns {Array} Array of blocked artist objects.
+     */
     getBlockedArtists() {
         try {
             const data = localStorage.getItem(this.BLOCKED_ARTISTS_KEY);
@@ -3086,15 +4296,30 @@ export const contentBlockingSettings = {
         }
     },
 
+    /**
+     * Replaces the blocked artists list.
+     * @param {Array} artists - Array of artist objects to block.
+     * @returns {void}
+     */
     setBlockedArtists(artists) {
         localStorage.setItem(this.BLOCKED_ARTISTS_KEY, JSON.stringify(artists));
     },
 
+    /**
+     * Returns whether the given artist ID is blocked.
+     * @param {string|number} artistId - The artist ID to check.
+     * @returns {boolean}
+     */
     isArtistBlocked(artistId) {
         if (!artistId) return false;
         return this.getBlockedArtists().some((a) => String(a.id) === String(artistId));
     },
 
+    /**
+     * Adds an artist to the blocked list if not already present.
+     * @param {object} artist - The artist object with at least an `id` property.
+     * @returns {void}
+     */
     blockArtist(artist) {
         if (!artist || !artist.id) return;
         const blocked = this.getBlockedArtists();
@@ -3108,12 +4333,20 @@ export const contentBlockingSettings = {
         }
     },
 
+    /**
+     * Removes an artist from the blocked list.
+     * @param {string|number} artistId - The ID of the artist to unblock.
+     * @returns {void}
+     */
     unblockArtist(artistId) {
         const blocked = this.getBlockedArtists().filter((a) => String(a.id) !== String(artistId));
         this.setBlockedArtists(blocked);
     },
 
-    // Blocked Tracks
+    /**
+     * Gets the list of blocked tracks.
+     * @returns {Array} Array of blocked track objects.
+     */
     getBlockedTracks() {
         try {
             const data = localStorage.getItem(this.BLOCKED_TRACKS_KEY);
@@ -3123,15 +4356,30 @@ export const contentBlockingSettings = {
         }
     },
 
+    /**
+     * Replaces the blocked tracks list.
+     * @param {Array} tracks - Array of track objects to block.
+     * @returns {void}
+     */
     setBlockedTracks(tracks) {
         localStorage.setItem(this.BLOCKED_TRACKS_KEY, JSON.stringify(tracks));
     },
 
+    /**
+     * Returns whether the given track ID is blocked.
+     * @param {string|number} trackId - The track ID to check.
+     * @returns {boolean}
+     */
     isTrackBlocked(trackId) {
         if (!trackId) return false;
         return this.getBlockedTracks().some((t) => String(t.id) === String(trackId));
     },
 
+    /**
+     * Adds a track to the blocked list if not already present.
+     * @param {object} track - The track object with at least an `id` property.
+     * @returns {void}
+     */
     blockTrack(track) {
         if (!track || !track.id) return;
         const blocked = this.getBlockedTracks();
@@ -3146,12 +4394,20 @@ export const contentBlockingSettings = {
         }
     },
 
+    /**
+     * Removes a track from the blocked list.
+     * @param {string|number} trackId - The ID of the track to unblock.
+     * @returns {void}
+     */
     unblockTrack(trackId) {
         const blocked = this.getBlockedTracks().filter((t) => String(t.id) !== String(trackId));
         this.setBlockedTracks(blocked);
     },
 
-    // Blocked Albums
+    /**
+     * Gets the list of blocked albums.
+     * @returns {Array} Array of blocked album objects.
+     */
     getBlockedAlbums() {
         try {
             const data = localStorage.getItem(this.BLOCKED_ALBUMS_KEY);
@@ -3161,15 +4417,30 @@ export const contentBlockingSettings = {
         }
     },
 
+    /**
+     * Replaces the blocked albums list.
+     * @param {Array} albums - Array of album objects to block.
+     * @returns {void}
+     */
     setBlockedAlbums(albums) {
         localStorage.setItem(this.BLOCKED_ALBUMS_KEY, JSON.stringify(albums));
     },
 
+    /**
+     * Returns whether the given album ID is blocked.
+     * @param {string|number} albumId - The album ID to check.
+     * @returns {boolean}
+     */
     isAlbumBlocked(albumId) {
         if (!albumId) return false;
         return this.getBlockedAlbums().some((a) => String(a.id) === String(albumId));
     },
 
+    /**
+     * Adds an album to the blocked list if not already present.
+     * @param {object} album - The album object with at least an `id` property.
+     * @returns {void}
+     */
     blockAlbum(album) {
         if (!album || !album.id) return;
         const blocked = this.getBlockedAlbums();
@@ -3184,11 +4455,21 @@ export const contentBlockingSettings = {
         }
     },
 
+    /**
+     * Removes an album from the blocked list.
+     * @param {string|number} albumId - The ID of the album to unblock.
+     * @returns {void}
+     */
     unblockAlbum(albumId) {
         const blocked = this.getBlockedAlbums().filter((a) => String(a.id) !== String(albumId));
         this.setBlockedAlbums(blocked);
     },
 
+    /**
+     * Returns whether a track should be hidden due to blocking rules.
+     * @param {object} track - The track object to evaluate.
+     * @returns {boolean}
+     */
     // Check if track should be hidden (blocked track or by blocked artist)
     shouldHideTrack(track) {
         if (!track) return true;
@@ -3199,6 +4480,11 @@ export const contentBlockingSettings = {
         return false;
     },
 
+    /**
+     * Returns whether an album should be hidden due to blocking rules.
+     * @param {object} album - The album object to evaluate.
+     * @returns {boolean}
+     */
     // Check if album should be hidden
     shouldHideAlbum(album) {
         if (!album) return true;
@@ -3208,30 +4494,58 @@ export const contentBlockingSettings = {
         return false;
     },
 
+    /**
+     * Returns whether an artist should be hidden due to blocking rules.
+     * @param {object} artist - The artist object to evaluate.
+     * @returns {boolean}
+     */
     // Check if artist should be hidden
     shouldHideArtist(artist) {
         if (!artist) return true;
         return this.isArtistBlocked(artist.id);
     },
 
+    /**
+     * Filters an array of tracks, removing any that should be hidden.
+     * @param {Array} tracks - The tracks array to filter.
+     * @returns {Array} Filtered tracks array.
+     */
     // Filter arrays
     filterTracks(tracks) {
         return tracks.filter((t) => !this.shouldHideTrack(t));
     },
 
+    /**
+     * Filters an array of albums, removing any that should be hidden.
+     * @param {Array} albums - The albums array to filter.
+     * @returns {Array} Filtered albums array.
+     */
     filterAlbums(albums) {
         return albums.filter((a) => !this.shouldHideAlbum(a));
     },
 
+    /**
+     * Filters an array of artists, removing any that should be hidden.
+     * @param {Array} artists - The artists array to filter.
+     * @returns {Array} Filtered artists array.
+     */
     filterArtists(artists) {
         return artists.filter((a) => !this.shouldHideArtist(a));
     },
 
+    /**
+     * Gets the total count of all blocked items across artists, tracks, and albums.
+     * @returns {number} Total blocked item count.
+     */
     // Get all blocked items count
     getTotalBlockedCount() {
         return this.getBlockedArtists().length + this.getBlockedTracks().length + this.getBlockedAlbums().length;
     },
 
+    /**
+     * Removes all blocked artists, tracks, and albums from storage.
+     * @returns {void}
+     */
     // Clear all blocked items
     clearAllBlocked() {
         localStorage.removeItem(this.BLOCKED_ARTISTS_KEY);
@@ -3277,6 +4591,10 @@ export const keyboardShortcuts = {
         multiSelectRange: { key: 'shift', shift: true, ctrl: false, alt: false, description: 'Select track range' },
     },
 
+    /**
+     * Gets the current keyboard shortcuts map (merged with defaults).
+     * @returns {Object} Map of action names to shortcut objects.
+     */
     getShortcuts() {
         try {
             const saved = localStorage.getItem(this.STORAGE_KEY);
@@ -3292,10 +4610,20 @@ export const keyboardShortcuts = {
         return this.getDefaultShortcuts();
     },
 
+    /**
+     * Returns a copy of the default keyboard shortcuts map.
+     * @returns {Object} Default shortcuts map.
+     */
     getDefaultShortcuts() {
         return { ...this.DEFAULT_SHORTCUTS };
     },
 
+    /**
+     * Saves a custom shortcut for the given action.
+     * @param {string} action - The action name to update.
+     * @param {Object} shortcut - The shortcut definition to save.
+     * @returns {void}
+     */
     setShortcut(action, shortcut) {
         const shortcuts = this.getShortcuts();
         const defaults = this.DEFAULT_SHORTCUTS;
@@ -3306,10 +4634,19 @@ export const keyboardShortcuts = {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(shortcuts));
     },
 
+    /**
+     * Resets all keyboard shortcuts to their defaults.
+     * @returns {void}
+     */
     resetShortcuts() {
         localStorage.removeItem(this.STORAGE_KEY);
     },
 
+    /**
+     * Gets the shortcut definition for a specific action.
+     * @param {string} action - The action name to look up.
+     * @returns {Object} Shortcut object for the action.
+     */
     getShortcutForAction(action) {
         const shortcuts = this.getShortcuts();
         return shortcuts[action] || this.DEFAULT_SHORTCUTS[action];

@@ -1,8 +1,24 @@
+// @ts-check
 import { SegmentedDownloadProgress } from './progressEvents';
 
+/**
+ * Downloads an HLS stream by fetching the master/media playlist and concatenating all segments.
+ */
 export class HlsDownloader {
+    /**
+     * Creates a new HlsDownloader instance.
+     */
     constructor() {}
 
+    /**
+     * Downloads a complete HLS stream and returns its segments as a single Blob.
+     * Automatically selects the highest-bandwidth variant from a master playlist.
+     * @async
+     * @param {string} masterUrl - URL of the HLS master or media playlist
+     * @param {{ onProgress?: (p: SegmentedDownloadProgress) => void, signal?: AbortSignal }} [options={}] - Download options
+     * @returns {Promise<Blob>} A Blob containing the concatenated segment data
+     * @throws {Error} If no segments are found or a segment fetch fails
+     */
     async downloadHlsStream(masterUrl, options = {}) {
         const { onProgress, signal } = options;
 
@@ -46,13 +62,22 @@ export class HlsDownloader {
         return new Blob(chunks, { type: mimeType });
     }
 
+    /**
+     * Selects the highest-bandwidth variant URL from an HLS master playlist.
+     * Returns `masterUrl` unchanged when the text is a media playlist (no `#EXT-X-STREAM-INF`).
+     * @param {string} masterUrl - Absolute URL of the master playlist
+     * @param {string} masterText - Text content of the master playlist
+     * @returns {string} Absolute URL of the best variant playlist
+     */
     getBestVariantUrl(masterUrl, masterText) {
         if (!masterText.includes('#EXT-X-STREAM-INF')) {
             return masterUrl;
         }
 
         const lines = masterText.split('\n');
+        /** @type {Array<{bandwidth: number, resolution: string, url: string}>} */
         const variants = [];
+        /** @type {{bandwidth: number, resolution: string, url?: string} | null} */
         let currentVariant = null;
 
         for (const line of lines) {
@@ -67,7 +92,7 @@ export class HlsDownloader {
             } else if (trimmed && !trimmed.startsWith('#')) {
                 if (currentVariant) {
                     currentVariant.url = this.resolveUrl(masterUrl, trimmed);
-                    variants.push(currentVariant);
+                    variants.push(/** @type {{bandwidth: number, resolution: string, url: string}} */ (currentVariant));
                     currentVariant = null;
                 }
             }
@@ -79,6 +104,12 @@ export class HlsDownloader {
         return variants[0].url;
     }
 
+    /**
+     * Parses a media playlist and returns the absolute URL of every segment.
+     * @param {string} mediaUrl - Absolute URL of the media playlist (used as the base for relative URIs)
+     * @param {string} mediaText - Text content of the media playlist
+     * @returns {string[]} Ordered array of absolute segment URLs
+     */
     parseMediaPlaylist(mediaUrl, mediaText) {
         const lines = mediaText.split('\n');
         const segments = [];
@@ -93,6 +124,13 @@ export class HlsDownloader {
         return segments;
     }
 
+    /**
+     * Resolves a potentially relative URL against a base URL.
+     * Returns the input unchanged when resolution fails.
+     * @param {string} baseUrl - Absolute base URL
+     * @param {string} relativeUrl - URL to resolve (may be absolute or relative)
+     * @returns {string} Resolved absolute URL
+     */
     resolveUrl(baseUrl, relativeUrl) {
         try {
             return new URL(relativeUrl, baseUrl).href;

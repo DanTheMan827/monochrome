@@ -1,3 +1,4 @@
+// @ts-check
 import {
     getCoverBlob,
     getTrackTitle,
@@ -14,9 +15,18 @@ import { modernSettings } from './ModernSettings.js';
 /**
  * @typedef {import('./container-classes.ts').Track} Track
  * @typedef {import('./container-classes.ts').EnrichedTrack} EnrichedTrack
+ * @typedef {import('./container-classes.ts').EnrichedAlbum} EnrichedAlbum
  * @typedef {import("./taglib.types.ts").TagLibMetadata} TagLibMetadata
+ * @typedef {import("./taglib.types.ts").TagLibWriteTypes} TagLibWriteTypes
  */
 
+/**
+ * Prefetches cover art and lyrics for a track to avoid sequential fetches during download.
+ * @param {Track | EnrichedTrack} track - The track to prefetch metadata for
+ * @param {object} api - API instance used to fetch cover art
+ * @param {Blob | null} [coverBlob] - Optional pre-fetched cover blob; if provided, skips the cover fetch
+ * @returns {{ coverFetch: Promise<Blob|null|void>, lyricsFetch: Promise<any>|undefined }} Object containing promises for cover and lyrics
+ */
 export function prefetchMetadataObjects(track, api, coverBlob = null) {
     const coverId = getTrackCoverId(track);
     const coverFetch = coverBlob
@@ -33,8 +43,9 @@ export function prefetchMetadataObjects(track, api, coverBlob = null) {
  * Adds metadata tags to audio files (FLAC, M4A or MP3)
  * @param {Blob} audioBlob - The audio file blob
  * @param {Track | EnrichedTrack} track - Track metadata
- * @param {Object} api - API instance for fetching album art
- * @param {string} quality - Audio quality
+ * @param {object} [_api] - API instance for fetching album art
+ * @param {string} [_quality] - Audio quality
+ * @param {{ coverFetch: Promise<Blob|null|void>, lyricsFetch: Promise<any>|undefined }} [prefetchPromises]
  * @returns {Promise<Blob>} - Audio blob with embedded metadata
  */
 export async function addMetadataToAudio(audioBlob, track, _api, _quality, prefetchPromises) {
@@ -48,25 +59,30 @@ export async function addMetadataToAudio(audioBlob, track, _api, _quality, prefe
     };
 
     try {
+        /** @type {EnrichedAlbum | undefined} */
+        const enrichedAlbum = /** @type {EnrichedAlbum | undefined} */ (track.album);
+        /** @type {(Track | EnrichedTrack) & { discNumber?: number }} */
+        const enrichedTrack = /** @type {(Track | EnrichedTrack) & { discNumber?: number }} */ (track);
+
         data.title = getTrackTitle(track);
         data.artist = getFullArtistArray(track);
-        data.albumTitle = track.album?.title;
-        data.albumArtist = track.album?.artist?.name || getFullArtistString(track) || '';
+        data.albumTitle = enrichedAlbum?.title;
+        data.albumArtist = enrichedAlbum?.artist?.name || getFullArtistString(track) || '';
         data.trackNumber = track.trackNumber;
-        data.discNumber = track.volumeNumber ?? track.discNumber;
-        data.totalTracks = track.album?.numberOfTracksOnDisc ?? track.album?.numberOfTracks;
-        data.totalDiscs = track.album?.totalDiscs;
+        data.discNumber = track.volumeNumber ?? enrichedTrack.discNumber;
+        data.totalTracks = enrichedAlbum?.numberOfTracksOnDisc ?? enrichedAlbum?.numberOfTracks;
+        data.totalDiscs = enrichedAlbum?.totalDiscs;
         data.copyright = track.copyright;
         data.isrc = track.isrc;
-        data.upc = track.album?.upc;
+        data.upc = enrichedAlbum?.upc;
         data.explicit = Boolean(track.explicit);
         data.stik = track.type?.toLowerCase().includes('video') ? Mp4Stik.MusicVideo : Mp4Stik.Normal;
         data.extra = {
             TIDAL_TRACK_ID: track.id ? String(track.id) : undefined,
-            TIDAL_ALBUM_ID: track.album?.id ? String(track.album?.id) : undefined,
+            TIDAL_ALBUM_ID: enrichedAlbum?.id ? String(enrichedAlbum?.id) : undefined,
             TIDAL_TRACK_URL: track.url?.trim() || undefined,
-            TIDAL_ALBUM_URL: track.album?.url?.trim() || undefined,
-            ALBUM_RELEASE_DATE: track.album?.releaseDate?.trim() || undefined,
+            TIDAL_ALBUM_URL: enrichedAlbum?.url?.trim() || undefined,
+            ALBUM_RELEASE_DATE: enrichedAlbum?.releaseDate?.trim() || undefined,
             TIDAL_DATA: JSON.stringify(track, null, 2).replace(/\n/g, '\r\n'),
         };
 
@@ -88,7 +104,7 @@ export async function addMetadataToAudio(audioBlob, track, _api, _quality, prefe
         }
 
         const releaseDateStr =
-            track.album?.releaseDate?.trim() || track?.streamStartDate?.split('T')?.[0]?.trim() || undefined;
+            enrichedAlbum?.releaseDate?.trim() || track?.streamStartDate?.split('T')?.[0]?.trim() || undefined;
 
         if (releaseDateStr) {
             try {
@@ -125,14 +141,16 @@ export async function addMetadataToAudio(audioBlob, track, _api, _quality, prefe
             console.warn('Error setting lyrics metadata', track, e);
         }
 
-        return await addMetadataWithTagLib(
-            audioBlob,
-            {
-                ...data,
-            },
-            undefined,
-            true,
-            true
+        return /** @type {Blob} */ (
+            await addMetadataWithTagLib(
+                /** @type {TagLibWriteTypes} */ (/** @type {unknown} */ (audioBlob)),
+                {
+                    ...data,
+                },
+                undefined,
+                true,
+                true
+            )
         );
     } catch (err) {
         console.error(err);
@@ -144,9 +162,13 @@ export async function addMetadataToAudio(audioBlob, track, _api, _quality, prefe
 /**
  * Reads metadata from a file
  * @param {Uint8Array | Blob | File | FileSystemFileHandle | FileSystemFileEntry} file
- * @returns {Promise<Object>} Track metadata
+ * @param {{ filename?: string, siblings?: File[] }} [options]
+ * @returns {Promise<object>} Track metadata
  */
-export async function readTrackMetadata(file, { filename = file?.name || 'Unknown Title', siblings } = {}) {
+export async function readTrackMetadata(
+    file,
+    { filename = /** @type {File} */ (/** @type {unknown} */ (file))?.name || 'Unknown Title', siblings } = {}
+) {
     const metadata = {
         title: filename?.replace(/\.[^/.]+$/, ''),
         artists: [],
@@ -158,7 +180,7 @@ export async function readTrackMetadata(file, { filename = file?.name || 'Unknow
         explicit: false,
         isLocal: true,
         file: file,
-        id: `local-${filename}-${file.lastModified}`,
+        id: `local-${filename}-${/** @type {File} */ (/** @type {unknown} */ (file))?.lastModified ?? 0}`,
     };
 
     try {
@@ -166,8 +188,8 @@ export async function readTrackMetadata(file, { filename = file?.name || 'Unknow
 
         if (data) {
             metadata.title = data.title || metadata.title;
-            const artistNames = (data.artist || '')
-                .split(';')
+            const rawArtist = data.artist;
+            const artistNames = (Array.isArray(rawArtist) ? rawArtist : (rawArtist || '').split(';'))
                 .map((a) => a.trim())
                 .filter((a) => a);
 
@@ -186,7 +208,9 @@ export async function readTrackMetadata(file, { filename = file?.name || 'Unknow
             }
 
             if (data.cover) {
-                const blob = new Blob([data.cover.data], { type: data.cover.type });
+                const blob = new Blob([/** @type {BlobPart} */ (/** @type {unknown} */ (data.cover.data))], {
+                    type: data.cover.type,
+                });
                 metadata.album.cover = URL.createObjectURL(blob);
             }
 

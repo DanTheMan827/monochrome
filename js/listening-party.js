@@ -1,3 +1,4 @@
+// @ts-check
 import { pb, syncManager } from './accounts/pocketbase.js';
 import { authManager } from './accounts/auth.js';
 import { Player } from './player.js';
@@ -7,7 +8,26 @@ import { audioContextManager } from './audio-context.js';
 import { showNotification } from './downloads.js';
 import { SVG_PAUSE } from './icons.js';
 
+/**
+ * Lightweight modal utility for showing alerts, confirmations, and custom
+ * dialog prompts as promise-based overlays.
+ */
 class Modal {
+    /**
+     * Renders a modal overlay with a title, HTML content body, and one or more
+     * action buttons. Resolves with the return value of the clicked action's
+     * callback, or `false` if the overlay is dismissed.
+     *
+     * @async
+     * @param {object} options - Modal configuration.
+     * @param {string} options.title - The modal heading text.
+     * @param {string} options.content - HTML string rendered as the modal body.
+     * @param {Array<{label: string, type?: string, callback?: Function}>} [options.actions=[]]
+     *   Button definitions. Each `callback` receives the modal element and may return
+     *   `false` to keep the modal open.
+     * @returns {Promise<*>} Resolves with the callback return value, `true` for
+     *   buttons without a callback, or `false` when dismissed.
+     */
     static async show({ title, content, actions = [] }) {
         return new Promise((resolve) => {
             const modal = document.createElement('div');
@@ -37,8 +57,8 @@ class Modal {
             };
 
             modal.querySelectorAll('.modal-action-btn').forEach((btn) => {
-                btn.onclick = () => {
-                    const action = actions[btn.dataset.index];
+                /** @type {HTMLElement} */ (btn).onclick = () => {
+                    const action = actions[/** @type {HTMLElement} */ (btn).dataset.index];
                     if (action.callback) {
                         const result = action.callback(modal);
                         if (result !== false) cleanup(result ?? true);
@@ -48,10 +68,18 @@ class Modal {
                 };
             });
 
-            modal.querySelector('.modal-overlay').onclick = () => cleanup(false);
+            /** @type {HTMLElement} */ (modal.querySelector('.modal-overlay')).onclick = () => cleanup(false);
         });
     }
 
+    /**
+     * Shows a simple alert modal with a single "OK" button.
+     *
+     * @async
+     * @param {string} title - The modal heading text.
+     * @param {string} message - The message to display.
+     * @returns {Promise<*>} Resolves when the user dismisses the modal.
+     */
     static async alert(title, message) {
         return this.show({
             title,
@@ -60,6 +88,16 @@ class Modal {
         });
     }
 
+    /**
+     * Shows a confirmation modal with a primary action button and a "Cancel" button.
+     *
+     * @async
+     * @param {string} title - The modal heading text.
+     * @param {string} message - The confirmation message to display.
+     * @param {string} [confirmLabel='Confirm'] - Label for the confirm button.
+     * @param {string} [type='primary'] - Button style type for the confirm button.
+     * @returns {Promise<boolean>} `true` if confirmed, `false` if cancelled.
+     */
     static async confirm(title, message, confirmLabel = 'Confirm', type = 'primary') {
         return this.show({
             title,
@@ -72,7 +110,16 @@ class Modal {
     }
 }
 
+/**
+ * Manages real-time listening parties: creating/joining parties, syncing
+ * playback state between host and guests via PocketBase, handling chat
+ * messages, song requests, and rendering the party UI.
+ */
 export class ListeningPartyManager {
+    /**
+     * Creates a new ListeningPartyManager and wires up DOM event listeners
+     * for party controls.
+     */
     constructor() {
         this.currentParty = null;
         this.isHost = false;
@@ -90,6 +137,10 @@ export class ListeningPartyManager {
         this.setupEventListeners();
     }
 
+    /**
+     * Attaches click/keypress handlers to the party control buttons in the DOM
+     * (create, leave, copy link, send chat).
+     */
     setupEventListeners() {
         document.getElementById('create-party-btn')?.addEventListener('click', () => this.createParty());
         document.getElementById('leave-party-btn')?.addEventListener('click', () => this.leaveParty());
@@ -100,6 +151,13 @@ export class ListeningPartyManager {
         });
     }
 
+    /**
+     * Creates a new listening party in PocketBase using the current player state
+     * and navigates the host to the new party page.
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async createParty() {
         const nameInput = document.getElementById('party-name-input');
         const user = authManager.user;
@@ -114,7 +172,9 @@ export class ListeningPartyManager {
             return;
         }
 
-        const name = nameInput.value.trim() || `${user.displayName || user.username || 'Member'}'s Party`;
+        const name =
+            /** @type {HTMLInputElement} */ (nameInput).value.trim() ||
+            `${user.name || user.email?.split('@')[0] || 'Member'}'s Party`;
         const player = Player.instance;
         const currentTrack = player.currentTrack ? syncManager._minifyItem('track', player.currentTrack) : null;
         const partyData = {
@@ -135,6 +195,14 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Joins an existing listening party by ID. Prompts for confirmation, creates
+     * a member record, sets up real-time subscriptions, and syncs playback.
+     *
+     * @async
+     * @param {string} partyId - The PocketBase record ID of the party to join.
+     * @returns {Promise<void>}
+     */
     async joinParty(partyId) {
         if (this.currentParty?.id === partyId || this.isJoining) return;
         this.isJoining = true;
@@ -190,6 +258,15 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Prompts the user to confirm joining the party. Authenticated users see a
+     * simple confirmation; guests are asked to enter a nickname.
+     *
+     * @async
+     * @param {object|null} user - The authenticated user object, or `null` for guests.
+     * @returns {Promise<{profile: object|null}|false>} Resolves with a profile object
+     *   on confirmation, or `false` if the user cancels.
+     */
     async showJoinModal(user) {
         if (user) {
             const confirmed = await Modal.confirm(
@@ -232,6 +309,10 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Monkey-patches `Player.safePlay` to prevent guests from starting playback
+     * independently while the party host has paused the stream.
+     */
     setupGuestSyncInterception() {
         const player = Player.instance;
         if (!this.originalSafePlay) this.originalSafePlay = player.safePlay.bind(player);
@@ -241,13 +322,19 @@ export class ListeningPartyManager {
         };
     }
 
+    /**
+     * Returns the display profile (name and avatar URL) for the current user.
+     * Falls back to a guest profile stored in localStorage when not authenticated.
+     *
+     * @async
+     * @param {object|null} [pbUser=null] - The PocketBase user record, or `null`.
+     * @returns {Promise<{name: string, avatar_url: string}>} The resolved display profile.
+     */
     async getMemberProfile(pbUser = null) {
         const user = authManager.user;
         if (user) {
-            const name =
-                pbUser?.display_name || pbUser?.username || user.displayName || user.email?.split('@')[0] || 'Member';
-            const avatar =
-                pbUser?.avatar_url || user.photoURL || `https://api.dicebear.com/9.x/identicon/svg?seed=${name}`;
+            const name = pbUser?.display_name || pbUser?.username || user.name || user.email?.split('@')[0] || 'Member';
+            const avatar = pbUser?.avatar_url || `https://api.dicebear.com/9.x/identicon/svg?seed=${name}`;
             return { name, avatar_url: avatar };
         }
         const cached = localStorage.getItem('party_guest_profile');
@@ -256,6 +343,12 @@ export class ListeningPartyManager {
             : { name: 'Guest', avatar_url: 'https://api.dicebear.com/9.x/identicon/svg?seed=Guest' };
     }
 
+    /**
+     * Subscribes to real-time PocketBase events for party state changes, member
+     * updates, new chat messages, and song requests.
+     *
+     * @param {string} partyId - The PocketBase record ID of the active party.
+     */
     setupSubscriptions(partyId) {
         this.unsubscribeFunctions.forEach((unsub) => unsub());
         this.unsubscribeFunctions = [];
@@ -294,7 +387,8 @@ export class ListeningPartyManager {
             .subscribe(
                 '*',
                 (e) => {
-                    if (e.record.party === partyId && e.action === 'create') this.addChatMessage(e.record);
+                    if (e.record.party === partyId && e.action === 'create')
+                        this.addChatMessage(/** @type {any} */ (e.record));
                 },
                 { f_id }
             )
@@ -313,12 +407,26 @@ export class ListeningPartyManager {
             .catch(console.error);
     }
 
+    /**
+     * Fetches the initial members, messages, and song requests for the party.
+     *
+     * @async
+     * @param {string} _partyId - The party record ID (unused directly; relies on `currentParty`).
+     * @returns {Promise<void>}
+     */
     async loadInitialData(_partyId) {
         await this.loadMembers();
         await this.loadMessages();
         await this.loadRequests();
     }
 
+    /**
+     * Loads the current party member list from PocketBase and re-renders the
+     * members UI.
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async loadMembers() {
         const f_id = authManager.user ? authManager.user.$id : 'guest';
         this.members = await pb
@@ -327,6 +435,13 @@ export class ListeningPartyManager {
         this.renderMembers();
     }
 
+    /**
+     * Loads the 50 most recent chat messages from PocketBase and renders them
+     * in the chat container.
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async loadMessages() {
         const f_id = authManager.user ? authManager.user.$id : 'guest';
         const res = await pb
@@ -340,6 +455,13 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Loads all pending song requests for the party from PocketBase and
+     * re-renders the requests UI.
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async loadRequests() {
         const f_id = authManager.user ? authManager.user.$id : 'guest';
         try {
@@ -354,6 +476,10 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Renders all party UI sections (header, members, requests, indicator) and
+     * sets up host or guest player controls depending on the current role.
+     */
     renderPartyUI() {
         this.updatePartyHeader();
         this.renderMembers();
@@ -368,13 +494,17 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Updates the party title, member count, host name, and currently playing
+     * track display in the party header DOM elements.
+     */
     updatePartyHeader() {
         const titleEl = document.getElementById('party-title');
         const countEl = document.getElementById('party-member-count');
         const metaEl = document.getElementById('party-meta');
 
         if (titleEl) titleEl.textContent = this.currentParty.name;
-        if (countEl) countEl.textContent = this.members.length;
+        if (countEl) countEl.textContent = String(this.members.length);
 
         if (metaEl) {
             const host = this.currentParty.expand?.host;
@@ -412,6 +542,9 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Re-renders the members list element with the current `this.members` array.
+     */
     renderMembers() {
         const list = document.getElementById('party-members-list');
         if (!list) return;
@@ -423,6 +556,10 @@ export class ListeningPartyManager {
             .join('');
     }
 
+    /**
+     * Re-renders the song requests list. The host sees "Add to Queue" buttons;
+     * guests see a read-only list.
+     */
     renderRequests() {
         const list = document.getElementById('party-requests-list');
         if (!list) return;
@@ -458,7 +595,7 @@ export class ListeningPartyManager {
                     const reqId = e.currentTarget.dataset.reqId;
                     const req = this.requests.find((r) => r.id === reqId);
                     if (req) {
-                        Player.instance.addToQueue(req.track);
+                        void Player.instance.addToQueue(req.track);
                         showNotification(`Added "${req.track.title}" to queue`);
                         await pb.collection('party_requests').delete(req.id, { f_id });
                     }
@@ -467,6 +604,12 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Appends a chat message to the chat container, rendering inline images,
+     * YouTube embeds, video players, and plain links where appropriate.
+     *
+     * @param {{content: string, sender_name: string}} msg - The message record to render.
+     */
     addChatMessage(msg) {
         const container = document.getElementById('party-chat-messages');
         if (!container) return;
@@ -505,8 +648,15 @@ export class ListeningPartyManager {
         container.scrollTop = container.scrollHeight;
     }
 
+    /**
+     * Reads the chat input field, clears it, and posts the message to the
+     * party's messages collection in PocketBase.
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async sendChatMessage() {
-        const input = document.getElementById('party-chat-input');
+        const input = /** @type {HTMLInputElement} */ (document.getElementById('party-chat-input'));
         if (!input || !input.value.trim()) return;
         const content = input.value.trim();
         input.value = '';
@@ -519,6 +669,14 @@ export class ListeningPartyManager {
         } catch (_e) {}
     }
 
+    /**
+     * Submits a song request for the given track to the party's requests
+     * collection in PocketBase and shows a notification.
+     *
+     * @async
+     * @param {object} track - The track being requested.
+     * @returns {Promise<void>}
+     */
     async requestSong(track) {
         if (!this.currentParty) return;
         const profile = await this.getMemberProfile();
@@ -539,6 +697,15 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Synchronises the local player's track and playback position to match the
+     * host's state as recorded in the party record. No-ops if an internal sync
+     * is already in progress.
+     *
+     * @async
+     * @param {object} party - The current party record from PocketBase.
+     * @returns {Promise<void>}
+     */
     async syncWithHost(party) {
         if (this.isInternalSync) return;
         this.isInternalSync = true;
@@ -558,7 +725,7 @@ export class ListeningPartyManager {
                 delete cleanedTrack.audioUrl;
                 delete cleanedTrack.streamUrl;
                 delete cleanedTrack.remoteUrl;
-                player.setQueue([cleanedTrack], 0);
+                void player.setQueue([cleanedTrack], 0);
                 await player.playTrackFromQueue(party.playback_time);
                 if (!party.is_playing) el.pause();
                 return;
@@ -582,6 +749,10 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Disables all playback control elements (play/pause, next, prev, shuffle,
+     * repeat, progress bar) for guests by setting opacity and pointer-events.
+     */
     lockControls() {
         const selectors = [
             '.play-pause-btn',
@@ -599,12 +770,16 @@ export class ListeningPartyManager {
         ];
         selectors.forEach((s) =>
             document.querySelectorAll(s).forEach((el) => {
-                el.style.opacity = '0.5';
-                el.style.pointerEvents = 'none';
+                /** @type {HTMLElement} */ (el).style.opacity = '0.5';
+                /** @type {HTMLElement} */ (el).style.pointerEvents = 'none';
             })
         );
     }
 
+    /**
+     * Re-enables all playback control elements for the host by restoring
+     * opacity and pointer-events to their default values.
+     */
     unlockControls() {
         const selectors = [
             '.play-pause-btn',
@@ -622,12 +797,18 @@ export class ListeningPartyManager {
         ];
         selectors.forEach((s) =>
             document.querySelectorAll(s).forEach((el) => {
-                el.style.opacity = '1';
-                el.style.pointerEvents = 'auto';
+                /** @type {HTMLElement} */ (el).style.opacity = '1';
+                /** @type {HTMLElement} */ (el).style.pointerEvents = 'auto';
             })
         );
     }
 
+    /**
+     * Patches the player's `play`, `pause`, and `seeked` events and
+     * `playTrackFromQueue` method so that every host action is pushed to
+     * PocketBase and propagated to all guests. Also starts a 2-second polling
+     * interval as a fallback.
+     */
     setupHostPlayerSync() {
         const player = Player.instance;
         const updateParty = async () => {
@@ -661,6 +842,11 @@ export class ListeningPartyManager {
         this.syncInterval = setInterval(updateParty, 2000);
     }
 
+    /**
+     * Patches `playTrackFromQueue` for guests: if a guest tries to play a
+     * different track manually, they are asked to confirm leaving the party
+     * first.
+     */
     setupGuestPlayerInterferenceCheck() {
         const player = Player.instance;
         const originalPlayTrackFromQueue = player.playTrackFromQueue.bind(player);
@@ -679,6 +865,10 @@ export class ListeningPartyManager {
         };
     }
 
+    /**
+     * Starts a 30-second interval that updates the member's `last_seen`
+     * timestamp in PocketBase to signal that the member is still present.
+     */
     startHeartbeat() {
         this.heartbeatInterval = setInterval(async () => {
             if (!this.memberId) return;
@@ -690,6 +880,16 @@ export class ListeningPartyManager {
         }, 30000);
     }
 
+    /**
+     * Leaves (or ends) the current listening party. The host is prompted to
+     * confirm ending the party for all members. Cleans up member records,
+     * subscriptions, intervals, and resets the player to its original state.
+     *
+     * @async
+     * @param {boolean} [shouldCleanup=true] - If `true` and the user is the host,
+     *   shows a confirmation dialog and deletes all party data.
+     * @returns {Promise<void>}
+     */
     async leaveParty(shouldCleanup = true) {
         const f_id = authManager.user?.$id || 'guest';
         if (this.isHost && shouldCleanup) {
@@ -730,6 +930,10 @@ export class ListeningPartyManager {
         navigate('/parties');
     }
 
+    /**
+     * Restores any player methods that were monkey-patched during the party
+     * (e.g. `safePlay` intercepted for guests).
+     */
     restorePlayerMethods() {
         const player = Player.instance;
         if (this.originalSafePlay) {
@@ -738,11 +942,19 @@ export class ListeningPartyManager {
         }
     }
 
+    /**
+     * Copies the party invite link to the clipboard and shows a confirmation
+     * notification.
+     */
     copyInviteLink() {
         navigator.clipboard.writeText(`${window.location.origin}/party/${this.currentParty.id}`).catch(console.error);
         showNotification('Invite link copied!');
     }
 
+    /**
+     * Shows (or updates) a persistent floating card at the bottom of the page
+     * that indicates an active party and links back to the party page.
+     */
     showPartyIndicator() {
         let indicator = document.getElementById('party-indicator');
         if (!indicator) {

@@ -113,7 +113,8 @@ export class TrackAlbum extends BaseContainer {
     id: number;
     title: string;
     vibrantColor: string;
-    videoCover?: string;
+    /** Video cover UUID, or `null` when unavailable. Matches {@link TidalTrackAlbumRef.videoCover}. */
+    videoCover?: string | null;
 
     constructor(data: object) {
         super(data);

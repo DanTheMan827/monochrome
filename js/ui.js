@@ -50,7 +50,10 @@ import {
     createTrackFromSong,
 } from './tracker.js';
 
-fontSettings.applyFont().catch(console.error);
+/**
+ * @typedef {import('./lyrics.js').LyricsManager} LyricsManager
+ */
+
 fontSettings.applyFontSize();
 
 import {
@@ -89,6 +92,7 @@ import {
     SVG_CLOCK,
     SVG_CHECKBOX,
 } from './icons.js';
+import { trackSearch, trackChangeSort } from './analytics.js';
 
 const setFullscreenUIToggleIcon = (button, visualizerOnlyMode) => {
     if (!button) return;
@@ -96,6 +100,13 @@ const setFullscreenUIToggleIcon = (button, visualizerOnlyMode) => {
 };
 
 const isMobileFullscreenViewport = () => window.matchMedia('(max-width: 768px)').matches;
+
+/**
+ * Sorts an array of tracks by the given sort type.
+ * @param {Array<Object>} tracks - The array of track objects to sort.
+ * @param {string} sortType - The sort mode: 'custom', 'added-newest', 'added-oldest', 'title', 'artist', or 'album'.
+ * @returns {Array<Object>} A new sorted array of tracks.
+ */
 function sortTracks(tracks, sortType) {
     if (sortType === 'custom') return [...tracks];
     const sorted = [...tracks];
@@ -137,9 +148,17 @@ const TRACKLIST_HEADER_WITH_LIKE_COL_HTML = `
     </div>
 `;
 
+/**
+ * Singleton renderer class responsible for all UI components and page rendering.
+ * Manages dynamic color theming, track rendering, page transitions, and fullscreen cover.
+ */
 export class UIRenderer {
     static #instance = null;
 
+    /**
+     * Returns the singleton UIRenderer instance, throwing if not yet initialized.
+     * @returns {UIRenderer} The singleton instance.
+     */
     static get instance() {
         if (!UIRenderer.#instance) {
             throw new Error('UIRenderer is not initialized. Call UIRenderer.initialize(api, player) first.');
@@ -147,7 +166,12 @@ export class UIRenderer {
         return UIRenderer.#instance;
     }
 
-    /** @private */
+    /**
+     * Initializes the UIRenderer with the given API and player instances.
+     * @private
+     * @param {Object} api - The music API client instance.
+     * @param {Object} player - The audio player instance.
+     */
     constructor(api, player) {
         this.api = api;
         this.player = player;
@@ -158,6 +182,8 @@ export class UIRenderer {
         this.renderLock = false;
         this.lastRecommendedTracks = [];
         this.currentArtistId = null;
+        /** @type {LyricsManager|null} */
+        this.lyricsManager = null;
         this.fullscreenLyricsVisible = true;
         this.fullscreenPlaybackStateCleanup = null;
         this.fullscreenDismissHandleCleanup = null;
@@ -200,6 +226,13 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Creates and stores the singleton UIRenderer instance.
+     * @async
+     * @param {Object} api - The music API client instance.
+     * @param {Object} player - The audio player instance.
+     * @returns {Promise<UIRenderer>} The newly created singleton instance.
+     */
     static async initialize(api, player) {
         if (UIRenderer.#instance) {
             throw new Error('UIRenderer is already initialized');
@@ -207,7 +240,11 @@ export class UIRenderer {
         return (UIRenderer.#instance = new UIRenderer(api, player));
     }
 
-    // Helper for Heart Icon
+    /**
+     * Creates an SVG heart icon element.
+     * @param {boolean} [filled=false] - Whether to render a filled (liked) heart.
+     * @returns {string} SVG markup string for the heart icon.
+     */
     createHeartIcon(filled = false) {
         if (filled) {
             return SVG_HEART_FILLED(20);
@@ -215,6 +252,12 @@ export class UIRenderer {
         return SVG_HEART(20);
     }
 
+    /**
+     * Extracts a vibrant color from a cover image URL and applies it as the UI theme.
+     * @async
+     * @param {string|null} url - The URL of the cover image to extract color from.
+     * @returns {Promise<void>}
+     */
     async extractAndApplyColor(url) {
         if (!url) {
             this.resetVibrantColor();
@@ -264,9 +307,17 @@ export class UIRenderer {
         };
     }
 
+    /**
+     * Updates the like/unlike button state for a track, album, or other media item.
+     * @async
+     * @param {Element} element - The container element holding the like button.
+     * @param {string} type - The media type (e.g. 'track', 'album', 'artist').
+     * @param {string|number} id - The ID of the media item.
+     * @returns {Promise<void>}
+     */
     async updateLikeState(element, type, id) {
         const isLiked = await db.isFavorite(type, id);
-        const btn = element.querySelector('.like-btn');
+        const btn = /** @type {HTMLElement|null} */ (element.querySelector('.like-btn'));
         if (btn) {
             btn.innerHTML = this.createHeartIcon(isLiked);
             btn.classList.toggle('active', isLiked);
@@ -274,6 +325,11 @@ export class UIRenderer {
         }
     }
 
+    /**
+     * Renders pinned items in the sidebar navigation.
+     * @async
+     * @returns {Promise<void>}
+     */
     async renderPinnedItems() {
         const nav = document.getElementById('pinned-items-nav');
         const list = document.getElementById('pinned-items-list');
@@ -317,6 +373,12 @@ export class UIRenderer {
             .join('');
     }
 
+    /**
+     * Updates the UI to reflect the currently playing track, toggling like and playlist buttons.
+     * @async
+     * @param {Object|null} track - The currently playing track object, or null to clear.
+     * @returns {Promise<void>}
+     */
     async setCurrentTrack(track) {
         this.currentTrack = track;
         await this.updateGlobalTheme();
@@ -385,6 +447,11 @@ export class UIRenderer {
         }
     }
 
+    /**
+     * Applies the current theme and dynamic color settings globally based on the playing track.
+     * @async
+     * @returns {Promise<void>}
+     */
     async updateGlobalTheme() {
         // Check if we are currently viewing an album page
         const isAlbumPage = document.getElementById('page-album').classList.contains('active');
@@ -402,10 +469,19 @@ export class UIRenderer {
         }
     }
 
+    /**
+     * Creates an explicit content badge element.
+     * @returns {string} HTML string for the explicit badge.
+     */
     createExplicitBadge() {
         return '<span class="explicit-badge" title="Explicit">E</span>';
     }
 
+    /**
+     * Shrinks the title font size by adding CSS classes when the text is too long.
+     * @param {Element} element - The element whose font size classes should be adjusted.
+     * @param {string} text - The title text to measure.
+     */
     adjustTitleFontSize(element, text) {
         element.classList.remove('long-title', 'very-long-title');
         if (!text) return;
@@ -416,6 +492,16 @@ export class UIRenderer {
         }
     }
 
+    /**
+     * Generates the HTML string for a track list item.
+     * @param {object} track - The track data object.
+     * @param {number} index - The zero-based position of the track in the list.
+     * @param {boolean} [showCover=false] - Whether to display the album cover image.
+     * @param {boolean} [hasMultipleDiscs=false] - Whether to show disc/track number in disc-number format.
+     * @param {boolean} [useTrackNumber=false] - Whether to use the track's own track number instead of list index.
+     * @param {boolean} [inlineLike=false] - Whether to render an inline like button on the track row.
+     * @returns {string} HTML string for the track item element.
+     */
     createTrackItemHTML(
         track,
         index,
@@ -542,6 +628,17 @@ export class UIRenderer {
         `;
     }
 
+    /**
+     * Generates cover image HTML, optionally as a video element for animated covers.
+     * @param {string|number|null} cover - The cover image ID or path.
+     * @param {string} alt - Alt text for the image element.
+     * @param {string} [className='card-image'] - CSS class name(s) to apply to the element.
+     * @param {string} [loading='lazy'] - The loading attribute value ('lazy' or 'eager').
+     * @param {string|null} [videoCoverUrl=null] - URL for an animated video cover, if available.
+     * @param {boolean} [isEditorsPick=false] - Whether to use the wsrv.nl proxy for editors picks.
+     * @param {string} [type='album'] - The type of cover ('album' or 'artist').
+     * @returns {string} HTML string for the cover image or video element.
+     */
     getCoverHTML(
         cover,
         alt,
@@ -583,6 +680,21 @@ export class UIRenderer {
         return `<img src="${imageUrl}" class="${className}" alt="${alt}" loading="${loading}">`;
     }
 
+    /**
+     * Generates the base card HTML structure for media items (albums, playlists, artists, etc.).
+     * @param {Object} options - Card configuration options.
+     * @param {string} options.type - The media type (e.g. 'album', 'artist', 'playlist').
+     * @param {string|number} options.id - The ID of the media item.
+     * @param {string} options.href - The navigation href for the card link.
+     * @param {string} options.title - The card title HTML.
+     * @param {string} options.subtitle - The card subtitle text.
+     * @param {string} options.imageHTML - HTML string for the card cover image.
+     * @param {string} options.actionButtonsHTML - HTML string for action buttons (like, edit, etc.).
+     * @param {boolean} options.isCompact - Whether to render in compact layout mode.
+     * @param {string} [options.extraAttributes=''] - Extra HTML attributes to add to the card element.
+     * @param {string} [options.extraClasses=''] - Extra CSS class names to add to the card element.
+     * @returns {string} HTML string for the complete card element.
+     */
     createBaseCardHTML({
         type,
         id,
@@ -630,6 +742,11 @@ export class UIRenderer {
         `;
     }
 
+    /**
+     * Generates HTML for a playlist card.
+     * @param {object} playlist - The playlist data object.
+     * @returns {string} HTML string for the playlist card element.
+     */
     createPlaylistCardHTML(playlist) {
         const imageId = playlist.squareImage || playlist.image || playlist.uuid;
         const isCompact = cardSettings.isCompactAlbum();
@@ -650,6 +767,11 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Generates HTML for a folder card.
+     * @param {Object} folder - The folder data object.
+     * @returns {string} HTML string for the folder card element.
+     */
     createFolderCardHTML(folder) {
         const imageSrc = folder.cover || 'assets/folder.png';
         const isCompact = cardSettings.isCompactAlbum();
@@ -666,6 +788,11 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Generates HTML for a mix card.
+     * @param {Object} mix - The mix data object.
+     * @returns {string} HTML string for the mix card element.
+     */
     createMixCardHTML(mix) {
         const imageSrc = mix.cover || '/assets/appicon.png';
         const description = mix.subTitle || mix.description || '';
@@ -687,6 +814,12 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Generates HTML for a user-created playlist card with collage cover support.
+     * @param {object} playlist - The user playlist data object.
+     * @param {string|null} [customSubtitle=null] - Custom subtitle text; if null, defaults to track count.
+     * @returns {string} HTML string for the user playlist card element.
+     */
     createUserPlaylistCardHTML(playlist, customSubtitle = null) {
         let imageHTML = '';
         if (playlist.cover) {
@@ -757,6 +890,11 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Generates HTML for an album card including explicit and quality badges.
+     * @param {object} album - The album data object.
+     * @returns {string} HTML string for the album card element.
+     */
     createAlbumCardHTML(album) {
         const explicitBadge = hasExplicitContent(album) ? this.createExplicitBadge() : '';
         const qualityBadge = createQualityBadgeHTML(album);
@@ -807,6 +945,11 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Generates HTML for a video card with duration badge and cover image.
+     * @param {object} video - The video data object.
+     * @returns {string} HTML string for the video card element.
+     */
     createVideoCardHTML(video) {
         const duration = formatTime(video.duration);
         const artistName = getTrackArtists(video);
@@ -853,6 +996,11 @@ export class UIRenderer {
         `;
     }
 
+    /**
+     * Generates HTML for an artist card.
+     * @param {object} artist - The artist data object.
+     * @returns {string} HTML string for the artist card element.
+     */
     createArtistCardHTML(artist) {
         const isCompact = cardSettings.isCompactArtist();
         const isBlocked = contentBlockingSettings?.shouldHideArtist(artist);
@@ -883,6 +1031,11 @@ export class UIRenderer {
         });
     }
 
+    /**
+     * Creates a skeleton placeholder for a single track list item.
+     * @param {boolean} [showCover=false] - Whether to include a cover image skeleton.
+     * @returns {string} HTML string for the skeleton track element.
+     */
     createSkeletonTrack(showCover = false) {
         return `
             <div class="skeleton-track">
@@ -899,6 +1052,11 @@ export class UIRenderer {
         `;
     }
 
+    /**
+     * Creates a skeleton placeholder for a single card item.
+     * @param {boolean} [isArtist=false] - Whether to render the artist variant (no subtitle).
+     * @returns {string} HTML string for the skeleton card element.
+     */
     createSkeletonCard(isArtist = false) {
         return `
             <div class="skeleton-card ${isArtist ? 'artist' : ''}">
@@ -909,6 +1067,12 @@ export class UIRenderer {
         `;
     }
 
+    /**
+     * Creates multiple skeleton track placeholders joined as a string.
+     * @param {number} [count=5] - Number of skeleton tracks to create.
+     * @param {boolean} [showCover=false] - Whether each skeleton track shows a cover placeholder.
+     * @returns {string} Concatenated HTML string of skeleton track elements.
+     */
     createSkeletonTracks(count = 5, showCover = false) {
         return Array(count)
             .fill(0)
@@ -916,6 +1080,12 @@ export class UIRenderer {
             .join('');
     }
 
+    /**
+     * Creates multiple skeleton card placeholders joined as a string.
+     * @param {number} [count=6] - Number of skeleton cards to create.
+     * @param {boolean} [isArtist=false] - Whether each skeleton card uses the artist variant.
+     * @returns {string} Concatenated HTML string of skeleton card elements.
+     */
     createSkeletonCards(count = 6, isArtist = false) {
         return Array(count)
             .fill(0)
@@ -965,20 +1135,21 @@ export class UIRenderer {
         this.setupSearchClearButton(searchInput);
 
         // Remove previous listener if exists
-        const oldListener = searchInput._searchListener;
+        const oldListener = /** @type {HTMLElement & { _searchListener?: EventListener }} */ (searchInput)
+            ._searchListener;
         if (oldListener) {
             searchInput.removeEventListener('input', oldListener);
         }
 
         // Create new listener
         const listener = () => {
-            const query = searchInput.value.toLowerCase().trim();
+            const query = /** @type {HTMLInputElement} */ (searchInput).value.toLowerCase().trim();
             const trackItems = tracklistContainer.querySelectorAll('.track-item');
 
             trackItems.forEach((item) => {
                 const trackData = trackDataStore.get(item);
                 if (!trackData) {
-                    item.style.display = '';
+                    /** @type {HTMLElement} */ (item).style.display = '';
                     return;
                 }
 
@@ -987,11 +1158,11 @@ export class UIRenderer {
                 const album = (trackData.album?.title || '').toLowerCase();
 
                 const matches = title.includes(query) || artist.includes(query) || album.includes(query);
-                item.style.display = matches ? '' : 'none';
+                /** @type {HTMLElement} */ (item).style.display = matches ? '' : 'none';
             });
         };
 
-        searchInput._searchListener = listener;
+        /** @type {HTMLElement & { _searchListener?: EventListener }} */ (searchInput)._searchListener = listener;
         searchInput.addEventListener('input', listener);
     }
 
@@ -1001,13 +1172,14 @@ export class UIRenderer {
 
         this.setupSearchClearButton(searchInput);
 
-        const oldListener = searchInput._libraryLikedSearchListener;
+        const oldListener = /** @type {HTMLElement & { _libraryLikedSearchListener?: EventListener }} */ (searchInput)
+            ._libraryLikedSearchListener;
         if (oldListener) {
             searchInput.removeEventListener('input', oldListener);
         }
 
         const listener = () => {
-            const query = searchInput.value.toLowerCase().trim();
+            const query = /** @type {HTMLInputElement} */ (searchInput).value.toLowerCase().trim();
             const selector = container.classList.contains('card-grid') ? '.card[data-track-id]' : '.track-item';
             container.querySelectorAll(selector).forEach((item) => {
                 const track = trackDataStore.get(item);
@@ -1022,7 +1194,9 @@ export class UIRenderer {
             });
         };
 
-        searchInput._libraryLikedSearchListener = listener;
+        /** @type {HTMLElement & { _libraryLikedSearchListener?: EventListener }} */ (
+            searchInput
+        )._libraryLikedSearchListener = listener;
         searchInput.addEventListener('input', listener);
         listener();
     }
@@ -1202,7 +1376,7 @@ export class UIRenderer {
                 if (badgeClone instanceof HTMLElement) {
                     badgeClone.style.removeProperty('display');
                 }
-                return badgeClone.outerHTML;
+                return /** @type {Element} */ (badgeClone).outerHTML;
             }
         }
 
@@ -1288,8 +1462,8 @@ export class UIRenderer {
                     video.preload = 'auto';
                     video.className = currentImage.className;
                     currentImage.replaceWith(video);
-                } else if (currentImage.src !== videoCoverUrl) {
-                    currentImage.src = videoCoverUrl;
+                } else if (/** @type {HTMLImageElement} */ (currentImage).src !== videoCoverUrl) {
+                    /** @type {HTMLImageElement} */ (currentImage).src = videoCoverUrl;
                 }
             } else {
                 if (currentImage.tagName === 'VIDEO') {
@@ -1298,8 +1472,8 @@ export class UIRenderer {
                     img.id = currentImage.id;
                     img.className = currentImage.className;
                     currentImage.replaceWith(img);
-                } else if (currentImage.src !== coverUrl) {
-                    currentImage.src = coverUrl;
+                } else if (/** @type {HTMLImageElement} */ (currentImage).src !== coverUrl) {
+                    /** @type {HTMLImageElement} */ (currentImage).src = coverUrl;
                 }
             }
             await this.extractAndApplyColor(this.api.getCoverUrl(track.album?.cover, '80'));
@@ -1361,7 +1535,7 @@ export class UIRenderer {
         this.updateFullscreenLyricsVisibility(overlay);
 
         const playerBar = document.querySelector('.now-playing-bar');
-        if (playerBar) playerBar.style.display = 'none';
+        if (playerBar) /** @type {HTMLElement} */ (playerBar).style.display = 'none';
         if (sidePanelManager.isActive('lyrics') || sidePanelManager.isActive('queue')) {
             sidePanelManager.close();
         }
@@ -1507,7 +1681,7 @@ export class UIRenderer {
         overlay.style.removeProperty('--fullscreen-drag-progress');
 
         const playerBar = document.querySelector('.now-playing-bar');
-        if (playerBar) playerBar.style.removeProperty('display');
+        if (playerBar) /** @type {HTMLElement} */ (playerBar).style.removeProperty('display');
         const mainContent = document.querySelector('.main-content');
         if (mainContent instanceof HTMLElement) {
             const previousOverflow = this.fullscreenMainContentOverflow;
@@ -1547,7 +1721,7 @@ export class UIRenderer {
             const imgCover = coverContainer?.querySelector('.cover:not(#audio-player):not(#video-player)');
 
             if (videoPlayer && coverContainer) {
-                if (imgCover) imgCover.style.display = 'none';
+                if (imgCover) /** @type {HTMLElement} */ (imgCover).style.display = 'none';
 
                 videoPlayer.style.display = 'block';
                 videoPlayer.classList.add('cover', 'video-cover-mirror');
@@ -2190,7 +2364,7 @@ export class UIRenderer {
                 const activeEl = this.player.activeElement;
                 if (delta > 0 && activeEl.muted) {
                     activeEl.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', String(false));
                 }
 
                 this.player.setVolume(newVolume);
@@ -2198,10 +2372,15 @@ export class UIRenderer {
             };
 
             [fsVolumeBar, fsVolumeBtn].forEach((el) => {
-                if (el._fsVolumeWheelHandler) {
-                    el.removeEventListener('wheel', el._fsVolumeWheelHandler);
+                if (/** @type {HTMLElement & { _fsVolumeWheelHandler?: EventListener }} */ (el)._fsVolumeWheelHandler) {
+                    el.removeEventListener(
+                        'wheel',
+                        /** @type {HTMLElement & { _fsVolumeWheelHandler?: EventListener }} */ (el)
+                            ._fsVolumeWheelHandler
+                    );
                 }
-                el._fsVolumeWheelHandler = handleFsVolumeWheel;
+                /** @type {HTMLElement & { _fsVolumeWheelHandler?: EventListener }} */ (el)._fsVolumeWheelHandler =
+                    handleFsVolumeWheel;
                 el.addEventListener('wheel', handleFsVolumeWheel, { passive: false });
             });
 
@@ -2213,7 +2392,7 @@ export class UIRenderer {
                 const activeEl = this.player.activeElement;
                 if (activeEl.muted && newVolume > 0) {
                     activeEl.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', String(false));
                 }
                 updateFsVolumeUI();
             };
@@ -2300,7 +2479,8 @@ export class UIRenderer {
         document.querySelectorAll('.sidebar-nav a').forEach((link) => {
             link.classList.toggle(
                 'active',
-                link.pathname === `/${pageId}` || (pageId === 'home' && link.pathname === '/')
+                /** @type {HTMLAnchorElement} */ (link).pathname === `/${pageId}` ||
+                    (pageId === 'home' && /** @type {HTMLAnchorElement} */ (link).pathname === '/')
             );
         });
 
@@ -2593,7 +2773,7 @@ export class UIRenderer {
                 // the cache hasn't been populated yet (e.g. first visit after a page
                 // reload where the startup scan was silently denied permission).
                 if (!window.localFilesScanInProgress && !window.localFilesCache) {
-                    window.refreshLocalMediaFolder?.();
+                    void window.refreshLocalMediaFolder?.();
                 }
             }
         } else {
@@ -2684,26 +2864,26 @@ export class UIRenderer {
         const tabs = document.querySelectorAll('.home-tab');
         if (tabs.length === 0) return;
 
-        if (tabs[0].dataset.initialized) return;
+        if (/** @type {HTMLElement} */ (tabs[0]).dataset.initialized) return;
 
         for (const tab of tabs) {
-            tab.dataset.initialized = 'true';
+            /** @type {HTMLElement} */ (tab).dataset.initialized = 'true';
             tab.addEventListener('click', async () => {
                 document.querySelectorAll('.home-tab').forEach((t) => t.classList.remove('active'));
                 document.querySelectorAll('.home-view').forEach((v) => {
-                    v.style.display = 'none';
+                    /** @type {HTMLElement} */ (v).style.display = 'none';
                     v.classList.remove('active');
                 });
 
                 tab.classList.add('active');
-                const viewId = `home-view-${tab.dataset.tab}`;
+                const viewId = `home-view-${/** @type {HTMLElement} */ (tab).dataset.tab}`;
                 const view = document.getElementById(viewId);
                 if (view) {
                     view.style.display = 'block';
                     view.classList.add('active');
                 }
 
-                if (tab.dataset.tab === 'explore') {
+                if (/** @type {HTMLElement} */ (tab).dataset.tab === 'explore') {
                     await this.renderExplorePage();
                 }
             });
@@ -2770,7 +2950,10 @@ export class UIRenderer {
 
                 for (const card of genresGrid.querySelectorAll('.genre-card')) {
                     card.addEventListener('click', async () => {
-                        await this.renderGenrePage(card.dataset.genreId, card.dataset.genreName);
+                        await this.renderGenrePage(
+                            /** @type {HTMLElement} */ (card).dataset.genreId,
+                            /** @type {HTMLElement} */ (card).dataset.genreName
+                        );
                     });
                 }
             }
@@ -2945,11 +3128,11 @@ export class UIRenderer {
         const section = songsContainer?.closest('.content-section');
 
         if (!homePageSettings.shouldShowRecommendedSongs()) {
-            if (section) section.style.display = 'none';
+            if (section) /** @type {HTMLElement} */ (section).style.display = 'none';
             return;
         }
 
-        if (section) section.style.display = '';
+        if (section) /** @type {HTMLElement} */ (section).style.display = '';
 
         if (songsContainer) {
             if (forceRefresh || songsContainer.children.length === 0) {
@@ -2997,11 +3180,11 @@ export class UIRenderer {
         const section = albumsContainer?.closest('.content-section');
 
         if (!homePageSettings.shouldShowRecommendedAlbums()) {
-            if (section) section.style.display = 'none';
+            if (section) /** @type {HTMLElement} */ (section).style.display = 'none';
             return;
         }
 
-        if (section) section.style.display = '';
+        if (section) /** @type {HTMLElement} */ (section).style.display = '';
 
         if (albumsContainer) {
             if (forceRefresh || albumsContainer.children.length === 0) {
@@ -3243,8 +3426,8 @@ export class UIRenderer {
                             } else {
                                 const playlist = await syncManager.getPublicPlaylist(item.id);
                                 if (playlist) {
-                                    playlist._lazy = cardsHTML.length >= 6;
-                                    playlist._isEditorsPick = true;
+                                    /** @type {any} */ (playlist)._lazy = cardsHTML.length >= 6;
+                                    /** @type {any} */ (playlist)._isEditorsPick = true;
                                     const subtitle = item.username ? `by ${item.username}` : null;
                                     cardsHTML.push(this.createUserPlaylistCardHTML(playlist, subtitle));
                                     itemsToStore.push({ el: null, data: playlist, type: 'user-playlist' });
@@ -3282,11 +3465,11 @@ export class UIRenderer {
         const section = artistsContainer?.closest('.content-section');
 
         if (!homePageSettings.shouldShowRecommendedArtists()) {
-            if (section) section.style.display = 'none';
+            if (section) /** @type {HTMLElement} */ (section).style.display = 'none';
             return;
         }
 
-        if (section) section.style.display = '';
+        if (section) /** @type {HTMLElement} */ (section).style.display = '';
 
         if (artistsContainer) {
             if (forceRefresh || artistsContainer.children.length === 0) {
@@ -3336,11 +3519,11 @@ export class UIRenderer {
         const section = recentContainer?.closest('.content-section');
 
         if (!homePageSettings.shouldShowJumpBackIn()) {
-            if (section) section.style.display = 'none';
+            if (section) /** @type {HTMLElement} */ (section).style.display = 'none';
             return;
         }
 
-        if (section) section.style.display = '';
+        if (section) /** @type {HTMLElement} */ (section).style.display = '';
 
         if (recentContainer) {
             const recents = recentActivityManager.getRecents();
@@ -3721,13 +3904,13 @@ export class UIRenderer {
             item.addEventListener('click', (e) => {
                 if (e.target.closest('.delete-history-btn')) {
                     e.stopPropagation();
-                    this.removeFromSearchHistory(item.dataset.query);
+                    this.removeFromSearchHistory(/** @type {HTMLElement} */ (item).dataset.query);
                     return;
                 }
-                const query = item.dataset.query;
+                const query = /** @type {HTMLElement} */ (item).dataset.query;
                 const searchInput = document.getElementById('search-input');
                 if (searchInput) {
-                    searchInput.value = query;
+                    /** @type {HTMLInputElement} */ (searchInput).value = query;
                     searchInput.dispatchEvent(new Event('input'));
                     historyEl.style.display = 'none';
                 }
@@ -3778,7 +3961,7 @@ export class UIRenderer {
         const mixBtn = document.getElementById('album-mix-btn');
         if (mixBtn) mixBtn.style.display = 'none';
 
-        imageEl.src = '';
+        /** @type {HTMLImageElement} */ (imageEl).src = '';
         imageEl.style.backgroundColor = 'var(--muted)';
         titleEl.innerHTML = '<div class="skeleton" style="height: 48px; width: 300px; max-width: 90%;"></div>';
         metaEl.innerHTML = '<div class="skeleton" style="height: 16px; width: 200px; max-width: 80%;"></div>';
@@ -3819,7 +4002,7 @@ export class UIRenderer {
                             video.className = currentImageEl.className;
                             video.id = currentImageEl.id;
                             video.style.opacity = '1';
-                            video.poster = currentImageEl.src;
+                            video.poster = /** @type {HTMLImageElement} */ (currentImageEl).src;
 
                             await this.setupHlsVideo(video, result, currentImageEl);
                             currentImageEl.replaceWith(video);
@@ -3853,7 +4036,7 @@ export class UIRenderer {
                     img.id = imageEl.id;
                     imageEl.replaceWith(img);
                 } else {
-                    imageEl.src = coverUrl;
+                    /** @type {HTMLImageElement} */ (imageEl).src = coverUrl;
                 }
             }
             imageEl.style.backgroundColor = '';
@@ -3882,7 +4065,7 @@ export class UIRenderer {
                                   month: 'long',
                                   day: 'numeric',
                               })
-                            : year;
+                            : String(year);
                 }
             }
 
@@ -3974,7 +4157,7 @@ export class UIRenderer {
                 }
             }
 
-            fetchAotyWorker(album.title, album.artist.name);
+            void fetchAotyWorker(album.title, album.artist.name);
 
             tracklistContainer.innerHTML = `
                 <div class="track-list-header">
@@ -4248,7 +4431,7 @@ export class UIRenderer {
 
         // Reset search input for new playlist
         const searchInput = document.getElementById('track-list-search-input');
-        if (searchInput) searchInput.value = '';
+        if (searchInput) /** @type {HTMLInputElement} */ (searchInput).value = '';
 
         const imageEl = document.getElementById('playlist-detail-image');
         const collageEl = document.getElementById('playlist-detail-collage');
@@ -4262,7 +4445,7 @@ export class UIRenderer {
         if (dlBtn) dlBtn.innerHTML = `${SVG_DOWNLOAD(20)}<span>Download</span>`;
         const addPlaylistBtn = document.getElementById('add-playlist-to-playlist-btn');
 
-        imageEl.src = '';
+        /** @type {HTMLImageElement} */ (imageEl).src = '';
         imageEl.style.backgroundColor = 'var(--muted)';
         titleEl.innerHTML = '<div class="skeleton" style="height: 48px; width: 300px; max-width: 90%;"></div>';
         metaEl.innerHTML = '<div class="skeleton" style="height: 16px; width: 200px; max-width: 80%;"></div>';
@@ -4301,7 +4484,7 @@ export class UIRenderer {
                 if (addPlaylistBtn) addPlaylistBtn.style.display = 'none';
 
                 if (playlistData.cover) {
-                    imageEl.src = playlistData.cover;
+                    /** @type {HTMLImageElement} */ (imageEl).src = playlistData.cover;
                     imageEl.style.display = 'block';
                     if (collageEl) collageEl.style.display = 'none';
                     this.setPageBackground(playlistData.cover);
@@ -4332,7 +4515,7 @@ export class UIRenderer {
                             collageEl.appendChild(img);
                         });
                     } else {
-                        imageEl.src = '/assets/appicon.png';
+                        /** @type {HTMLImageElement} */ (imageEl).src = '/assets/appicon.png';
                         imageEl.style.display = 'block';
                         if (collageEl) collageEl.style.display = 'none';
                     }
@@ -4413,10 +4596,10 @@ export class UIRenderer {
                         refreshBtn.onclick = async () => {
                             const icon = refreshBtn.querySelector('svg');
                             if (icon) icon.style.animation = 'spin 1s linear infinite';
-                            refreshBtn.disabled = true;
+                            /** @type {HTMLButtonElement} */ (refreshBtn).disabled = true;
                             await this.loadRecommendedSongsForPlaylist(tracks, true);
                             if (icon) icon.style.animation = '';
-                            refreshBtn.disabled = false;
+                            /** @type {HTMLButtonElement} */ (refreshBtn).disabled = false;
                         };
                     }
                 }
@@ -4477,12 +4660,12 @@ export class UIRenderer {
 
                 const imageId = playlist.squareImage || playlist.image;
                 if (imageId) {
-                    imageEl.src = this.api.getCoverUrl(imageId, '1080');
-                    this.setPageBackground(imageEl.src);
+                    /** @type {HTMLImageElement} */ (imageEl).src = this.api.getCoverUrl(imageId, '1080');
+                    this.setPageBackground(/** @type {HTMLImageElement} */ (imageEl).src);
 
                     await this.extractAndApplyColor(this.api.getCoverUrl(imageId, '160'));
                 } else {
-                    imageEl.src = '/assets/appicon.png';
+                    /** @type {HTMLImageElement} */ (imageEl).src = '/assets/appicon.png';
                     this.setPageBackground(null);
                     this.resetVibrantColor();
                 }
@@ -4569,7 +4752,7 @@ export class UIRenderer {
         const metaEl = document.getElementById('folder-detail-meta');
         const container = document.getElementById('folder-detail-container');
 
-        imageEl.src = '';
+        /** @type {HTMLImageElement} */ (imageEl).src = '';
         imageEl.style.backgroundColor = 'var(--muted)';
         titleEl.innerHTML = '<div class="skeleton" style="height: 48px; width: 300px; max-width: 90%;"></div>';
         container.innerHTML = this.createSkeletonCards(4, false);
@@ -4578,9 +4761,9 @@ export class UIRenderer {
             const folder = await db.getFolder(folderId);
             if (!folder) throw new Error('Folder not found');
 
-            imageEl.src = folder.cover || '/assets/folder.png';
+            /** @type {HTMLImageElement} */ (imageEl).src = folder.cover || '/assets/folder.png';
             imageEl.onerror = () => {
-                imageEl.src = '/assets/folder.png';
+                /** @type {HTMLImageElement} */ (imageEl).src = '/assets/folder.png';
             };
             imageEl.style.backgroundColor = '';
 
@@ -4627,7 +4810,7 @@ export class UIRenderer {
         if (dlBtn) dlBtn.innerHTML = `${SVG_DOWNLOAD(20)}<span>Download</span>`;
 
         // Skeleton loading
-        imageEl.src = '';
+        /** @type {HTMLImageElement} */ (imageEl).src = '';
         imageEl.style.backgroundColor = 'var(--muted)';
         titleEl.innerHTML = '<div class="skeleton" style="height: 48px; width: 300px; max-width: 90%;"></div>';
         metaEl.innerHTML = '<div class="skeleton" style="height: 16px; width: 200px; max-width: 80%;"></div>';
@@ -4639,7 +4822,7 @@ export class UIRenderer {
             this.currentMixId = mixId;
 
             if (mix.cover) {
-                imageEl.src = mix.cover;
+                /** @type {HTMLImageElement} */ (imageEl).src = mix.cover;
                 this.setPageBackground(mix.cover);
                 await this.extractAndApplyColor(mix.cover);
             } else {
@@ -4670,7 +4853,7 @@ export class UIRenderer {
                                             video.className = currentImageEl.className;
                                             video.id = currentImageEl.id;
                                             video.style.opacity = '1';
-                                            video.poster = currentImageEl.src;
+                                            video.poster = /** @type {HTMLImageElement} */ (currentImageEl).src;
 
                                             await this.setupHlsVideo(video, result, currentImageEl);
                                             currentImageEl.replaceWith(video);
@@ -4710,7 +4893,7 @@ export class UIRenderer {
                             video.id = imageEl.id;
                             imageEl.replaceWith(video);
                         } else {
-                            imageEl.src = videoCoverUrl;
+                            /** @type {HTMLImageElement} */ (imageEl).src = videoCoverUrl;
                         }
                     } else {
                         if (imageEl.tagName === 'VIDEO') {
@@ -4720,13 +4903,13 @@ export class UIRenderer {
                             img.id = imageEl.id;
                             imageEl.replaceWith(img);
                         } else {
-                            imageEl.src = coverUrl;
+                            /** @type {HTMLImageElement} */ (imageEl).src = coverUrl;
                         }
                     }
                     this.setPageBackground(coverUrl);
                     await this.extractAndApplyColor(this.api.getCoverUrl(tracks[0].album.cover, '160'));
                 } else {
-                    imageEl.src = '/assets/appicon.png';
+                    /** @type {HTMLImageElement} */ (imageEl).src = '/assets/appicon.png';
                     this.setPageBackground(null);
                     this.resetVibrantColor();
                 }
@@ -4791,7 +4974,7 @@ export class UIRenderer {
         const dlBtn = document.getElementById('download-discography-btn');
         if (dlBtn) dlBtn.innerHTML = `${SVG_DOWNLOAD(20)}<span>Download Discography</span>`;
 
-        imageEl.src = '';
+        /** @type {HTMLImageElement} */ (imageEl).src = '';
         imageEl.style.backgroundColor = 'var(--muted)';
         nameEl.innerHTML = '<div class="skeleton" style="height: 48px; width: 300px; max-width: 90%;"></div>';
         metaEl.innerHTML = '<div class="skeleton" style="height: 16px; width: 150px;"></div>';
@@ -4911,8 +5094,8 @@ export class UIRenderer {
                         modal.remove();
                     };
 
-                    modal.querySelector('.modal-overlay').onclick = close;
-                    modal.querySelector('.btn-close').onclick = close;
+                    /** @type {HTMLElement} */ (modal.querySelector('.modal-overlay')).onclick = close;
+                    /** @type {HTMLElement} */ (modal.querySelector('.btn-close')).onclick = close;
 
                     // Ensure links are clickable by attaching the listener to the modal body
                     const modalBody = modal.querySelector('.modal-body');
@@ -5022,12 +5205,12 @@ export class UIRenderer {
                     });
             }
 
-            imageEl.src = this.api.getArtistPictureUrl(artist.picture);
+            /** @type {HTMLImageElement} */ (imageEl).src = this.api.getArtistPictureUrl(artist.picture);
             imageEl.style.backgroundColor = '';
             nameEl.textContent = artist.name;
 
             // Set background
-            this.setPageBackground(imageEl.src);
+            this.setPageBackground(/** @type {HTMLImageElement} */ (imageEl).src);
 
             // Extract vibrant color using robust image extraction (160x160 for speed/accuracy balance)
             const artistPic160 = this.api.getArtistPictureUrl(artist.picture, '160');
@@ -5205,15 +5388,15 @@ export class UIRenderer {
                                         };
 
                                         list.onclick = (ev) => {
-                                            const option = ev.target.closest('.modal-option');
+                                            const option = /** @type {Element} */ (ev.target).closest('.modal-option');
                                             if (!option) return;
-                                            const href = option.dataset.href;
+                                            const href = /** @type {HTMLElement} */ (option).dataset.href;
                                             closeModal();
                                             if (href) navigate(href);
                                         };
 
                                         cancelBtn.onclick = closeModal;
-                                        overlay.onclick = closeModal;
+                                        /** @type {HTMLElement} */ (overlay).onclick = closeModal;
                                         modal.classList.add('active');
                                     });
                                 }
@@ -5358,7 +5541,7 @@ export class UIRenderer {
 
                     // Add click handler to load and display unreleased projects
                     loadUnreleasedBtn.onclick = async () => {
-                        loadUnreleasedBtn.disabled = true;
+                        /** @type {HTMLButtonElement} */ (loadUnreleasedBtn).disabled = true;
                         loadUnreleasedBtn.textContent = 'Loading...';
 
                         try {
@@ -5384,12 +5567,14 @@ export class UIRenderer {
                                 // Add click handlers
                                 const player = this.player;
                                 unreleasedContainer.querySelectorAll('.card').forEach((card) => {
-                                    const eraName = decodeURIComponent(card.dataset.trackerProjectId);
+                                    const eraName = decodeURIComponent(
+                                        /** @type {HTMLElement} */ (card).dataset.trackerProjectId
+                                    );
                                     const era = eras.find((e) => e.name === eraName);
                                     if (!era) return;
 
-                                    card.onclick = (e) => {
-                                        if (e.target.closest('.card-play-btn')) {
+                                    /** @type {HTMLElement} */ (card).onclick = (e) => {
+                                        if (/** @type {Element} */ (e.target).closest('.card-play-btn')) {
                                             e.stopPropagation();
                                             let eraTracks = [];
                                             if (era.data) {
@@ -5413,7 +5598,7 @@ export class UIRenderer {
                                                 player.setQueue(availableTracks, 0);
                                                 player.playTrackFromQueue();
                                             }
-                                        } else if (e.target.closest('.card-menu-btn')) {
+                                        } else if (/** @type {Element} */ (e.target).closest('.card-menu-btn')) {
                                             e.stopPropagation();
                                         } else {
                                             navigate(`/unreleased/${sheetId}/${encodeURIComponent(era.name)}`);
@@ -5426,7 +5611,7 @@ export class UIRenderer {
                         } catch (error) {
                             console.error('Failed to load unreleased projects:', error);
                             loadUnreleasedBtn.textContent = 'Failed to load';
-                            loadUnreleasedBtn.disabled = false;
+                            /** @type {HTMLButtonElement} */ (loadUnreleasedBtn).disabled = false;
                         }
                     };
                 }
@@ -5597,7 +5782,7 @@ export class UIRenderer {
      * @param {*} isOwned
      * @param {*} tracks
      * @param {*} showShare
-     * @param {() => Promise<void> | undefined} onSort
+     * @param {((sort: string) => Promise<void>) | undefined} onSort
      * @param {*} getCurrentSort
      */
     async updatePlaylistHeaderActions(
@@ -5650,7 +5835,7 @@ export class UIRenderer {
                 // Show "Date Added" options only if tracks have addedAt
                 const hasAddedDate = tracks.some((t) => t.addedAt);
                 menu.querySelectorAll('.requires-added-date').forEach((opt) => {
-                    opt.style.display = hasAddedDate ? '' : 'none';
+                    /** @type {HTMLElement} */ (opt).style.display = hasAddedDate ? '' : 'none';
                 });
 
                 // Highlight current sort option
@@ -5672,6 +5857,7 @@ export class UIRenderer {
                 const handleSort = async (ev) => {
                     const li = ev.target.closest('li');
                     if (li && li.dataset.sort) {
+                        trackChangeSort(li.dataset.sort);
                         await onSort(li.dataset.sort);
                         closeMenu();
                     }
@@ -5980,7 +6166,7 @@ export class UIRenderer {
         const playBtn = document.getElementById('play-track-btn');
         const likeBtn = document.getElementById('like-track-btn');
 
-        imageEl.src = '';
+        /** @type {HTMLImageElement} */ (imageEl).src = '';
         imageEl.style.backgroundColor = 'var(--muted)';
         titleEl.innerHTML = '<div class="skeleton" style="height: 48px; width: 300px; max-width: 90%;"></div>';
         artistEl.innerHTML = '<div class="skeleton" style="height: 16px; width: 100px;"></div>';
@@ -6022,7 +6208,7 @@ export class UIRenderer {
                                 video.className = currentImageEl.className;
                                 video.id = currentImageEl.id;
                                 video.style.opacity = '1';
-                                video.poster = currentImageEl.src;
+                                video.poster = /** @type {HTMLImageElement} */ (currentImageEl).src;
 
                                 await this.setupHlsVideo(video, result, currentImageEl);
                                 currentImageEl.replaceWith(video);
@@ -6073,7 +6259,7 @@ export class UIRenderer {
                     img.id = imageEl.id;
                     imageEl.replaceWith(img);
                 } else {
-                    imageEl.src = coverUrl;
+                    /** @type {HTMLImageElement} */ (imageEl).src = coverUrl;
                 }
             }
             imageEl.style.backgroundColor = '';
@@ -6097,7 +6283,7 @@ export class UIRenderer {
             if (track.album?.releaseDate) {
                 const date = new Date(track.album.releaseDate);
                 if (!isNaN(date.getTime())) {
-                    yearEl.textContent = date.getFullYear();
+                    yearEl.textContent = String(date.getFullYear());
                 }
             }
 
@@ -6187,7 +6373,7 @@ export class UIRenderer {
                 nameEl.textContent = podcastResult.title;
                 metaEl.textContent = `${podcastResult.episodeCount} episodes • ${podcastResult.author}`;
                 if (podcastResult.image) {
-                    imageEl.src = podcastResult.image;
+                    /** @type {HTMLImageElement} */ (imageEl).src = podcastResult.image;
                     this.setPageBackground(podcastResult.image);
                 }
 

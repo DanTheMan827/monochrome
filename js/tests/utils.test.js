@@ -167,7 +167,7 @@ describe('utils.js', () => {
 
         test('returns null for invalid values', () => {
             expect(utils.getTrackDiscNumber({ discNumber: 0 })).toBeNull();
-            expect(utils.getTrackDiscNumber({ discNumber: 'abc' })).toBeNull();
+            expect(utils.getTrackDiscNumber({ discNumber: /** @type {any} */ ('abc') })).toBeNull();
         });
     });
 

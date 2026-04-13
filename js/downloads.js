@@ -1,3 +1,4 @@
+// @ts-check
 //js/downloads.js
 import {
     buildTrackFilename,
@@ -22,6 +23,15 @@ import { SVG_CLOSE } from './icons.ts';
 import { MusicAPI } from './music-api.js';
 import { LyricsManager } from './lyrics.js';
 
+/** @typedef {import('./api.js').LosslessAPI} LosslessAPI */
+
+/**
+ * @typedef {import('./container-classes.ts').Album} Album
+ * @typedef {import('./container-classes.ts').EnrichedAlbum} EnrichedAlbum
+ * @typedef {import('./container-classes.ts').EnrichedTrack} EnrichedTrack
+ * @typedef {import('./HiFi.ts').TidalTrack} TidalTrack
+ */
+
 const downloadTasks = new Map();
 const bulkDownloadTasks = new Map();
 const ongoingDownloads = new Set();
@@ -32,6 +42,16 @@ async function* singleWriterEntry(entry) {
     yield entry;
 }
 
+/**
+ * Creates a disc layout context used to determine whether tracks should be
+ * separated into per-disc sub-folders during a bulk download.
+ * @async
+ * @param {Array<Object>} tracks - Array of track objects for the album.
+ * @param {MusicAPI | LosslessAPI} api - API instance used to hydrate missing disc numbers.
+ * @returns {Promise<{separateByDisc: boolean, resolveDiscNumber: function(number): number}>}
+ *   An object with a flag indicating whether to separate by disc and a resolver function
+ *   that maps a track index to its disc number.
+ */
 async function createDiscLayoutContext(tracks, api) {
     if (!playlistSettings.shouldSeparateDiscsInZip()) {
         return { separateByDisc: false, resolveDiscNumber: () => 1 };
@@ -71,6 +91,17 @@ async function createDiscLayoutContext(tracks, api) {
     return { separateByDisc: false, resolveDiscNumber: () => 1 };
 }
 
+/**
+ * Computes disc-related metadata for a list of tracks, optionally hydrating
+ * missing disc numbers via full-track API calls.
+ * @async
+ * @param {Array<TidalTrack>} tracks - Array of track objects.
+ * @param {MusicAPI | LosslessAPI | null} [api=null] - Optional API instance used to
+ *   hydrate disc numbers not present in the raw track objects.
+ * @returns {Promise<{totalDiscs: number, tracksPerDisc: Map<number, number>, resolvedDiscNumbers: Array<number|null>}>}
+ *   An object containing the total number of discs, a map of disc number to track count,
+ *   and the resolved disc number for each track by index.
+ */
 async function computeDiscInfo(tracks, api = null) {
     // First pass: collect explicit disc numbers from the raw track objects.
     const explicitDiscNumbers = tracks.map((track) => getTrackDiscNumber(track));
@@ -87,7 +118,7 @@ async function computeDiscInfo(tracks, api = null) {
             tracks.map(async (track, index) => {
                 if (explicitDiscNumbers[index]) return explicitDiscNumbers[index];
                 try {
-                    const fullTrack = await api.getTrackMetadata(track.id);
+                    const fullTrack = await api.getTrackMetadata(String(track.id));
                     return getTrackDiscNumber(fullTrack);
                 } catch {
                     return null;
@@ -113,6 +144,15 @@ async function computeDiscInfo(tracks, api = null) {
     return { totalDiscs: maxDiscNumber || 1, tracksPerDisc, resolvedDiscNumbers };
 }
 
+/**
+ * Annotates each track in the array with computed disc info (`totalDiscs` and
+ * `numberOfTracksOnDisc`) merged into the track's `album` property.
+ * @async
+ * @param {Array<TidalTrack>} tracks - Array of track objects to annotate.
+ * @param {MusicAPI | LosslessAPI | null} [api=null] - Optional API instance used by
+ *   {@link computeDiscInfo} to hydrate missing disc numbers.
+ * @returns {Promise<Array<Object>>} New array of track objects enriched with disc info.
+ */
 async function annotateTracksWithDiscInfo(tracks, api = null) {
     const { totalDiscs, tracksPerDisc, resolvedDiscNumbers } = await computeDiscInfo(tracks, api);
     return tracks.map((track, index) => {
@@ -128,15 +168,34 @@ async function annotateTracksWithDiscInfo(tracks, api = null) {
     });
 }
 
+/**
+ * Returns the folder name used for a given disc number inside a multi-disc album.
+ * @param {number} discNumber - The 1-based disc number.
+ * @returns {string} Folder name, e.g. `"Disc 1"`.
+ */
 function getDiscFolderName(discNumber) {
     return `Disc ${discNumber}`;
 }
 
+/**
+ * Builds the full path for a track file inside a ZIP archive, optionally placing
+ * it in a per-disc sub-folder.
+ * @param {string} rootFolder - The root folder path within the archive.
+ * @param {string} filename - The track filename (e.g. `"01 - Title.flac"`).
+ * @param {boolean} separateByDisc - Whether to create a sub-folder per disc.
+ * @param {number} [discNumber=1] - The 1-based disc number used when `separateByDisc` is `true`.
+ * @returns {string} The full path for the track inside the archive.
+ */
 function buildZipTrackPath(rootFolder, filename, separateByDisc, discNumber = 1) {
     if (!separateByDisc) return `${rootFolder}/${filename}`;
     return `${rootFolder}/${getDiscFolderName(discNumber)}/${filename}`;
 }
 
+/**
+ * Ensures the shared download notification container exists in the DOM,
+ * creating and appending it to `document.body` if necessary.
+ * @returns {HTMLDivElement} The persistent notification container element.
+ */
 function createDownloadNotification() {
     if (!downloadNotificationContainer) {
         downloadNotificationContainer = document.createElement('div');
@@ -146,6 +205,12 @@ function createDownloadNotification() {
     return downloadNotificationContainer;
 }
 
+/**
+ * Displays a transient notification message in the download notification area.
+ * The notification auto-removes after 1.5 seconds with a slide-out animation.
+ * @param {string} message - The text to display in the notification.
+ * @returns {void}
+ */
 export function showNotification(message) {
     const container = createDownloadNotification();
 
@@ -167,6 +232,18 @@ export function showNotification(message) {
     }, 1500);
 }
 
+/**
+ * Creates and registers a per-track download notification UI element with a
+ * progress bar, status text, and cancel button.
+ * @param {string} trackId - Unique identifier for the track being downloaded.
+ * @param {object} track - Track object used to render the album art, title and artist.
+ * @param {string} _filename - Intended filename (currently unused in UI rendering).
+ * @param {MusicAPI | LosslessAPI} api - API instance used to resolve the cover image URL.
+ * @param {AbortController} abortController - Controller that will be aborted when the
+ *   user clicks the cancel button.
+ * @returns {{ taskEl: HTMLDivElement, abortController: AbortController }}
+ *   The created notification element and the abort controller.
+ */
 export function addDownloadTask(trackId, track, _filename, api, abortController) {
     const container = createDownloadNotification();
 
@@ -205,6 +282,14 @@ export function addDownloadTask(trackId, track, _filename, api, abortController)
     return { taskEl, abortController };
 }
 
+/**
+ * Updates the progress bar and status text of an existing per-track download
+ * notification based on the type of progress event received.
+ * @param {string} trackId - The track identifier previously passed to {@link addDownloadTask}.
+ * @param {DownloadProgress | SegmentedDownloadProgress | FfmpegProgress | ProgressMessage | Object} progress
+ *   Progress event object. Behaviour depends on its runtime type.
+ * @returns {void}
+ */
 export function updateDownloadProgress(trackId, progress) {
     const task = downloadTasks.get(trackId);
     if (!task) return;
@@ -249,6 +334,14 @@ export function updateDownloadProgress(trackId, progress) {
     }
 }
 
+/**
+ * Marks a per-track download notification as complete (success or failure),
+ * updates its visual state, and schedules it for automatic removal.
+ * @param {string} trackId - The track identifier previously passed to {@link addDownloadTask}.
+ * @param {boolean} [success=true] - Whether the download completed successfully.
+ * @param {string | null} [message=null] - Optional custom error message shown on failure.
+ * @returns {void}
+ */
 export function completeDownloadTask(trackId, success = true, message = null) {
     const task = downloadTasks.get(trackId);
     if (!task) return;
@@ -279,6 +372,12 @@ export function completeDownloadTask(trackId, success = true, message = null) {
     }
 }
 
+/**
+ * Animates and removes a per-track download notification from the DOM and
+ * cleans up the {@link downloadTasks} registry entry.
+ * @param {string} trackId - The track identifier whose notification should be removed.
+ * @returns {void}
+ */
 function removeDownloadTask(trackId) {
     const task = downloadTasks.get(trackId);
     if (!task) return;
@@ -297,6 +396,12 @@ function removeDownloadTask(trackId) {
     }, 300);
 }
 
+/**
+ * Animates and removes a bulk download notification element from the DOM and
+ * cleans up the {@link bulkDownloadTasks} registry entry.
+ * @param {HTMLElement} notifEl - The bulk download notification element to remove.
+ * @returns {void}
+ */
 function removeBulkDownloadTask(notifEl) {
     const task = bulkDownloadTasks.get(notifEl);
     if (!task) return;
@@ -314,6 +419,17 @@ function removeBulkDownloadTask(notifEl) {
     }, 300);
 }
 
+/**
+ * Downloads the raw audio blob for a track at the requested quality and detects
+ * its actual file extension from the blob's binary signature.
+ * @async
+ * @param {object} track - Track object to download.
+ * @param {string} quality - Desired audio quality identifier.
+ * @param {MusicAPI | LosslessAPI} api - API instance used to perform the download.
+ * @param {AbortSignal | null} [signal=null] - Optional abort signal for cancellation.
+ * @param {function | null} [onProgress=null] - Optional callback invoked with progress events.
+ * @returns {Promise<{blob: Blob, extension: string}>} The audio blob and its detected extension.
+ */
 async function downloadTrackBlob(track, quality, api, signal = null, onProgress = null) {
     const blob = await api.downloadTrack(track.id, quality, undefined, {
         track,
@@ -324,11 +440,30 @@ async function downloadTrackBlob(track, quality, api, signal = null, onProgress 
     });
 
     // Detect actual format from blob signature BEFORE adding metadata
-    const extension = await getExtensionFromBlob(blob);
+    const extension = await getExtensionFromBlob(/** @type {Blob} */ (blob));
 
-    return { blob, extension };
+    return { blob: /** @type {Blob} */ (blob), extension };
 }
 
+/**
+ * Downloads all tracks for a bulk operation and writes them (plus optional
+ * cover art, lyrics, and playlist/metadata files) via the provided writer.
+ * @async
+ * @param {Object} options
+ * @param {Array<Object>} options.tracks - Array of track objects to download.
+ * @param {string} options.folderName - Root folder name used inside the archive.
+ * @param {MusicAPI | LosslessAPI} options.api - API instance for downloading tracks.
+ * @param {string} options.quality - Desired audio quality identifier.
+ * @param {LyricsManager | null} options.lyricsManager - Optional lyrics manager for LRC files.
+ * @param {HTMLElement} options.notification - Bulk download notification element registered
+ *   in {@link bulkDownloadTasks} (used to obtain the abort signal and update progress).
+ * @param {Object} options.writer - Bulk download writer instance (implements `write(iterable)`).
+ * @param {Blob | null} [options.coverBlob=null] - Optional cover art blob to include.
+ * @param {string} [options.type='playlist'] - Content type (`'album'`, `'playlist'`, etc.).
+ * @param {Object | null} [options.metadata=null] - Optional metadata object passed to playlist generators.
+ * @returns {Promise<void>}
+ * @throws {Error} Re-throws `AbortError` when the download is cancelled.
+ */
 async function bulkDownload({
     tracks,
     folderName,
@@ -344,6 +479,15 @@ async function bulkDownload({
     const { abortController } = bulkDownloadTasks.get(notification);
     const signal = abortController.signal;
 
+    /**
+     * Async generator that yields file entry objects for every artifact in the
+     * bulk download: cover art, audio tracks, optional LRC lyrics files, and
+     * optional playlist/metadata files (NFO, JSON, CUE, M3U, M3U8).
+     * @async
+     * @generator
+     * @yields {Object} File entry object with `name`, `lastModified`, and `input` properties.
+     * @throws {Error} Re-throws `AbortError` when the abort signal fires.
+     */
     async function* yieldFiles() {
         // Add cover if available and enabled
         if (coverBlob && playlistSettings.shouldIncludeCover()) {
@@ -624,6 +768,25 @@ async function createBulkWriter(folderName) {
     return new ZipBlobWriter(`${folderName}.zip`);
 }
 
+/**
+ * Orchestrates a complete bulk download session: creates the notification UI,
+ * resolves the appropriate writer, invokes {@link bulkDownload}, and handles
+ * success, cancellation, and error states.
+ * @async
+ * @param {Object} options
+ * @param {Array<Object>} options.tracks - Array of track objects to download.
+ * @param {string} [options.folderName=''] - Root folder / archive name.
+ * @param {MusicAPI | LosslessAPI} options.api - API instance for downloading tracks.
+ * @param {string} options.quality - Desired audio quality identifier.
+ * @param {LyricsManager} [options.lyricsManager=LyricsManager.instance] - Lyrics manager instance.
+ * @param {string} options.type - Content type label (`'album'`, `'playlist'`, `'queue'`, etc.).
+ * @param {string} options.name - Display name shown in the notification header.
+ * @param {Blob | null} [options.coverBlob=null] - Optional cover art blob.
+ * @param {Object | null} [options.metadata=null] - Optional metadata passed to playlist generators.
+ * @param {boolean} [options.single=false] - When `true`, uses the single-track folder writer
+ *   instead of the bulk writer (skips prompting for a save destination).
+ * @returns {Promise<void>}
+ */
 async function startBulkDownload({
     tracks,
     folderName = '',
@@ -660,7 +823,7 @@ async function startBulkDownload({
 
         // If the download went to the local media folder, refresh the local library.
         if (modernSettings.bulkDownloadMethod === BulkDownloadMethod.LocalMedia) {
-            window.refreshLocalMediaFolder?.();
+            void window.refreshLocalMediaFolder?.();
         }
     } catch (error) {
         if (error.name === 'AbortError') {
@@ -672,6 +835,15 @@ async function startBulkDownload({
     }
 }
 
+/**
+ * Downloads all tracks in the current queue as a dated ZIP archive.
+ * @async
+ * @param {Array<Object>} tracks - Array of track objects to download.
+ * @param {MusicAPI | LosslessAPI} api - API instance used for downloading.
+ * @param {string} quality - Desired audio quality identifier.
+ * @param {LyricsManager | null} [_lyricsManager=null] - Reserved for future use.
+ * @returns {Promise<void>}
+ */
 export async function downloadTracks(tracks, api, quality, _lyricsManager = null) {
     const folderName = `Queue - ${new Date().toISOString().slice(0, 10)}`;
     await startBulkDownload({
@@ -687,6 +859,17 @@ export async function downloadTracks(tracks, api, quality, _lyricsManager = null
     });
 }
 
+/**
+ * Downloads a complete album (with cover art and disc-aware folder structure)
+ * using the configured bulk download method.
+ * @async
+ * @param {object} album - Album metadata object (must include `title`, optionally `releaseDate` and `artist`).
+ * @param {Array<Object>} tracks - Array of track objects belonging to the album.
+ * @param {MusicAPI | LosslessAPI} api - API instance used for downloading.
+ * @param {string} quality - Desired audio quality identifier.
+ * @param {LyricsManager | null} [_lyricsManager=null] - Reserved for future use.
+ * @returns {Promise<void>}
+ */
 export async function downloadAlbum(album, tracks, api, quality, _lyricsManager = null) {
     const releaseDateStr =
         album.releaseDate || (tracks[0]?.streamStartDate ? tracks[0].streamStartDate.split('T')[0] : '');
@@ -712,6 +895,17 @@ export async function downloadAlbum(album, tracks, api, quality, _lyricsManager 
     });
 }
 
+/**
+ * Downloads a complete playlist (with cover art) using the configured bulk
+ * download method.
+ * @async
+ * @param {object} playlist - Playlist metadata object (must include `title`).
+ * @param {Array<Object>} tracks - Array of track objects belonging to the playlist.
+ * @param {MusicAPI | LosslessAPI} api - API instance used for downloading.
+ * @param {string} quality - Desired audio quality identifier.
+ * @param {LyricsManager | null} [_lyricsManager=null] - Reserved for future use.
+ * @returns {Promise<void>}
+ */
 export async function downloadPlaylist(playlist, tracks, api, quality, _lyricsManager = null) {
     const folderName = formatPathTemplate(modernSettings.folderTemplate, {
         albumTitle: playlist.title,
@@ -733,12 +927,32 @@ export async function downloadPlaylist(playlist, tracks, api, quality, _lyricsMa
     });
 }
 
+/**
+ * Downloads an artist's entire discography (multiple albums) into a single
+ * archive, with per-album folders and optional cover/playlist files.
+ * @async
+ * @param {object} artist - Artist object (must include `name`).
+ * @param {Array<Object>} selectedReleases - Array of release/album stub objects to download.
+ * @param {MusicAPI | LosslessAPI} api - API instance used for downloading.
+ * @param {string} quality - Desired audio quality identifier.
+ * @param {LyricsManager | null} [lyricsManager=null] - Optional lyrics manager for LRC files.
+ * @returns {Promise<void>}
+ */
 export async function downloadDiscography(artist, selectedReleases, api, quality, lyricsManager = null) {
     const rootFolder = `${sanitizeForFilename(artist.name)} discography`;
     const notification = createBulkDownloadNotification('discography', artist.name, selectedReleases.length);
     const { abortController } = bulkDownloadTasks.get(notification);
     const signal = abortController.signal;
 
+    /**
+     * Async generator that iterates over each selected release, fetches full album
+     * and track metadata, and yields file entry objects for every artifact
+     * (cover art, audio tracks, optional LRC lyrics, and playlist/metadata files).
+     * @async
+     * @generator
+     * @yields {Object} File entry object with `name`, `lastModified`, and `input` properties.
+     * @throws {Error} Re-throws `AbortError` when the abort signal fires.
+     */
     async function* yieldDiscography() {
         for (let albumIndex = 0; albumIndex < selectedReleases.length; albumIndex++) {
             if (signal.aborted) break;
@@ -888,6 +1102,15 @@ export async function downloadDiscography(artist, selectedReleases, api, quality
     }
 }
 
+/**
+ * Creates and registers a bulk download notification UI element with a progress
+ * bar, a status label, and a cancel button backed by a new {@link AbortController}.
+ * @param {string} type - Content type used to derive the label
+ *   (`'album'`, `'playlist'`, `'liked'`, `'queue'`, or `'discography'`).
+ * @param {string} name - Display name for the download shown below the type label.
+ * @param {number} _totalItems - Total number of items in the batch (reserved for future use).
+ * @returns {HTMLElement} The notification element registered in {@link bulkDownloadTasks}.
+ */
 function createBulkDownloadNotification(type, name, _totalItems) {
     const container = createDownloadNotification();
 
@@ -987,9 +1210,17 @@ function updateBulkDownloadProgress(notifEl, current, total, currentItem, progre
     statusEl.textContent = `${Math.floor(current + 1)}/${total} - ${currentItem}`;
 }
 
+/**
+ * Marks a bulk download notification as complete (success or failure), updates
+ * its visual state, and schedules it for automatic removal.
+ * @param {HTMLElement} notifEl - The bulk download notification element.
+ * @param {boolean} [success=true] - Whether the bulk download completed successfully.
+ * @param {string | null} [message=null] - Optional error message displayed on failure.
+ * @returns {void}
+ */
 function completeBulkDownload(notifEl, success = true, message = null) {
-    const progressFill = notifEl.querySelector('.download-progress-fill');
-    const statusEl = notifEl.querySelector('.download-status');
+    const progressFill = /** @type {HTMLElement} */ (notifEl.querySelector('.download-progress-fill'));
+    const statusEl = /** @type {HTMLElement} */ (notifEl.querySelector('.download-status'));
 
     if (success) {
         progressFill.style.width = '100%';
@@ -1016,7 +1247,7 @@ function completeBulkDownload(notifEl, success = true, message = null) {
 /**
  * Downloads a track with metadata and optionally lyrics.
  * @async
- * @param {Object} track - The track object to download
+ * @param {object} track - The track object to download
  * @param {string} quality - The desired audio quality for download
  * @param {MusicAPI | LosslessAPI} [api=MusicAPI.instance] - The API instance to use for downloading
  * @param {Object} [lyricsManager=null] - Optional manager for fetching and processing lyrics
@@ -1047,7 +1278,7 @@ export async function downloadTrackWithMetadata(
     }
 
     /** @type {LosslessAPI} */
-    const tidalAPI = api.tidalAPI || api;
+    const tidalAPI = api instanceof MusicAPI ? api.tidalAPI : /** @type {LosslessAPI} */ (api);
 
     const downloadKey = `track-${track.id}`;
     if (ongoingDownloads.has(downloadKey)) {
@@ -1079,20 +1310,21 @@ export async function downloadTrackWithMetadata(
             triggerDownload: false,
         });
 
-        const finalFilename = buildTrackFilename(track, quality, await getExtensionFromBlob(blob))
+        const finalFilename = buildTrackFilename(track, quality, await getExtensionFromBlob(/** @type {Blob} */ (blob)))
             .split('/')
             .pop();
 
         // Compute a subfolder path using the same template as bulk downloads so
         // the track lands in e.g. "Album Title - Artist/" instead of the folder root.
         const releaseDateStr =
-            enrichedTrack.album?.releaseDate ||
+            /** @type {Album | undefined} */ (enrichedTrack.album)?.releaseDate ||
             (enrichedTrack.streamStartDate ? enrichedTrack.streamStartDate.split('T')[0] : '');
         const releaseDate = releaseDateStr ? new Date(releaseDateStr) : null;
         const releaseYear = releaseDate && !isNaN(releaseDate.getTime()) ? releaseDate.getFullYear() : '';
         const subFolder = formatPathTemplate(modernSettings.folderTemplate, {
             albumTitle: enrichedTrack.album?.title,
-            albumArtist: enrichedTrack.album?.artist?.name || enrichedTrack.artist?.name,
+            albumArtist:
+                /** @type {Album | undefined} */ (enrichedTrack.album)?.artist?.name || enrichedTrack.artist?.name,
             year: releaseYear,
         });
         const entryName = subFolder ? `${subFolder}/${finalFilename}` : finalFilename;
@@ -1121,7 +1353,7 @@ export async function downloadTrackWithMetadata(
         // pass the downloaded blob and base filename so only this one track's metadata
         // is read and inserted into localFilesCache instead of re-walking the whole folder.
         if (modernSettings.bulkDownloadMethod === BulkDownloadMethod.LocalMedia) {
-            window.refreshLocalMediaFolder?.(blob, finalFilename);
+            void window.refreshLocalMediaFolder?.(/** @type {Blob} */ (blob), finalFilename);
         }
 
         completeDownloadTask(track.id, true);
@@ -1136,6 +1368,15 @@ export async function downloadTrackWithMetadata(
     }
 }
 
+/**
+ * Downloads the user's liked/favourite tracks as a dated bulk archive.
+ * @async
+ * @param {Array<Object>} tracks - Array of liked track objects to download.
+ * @param {MusicAPI | LosslessAPI} api - API instance used for downloading.
+ * @param {string} quality - Desired audio quality identifier.
+ * @param {LyricsManager | null} [_lyricsManager=null] - Reserved for future use.
+ * @returns {Promise<void>}
+ */
 export async function downloadLikedTracks(tracks, api, quality, _lyricsManager = null) {
     const folderName = `Liked Tracks - ${new Date().toISOString().slice(0, 10)}`;
     await startBulkDownload({

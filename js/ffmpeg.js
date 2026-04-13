@@ -1,13 +1,17 @@
+// @ts-check
 import FfmpegWorker from './ffmpeg.worker.js?worker';
 import coreJs from '!/@ffmpeg/core/dist/esm/ffmpeg-core.js?blob-url';
 import coreWasm from '!/@ffmpeg/core/dist/esm/ffmpeg-core.wasm?blob-url';
-import { FfmpegProgress } from './ffmpeg.types';
+import { FfmpegProgress } from './ffmpeg.types.ts';
 
 /**
- * @typedef {import('./ffmpeg.types.ts').FfmpegProgress} FfmpegProgress
+ * Error type thrown when an FFmpeg operation fails or is aborted.
+ * The `code` property is always `'FFMPEG_FAILED'`.
  */
-
 class FfmpegError extends Error {
+    /**
+     * @param {string} message - Human-readable description of the failure
+     */
     constructor(message) {
         super(message);
         this.name = 'FfmpegError';
@@ -15,10 +19,18 @@ class FfmpegError extends Error {
     }
 }
 
+/**
+ * Lazily loads the FFmpeg WASM core and returns blob URLs for the core JS and WASM files.
+ * Subsequent calls return the same cached promise.
+ * @returns {Promise<{coreURL: string, wasmURL: string}>} Resolved blob URLs for the FFmpeg core assets
+ */
 export function loadFfmpeg() {
+    const self = /** @type {typeof loadFfmpeg & { promise?: Promise<{coreURL: string, wasmURL: string}> }} */ (
+        loadFfmpeg
+    );
     return (
-        loadFfmpeg.promise ||
-        (loadFfmpeg.promise = (async () => {
+        self.promise ||
+        (self.promise = (async () => {
             const data = {
                 coreURL: await coreJs(),
                 wasmURL: await coreWasm(),
@@ -30,7 +42,8 @@ export function loadFfmpeg() {
 }
 
 /**
- *
+ * Spawns an FFmpeg Web Worker, posts the audio data and arguments, and resolves with the output Blob.
+ * @async
  * @param {Blob} audioBlob
  * @param {string[]} args
  * @param {string} outputName

@@ -399,9 +399,9 @@ export class BinauralDSP {
         this._mcLfeGain.channelCountMode = 'explicit';
 
         // Generate HRTF impulse responses
-        if (!this._hrtfBuffers || this._hrtfBuffers._preset !== this.hrtfPreset) {
+        if (!this._hrtfBuffers || /** @type {any} */ (this._hrtfBuffers)._preset !== this.hrtfPreset) {
             this._hrtfBuffers = await generateHRTFSet(this.ctx, this.hrtfPreset);
-            this._hrtfBuffers._preset = this.hrtfPreset;
+            /** @type {any} */ (this._hrtfBuffers)._preset = this.hrtfPreset;
         }
 
         this._mcConvolversL = [];

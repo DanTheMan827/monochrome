@@ -1,10 +1,25 @@
+// @ts-check
+/**
+ * IndexedDB-backed persistence layer for the Monochrome app.
+ * Manages favorites, play history, user playlists, folders, pinned items,
+ * application settings, and import/export of user data.
+ */
 export class MusicDatabase {
+    /**
+     * Initializes the MusicDatabase with default database name and schema version.
+     */
     constructor() {
         this.dbName = 'MonochromeDB';
         this.version = 11;
         this.db = null;
     }
 
+    /**
+     * Opens (or reuses) the IndexedDB connection, running schema migrations as needed.
+     * Creates all object stores and indexes on first run or version upgrade.
+     * @async
+     * @returns {Promise<IDBDatabase>} The opened database connection.
+     */
     async open() {
         if (this.db) return this.db;
 
@@ -12,17 +27,17 @@ export class MusicDatabase {
             const request = indexedDB.open(this.dbName, this.version);
 
             request.onerror = (event) => {
-                console.error('Database error:', event.target.error);
-                reject(event.target.error);
+                console.error('Database error:', /** @type {IDBRequest} */ (event.target).error);
+                reject(/** @type {IDBRequest} */ (event.target).error);
             };
 
             request.onsuccess = (event) => {
-                this.db = event.target.result;
+                this.db = /** @type {IDBRequest} */ (event.target).result;
                 resolve(this.db);
             };
 
             request.onupgradeneeded = (event) => {
-                const db = event.target.result;
+                const db = /** @type {IDBRequest} */ (event.target).result;
 
                 // v10 introduced track_ratings (bad PR) - remove it
                 if (db.objectStoreNames.contains('track_ratings')) {
@@ -78,6 +93,15 @@ export class MusicDatabase {
     }
 
     // Generic Helper
+    /**
+     * Opens a transaction on the given store and executes a callback with the object store.
+     * Resolves with the result of the IDBRequest returned by the callback.
+     * @async
+     * @param {string} storeName - Name of the IndexedDB object store.
+     * @param {IDBTransactionMode} mode - Transaction mode: `'readonly'` or `'readwrite'`.
+     * @param {function(IDBObjectStore): IDBRequest} callback - Receives the object store and returns an IDBRequest.
+     * @returns {Promise<any>} The result of the completed IDBRequest.
+     */
     async performTransaction(storeName, mode, callback) {
         const db = await this.open();
         return new Promise((resolve, reject) => {
@@ -89,16 +113,28 @@ export class MusicDatabase {
                 resolve(request?.result);
             };
             transaction.onerror = (event) => {
-                reject(event.target.error);
+                reject(/** @type {IDBRequest} */ (event.target).error);
             };
         });
     }
 
+    /**
+     * Returns all records from the specified object store.
+     * @async
+     * @param {string} storeName - Name of the object store to read from.
+     * @returns {Promise<Array<any>>} All records in the store.
+     */
     async getAll(storeName) {
         return this.performTransaction(storeName, 'readonly', (store) => store.getAll());
     }
 
     // History API
+    /**
+     * Adds a track to the play history, replacing the previous entry for the same track if present.
+     * @async
+     * @param {object} track - Track object to record in history.
+     * @returns {Promise<Object>} The history entry that was stored (includes a `timestamp` field).
+     */
     async addToHistory(track) {
         const storeName = 'history_tracks';
         const minified = this._minifyItem(track.type || 'track', track);
@@ -114,7 +150,7 @@ export class MusicDatabase {
             let lastTimestamp = 0;
 
             lastReq.onsuccess = (e) => {
-                const cursor = e.target.result;
+                const cursor = /** @type {IDBRequest} */ (e.target).result;
                 if (cursor && lastTimestamp === 0) {
                     lastTimestamp = cursor.value.timestamp;
                 }
@@ -124,7 +160,7 @@ export class MusicDatabase {
 
                 const dedupeReq = index.openCursor(null, 'prev');
                 dedupeReq.onsuccess = (e2) => {
-                    const dedupeCursor = e2.target.result;
+                    const dedupeCursor = /** @type {IDBRequest} */ (e2.target).result;
                     if (dedupeCursor) {
                         const trackInHistory = dedupeCursor.value;
                         if (trackInHistory.id === track.id) {
@@ -138,10 +174,15 @@ export class MusicDatabase {
                 };
             };
 
-            transaction.onerror = (e) => reject(e.target.error);
+            transaction.onerror = (e) => reject(/** @type {IDBTransaction} */ (e.target).error);
         });
     }
 
+    /**
+     * Returns all play history entries sorted newest-first.
+     * @async
+     * @returns {Promise<Array<Object>>} History entries in descending timestamp order.
+     */
     async getHistory() {
         const storeName = 'history_tracks';
         const db = await this.open();
@@ -159,6 +200,11 @@ export class MusicDatabase {
         });
     }
 
+    /**
+     * Removes all records from the play history store.
+     * @async
+     * @returns {Promise<void>}
+     */
     async clearHistory() {
         const storeName = 'history_tracks';
         const db = await this.open();
@@ -173,6 +219,14 @@ export class MusicDatabase {
     }
 
     // Favorites API
+    /**
+     * Toggles a favorite item: removes it if already favorited, or adds a minified copy if not.
+     * Dispatches a `favorites-changed` window event after each change.
+     * @async
+     * @param {string} type - Item type: `'track'`, `'album'`, `'artist'`, `'playlist'`, or `'mix'`.
+     * @param {object} item - The item to toggle.
+     * @returns {Promise<boolean>} `true` if the item was added, `false` if it was removed.
+     */
     async toggleFavorite(type, item) {
         const plural = type === 'mix' ? 'mixes' : `${type}s`;
         const storeName = `favorites_${plural}`;
@@ -192,6 +246,13 @@ export class MusicDatabase {
         }
     }
 
+    /**
+     * Checks whether an item is currently favorited by its ID.
+     * @async
+     * @param {string} type - Item type: `'track'`, `'album'`, `'artist'`, `'playlist'`, or `'mix'`.
+     * @param {string|number} id - The item's primary key.
+     * @returns {Promise<boolean>} `true` if the item is a favorite.
+     */
     async isFavorite(type, id) {
         const plural = type === 'mix' ? 'mixes' : `${type}s`;
         const storeName = `favorites_${plural}`;
@@ -203,6 +264,12 @@ export class MusicDatabase {
         }
     }
 
+    /**
+     * Returns all favorited items of the given type, sorted newest-first by `addedAt` timestamp.
+     * @async
+     * @param {string} type - Item type: `'track'`, `'album'`, `'artist'`, `'playlist'`, or `'mix'`.
+     * @returns {Promise<Array<Object>>} Favorited items in descending add-time order.
+     */
     async getFavorites(type) {
         const plural = type === 'mix' ? 'mixes' : `${type}s`;
         const storeName = `favorites_${plural}`;
@@ -226,6 +293,13 @@ export class MusicDatabase {
         });
     }
 
+    /**
+     * Returns a minified copy of an item retaining only the fields needed for display and playback.
+     * The exact fields kept depend on `type` (track, video, album, artist, playlist, or mix).
+     * @param {string} type - Item type identifier.
+     * @param {object} item - Full item object to minify.
+     * @returns {Object} Minified item suitable for storage in IndexedDB.
+     */
     _minifyItem(type, item) {
         if (!item) return item;
         const normalizedType = (type || '').toLowerCase();
@@ -347,6 +421,13 @@ export class MusicDatabase {
         return item;
     }
 
+    /**
+     * Returns a minified representation of an item for storage in the pinned_items store.
+     * Derives the `id`, `name`, `cover`, and `href` fields based on the item type.
+     * @param {object} item - The item to minify.
+     * @param {string} type - Item type: `'album'`, `'artist'`, `'playlist'`, or `'user-playlist'`.
+     * @returns {Object|null} Minified pinned item, or null for unsupported types.
+     */
     _minifyPinnedItem(item, type) {
         if (!item) return null;
 
@@ -389,6 +470,14 @@ export class MusicDatabase {
         };
     }
 
+    /**
+     * Toggles the pinned state of an item. Removes it if already pinned; otherwise adds it,
+     * evicting the oldest pinned item if the 3-item limit would be exceeded.
+     * @async
+     * @param {object} item - The item to pin or unpin.
+     * @param {string} type - Item type: `'album'`, `'artist'`, `'playlist'`, or `'user-playlist'`.
+     * @returns {Promise<boolean|undefined>} `true` if pinned, `false` if unpinned, or `undefined` if the type is unsupported.
+     */
     async togglePinned(item, type) {
         const storeName = 'pinned_items';
         const minifiedItem = this._minifyPinnedItem(item, type);
@@ -412,6 +501,12 @@ export class MusicDatabase {
         }
     }
 
+    /**
+     * Checks whether an item is currently pinned by its ID.
+     * @async
+     * @param {string|number} id - The item's primary key.
+     * @returns {Promise<boolean>} `true` if the item is pinned.
+     */
     async isPinned(id) {
         const storeName = 'pinned_items';
         try {
@@ -422,6 +517,12 @@ export class MusicDatabase {
         }
     }
 
+    /**
+     * Exports all user data (favorites, history, playlists, folders) as a plain object.
+     * Each collection is minified before export to reduce storage size.
+     * @async
+     * @returns {Promise<Object>} Exported data object with keys for each collection.
+     */
     async exportData() {
         const tracks = await this.getFavorites('track');
         const albums = await this.getFavorites('album');
@@ -445,6 +546,14 @@ export class MusicDatabase {
         return data;
     }
 
+    /**
+     * Imports user data into the database. Optionally clears existing records in each store.
+     * Normalizes string IDs to numbers where needed and generates fallback keys for missing keyPaths.
+     * @async
+     * @param {object} data - Data object with collection arrays (e.g., `favorites_tracks`, `history_tracks`).
+     * @param {boolean} [clear=false] - If true, clears existing records in stores that receive empty arrays.
+     * @returns {Promise<boolean>} `true` if at least one store was modified.
+     */
     async importData(data, clear = false) {
         const db = await this.open();
 
@@ -502,8 +611,10 @@ export class MusicDatabase {
 
                     // Critical: Ensure key exists for IndexedDB store.put()
                     const keyPath = store.keyPath;
-                    if (keyPath && !item[keyPath]) {
-                        console.warn(`Item missing keyPath "${keyPath}" in ${storeName}, generating fallback.`);
+                    if (keyPath && !item[/** @type {string} */ (keyPath)]) {
+                        console.warn(
+                            `Item missing keyPath "${Array.isArray(keyPath) ? keyPath.join(',') : keyPath}" in ${storeName}, generating fallback.`
+                        );
                         if (keyPath === 'uuid') item.uuid = crypto.randomUUID();
                         else if (keyPath === 'id')
                             item.id = item.trackId || item.albumId || item.artistId || Date.now() + Math.random();
@@ -519,7 +630,7 @@ export class MusicDatabase {
                 };
 
                 transaction.onerror = (event) => {
-                    console.error(`${storeName}: Transaction error:`, event.target.error);
+                    console.error(`${storeName}: Transaction error:`, /** @type {IDBRequest} */ (event.target).error);
                     reject(transaction.error);
                 };
             });
@@ -551,6 +662,12 @@ export class MusicDatabase {
         return results.some((r) => r);
     }
 
+    /**
+     * Updates derived metadata fields (`numberOfTracks` and `images`) on a playlist object in-place.
+     * Collects up to 4 unique album cover URLs from tracks when no explicit cover is set.
+     * @param {object} playlist - The playlist object to update.
+     * @returns {Object} The same playlist object with updated metadata.
+     */
     _updatePlaylistMetadata(playlist) {
         playlist.numberOfTracks = playlist.tracks ? playlist.tracks.length : 0;
 
@@ -571,6 +688,11 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Dispatches a `sync-playlist-change` window CustomEvent carrying the action and playlist detail.
+     * @param {string} action - The action type: `'create'`, `'update'`, or `'delete'`.
+     * @param {object} playlist - The playlist object relevant to this event.
+     */
     _dispatchPlaylistSync(action, playlist) {
         window.dispatchEvent(
             new CustomEvent('sync-playlist-change', {
@@ -580,6 +702,16 @@ export class MusicDatabase {
     }
 
     // User Playlists API
+    /**
+     * Creates a new user playlist and persists it to IndexedDB.
+     * Fires `sync-playlist-change` and `playlist-tracks-changed` events.
+     * @async
+     * @param {string} name - Display name for the playlist.
+     * @param {Array<Object>} [tracks=[]] - Initial track objects to include.
+     * @param {string} [cover=''] - Cover image identifier or URL.
+     * @param {string} [description=''] - Optional playlist description.
+     * @returns {Promise<Object>} The newly created playlist object.
+     */
     async createPlaylist(name, tracks = [], cover = '', description = '') {
         const id = crypto.randomUUID();
         const playlist = {
@@ -603,6 +735,15 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Adds a single track to a user playlist. Silently ignores duplicate tracks.
+     * Fires `sync-playlist-change` and `playlist-tracks-changed` events on success.
+     * @async
+     * @param {string} playlistId - UUID of the target playlist.
+     * @param {object} track - Track object to add.
+     * @returns {Promise<Object>} The updated playlist object.
+     * @throws {Error} If the playlist is not found.
+     */
     async addTrackToPlaylist(playlistId, track) {
         const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
         if (!playlist) throw new Error('Playlist not found');
@@ -621,6 +762,15 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Adds multiple tracks to a user playlist, skipping duplicates.
+     * Fires `sync-playlist-change` and `playlist-tracks-changed` events only when at least one track was added.
+     * @async
+     * @param {string} playlistId - UUID of the target playlist.
+     * @param {Array<Object>} tracks - Track objects to add.
+     * @returns {Promise<Object>} The updated playlist object.
+     * @throws {Error} If the playlist is not found.
+     */
     async addTracksToPlaylist(playlistId, tracks) {
         const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
         if (!playlist) throw new Error('Playlist not found');
@@ -646,6 +796,16 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Removes a track from a user playlist by its ID, optionally scoped to a specific type.
+     * Fires `sync-playlist-change` and `playlist-tracks-changed` events.
+     * @async
+     * @param {string} playlistId - UUID of the target playlist.
+     * @param {string|number} trackId - ID of the track to remove.
+     * @param {string|null} [trackType=null] - If provided, also matches on track type for disambiguation.
+     * @returns {Promise<Object>} The updated playlist object.
+     * @throws {Error} If the playlist is not found.
+     */
     async removeTrackFromPlaylist(playlistId, trackId, trackType = null) {
         const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
         if (!playlist) throw new Error('Playlist not found');
@@ -666,6 +826,13 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Deletes a user playlist from IndexedDB.
+     * Fires `sync-playlist-change` (with action `'delete'`) and `playlist-tracks-changed` events.
+     * @async
+     * @param {string} playlistId - UUID of the playlist to delete.
+     * @returns {Promise<void>}
+     */
     async deletePlaylist(playlistId) {
         await this.performTransaction('user_playlists', 'readwrite', (store) => store.delete(playlistId));
 
@@ -674,10 +841,23 @@ export class MusicDatabase {
         window.dispatchEvent(new CustomEvent('playlist-tracks-changed'));
     }
 
+    /**
+     * Retrieves a single user playlist by its ID.
+     * @async
+     * @param {string} playlistId - UUID of the playlist to retrieve.
+     * @returns {Promise<Object|undefined>} The playlist object, or undefined if not found.
+     */
     async getPlaylist(playlistId) {
         return await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
     }
 
+    /**
+     * Saves changes to an existing playlist (updating metadata and `updatedAt` timestamp).
+     * Fires a `sync-playlist-change` event with action `'update'`.
+     * @async
+     * @param {object} playlist - The playlist object to persist.
+     * @returns {Promise<Object>} The updated playlist object.
+     */
     async updatePlaylist(playlist) {
         playlist.updatedAt = Date.now();
         this._updatePlaylistMetadata(playlist);
@@ -688,6 +868,14 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Adds a playlist to a folder if not already present.
+     * @async
+     * @param {string} folderId - UUID of the target folder.
+     * @param {string} playlistId - UUID of the playlist to add.
+     * @returns {Promise<Object>} The updated folder object.
+     * @throws {Error} If the folder is not found.
+     */
     async addPlaylistToFolder(folderId, playlistId) {
         const folder = await this.getFolder(folderId);
         if (!folder) throw new Error('Folder not found');
@@ -701,6 +889,13 @@ export class MusicDatabase {
     }
 
     // User Folders API
+    /**
+     * Creates a new user folder and persists it to IndexedDB.
+     * @async
+     * @param {string} name - Display name for the folder.
+     * @param {string} [cover=''] - Cover image identifier or URL.
+     * @returns {Promise<Object>} The newly created folder object.
+     */
     async createFolder(name, cover = '') {
         const id = crypto.randomUUID();
         const folder = {
@@ -715,6 +910,11 @@ export class MusicDatabase {
         return folder;
     }
 
+    /**
+     * Returns all user folders sorted newest-first by `createdAt`.
+     * @async
+     * @returns {Promise<Array<Object>>} All folder objects in descending creation order.
+     */
     async getFolders() {
         const db = await this.open();
         return new Promise((resolve, reject) => {
@@ -727,14 +927,31 @@ export class MusicDatabase {
         });
     }
 
+    /**
+     * Retrieves a single user folder by its ID.
+     * @async
+     * @param {string} id - UUID of the folder to retrieve.
+     * @returns {Promise<Object|undefined>} The folder object, or undefined if not found.
+     */
     async getFolder(id) {
         return await this.performTransaction('user_folders', 'readonly', (store) => store.get(id));
     }
 
+    /**
+     * Deletes a user folder from IndexedDB.
+     * @async
+     * @param {string} id - UUID of the folder to delete.
+     * @returns {Promise<void>}
+     */
     async deleteFolder(id) {
         await this.performTransaction('user_folders', 'readwrite', (store) => store.delete(id));
     }
 
+    /**
+     * Returns all pinned items sorted newest-first by `pinnedAt` timestamp.
+     * @async
+     * @returns {Promise<Array<Object>>} Pinned items in descending pin-time order.
+     */
     async getPinned() {
         const storeName = 'pinned_items';
         const db = await this.open();
@@ -752,6 +969,13 @@ export class MusicDatabase {
         });
     }
 
+    /**
+     * Returns all user playlists sorted newest-first, performing lazy migrations for
+     * `numberOfTracks` and cover image collage fields as needed.
+     * @async
+     * @param {boolean} [includeTracks=false] - If false, returns lightweight copies with the `tracks` array stripped.
+     * @returns {Promise<Array<Object>>} Playlist objects in descending creation order.
+     */
     async getPlaylists(includeTracks = false) {
         const db = await this.open();
         return new Promise((resolve, reject) => {
@@ -799,6 +1023,14 @@ export class MusicDatabase {
         });
     }
 
+    /**
+     * Renames a user playlist.
+     * @async
+     * @param {string} playlistId - UUID of the playlist to rename.
+     * @param {string} newName - New display name.
+     * @returns {Promise<Object>} The updated playlist object.
+     * @throws {Error} If the playlist is not found.
+     */
     async updatePlaylistName(playlistId, newName) {
         const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
         if (!playlist) throw new Error('Playlist not found');
@@ -808,6 +1040,15 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Updates the description of a user playlist.
+     * Fires a `sync-playlist-change` event with action `'update'`.
+     * @async
+     * @param {string} playlistId - UUID of the playlist to update.
+     * @param {string} newDescription - New description text.
+     * @returns {Promise<Object>} The updated playlist object.
+     * @throws {Error} If the playlist is not found.
+     */
     async updatePlaylistDescription(playlistId, newDescription) {
         const playlist = await this.performTransaction('user_playlists', 'readonly', (store) => store.get(playlistId));
         if (!playlist) throw new Error('Playlist not found');
@@ -820,6 +1061,14 @@ export class MusicDatabase {
         return playlist;
     }
 
+    /**
+     * Replaces the track list of a user playlist with a new array and updates metadata.
+     * @async
+     * @param {string} playlistId - UUID of the playlist to update.
+     * @param {Array<Object>} tracks - New array of track objects to store.
+     * @returns {Promise<Object>} The updated playlist object.
+     * @throws {Error} If the playlist is not found or the transaction fails.
+     */
     async updatePlaylistTracks(playlistId, tracks) {
         const db = await this.open();
         return new Promise((resolve, reject) => {
@@ -849,15 +1098,28 @@ export class MusicDatabase {
             };
 
             transaction.onerror = (event) => {
-                reject(event.target.error);
+                reject(/** @type {IDBRequest} */ (event.target).error);
             };
         });
     }
 
+    /**
+     * Persists an application setting value under the given key.
+     * @async
+     * @param {string} key - Setting key.
+     * @param {unknown} value - Value to store.
+     * @returns {Promise<void>}
+     */
     async saveSetting(key, value) {
         await this.performTransaction('settings', 'readwrite', (store) => store.put(value, key));
     }
 
+    /**
+     * Retrieves an application setting value by key.
+     * @async
+     * @param {string} key - Setting key.
+     * @returns {Promise<any>} The stored value, or undefined if the key does not exist.
+     */
     async getSetting(key) {
         return await this.performTransaction('settings', 'readonly', (store) => store.get(key));
     }

@@ -8,6 +8,26 @@ declare module '*?blob-url' {
     export default urlPromise;
 }
 
+declare module '*?svg&size=22' {
+    const content: string;
+    export default content;
+}
+
+declare module '*?svg&size=*' {
+    const content: string;
+    export default content;
+}
+
+declare module 'virtual:pwa-register' {
+    export function registerSW(options?: {
+        immediate?: boolean;
+        onNeedRefresh?: () => void;
+        onOfflineReady?: () => void;
+        onRegistered?: (registration: ServiceWorkerRegistration | undefined) => void;
+        onRegisterError?: (error: Error) => void;
+    }): (reloadPage?: boolean) => void;
+}
+
 declare module '*?svg&icon' {
     const resize: (size: number, attrs?: Record<string, string>) => string;
     export default resize;
@@ -32,6 +52,8 @@ type WithRequiredKeys<T> = {
     [K in keyof T]-?: T[K] | undefined;
 };
 
-declare global {
-    const __COMMIT_HASH__: string | undefined;
-}
+/** Injected by Vite at build time; the short git commit hash. */
+const __COMMIT_HASH__: string | undefined;
+
+/** Injected by Neutralino at runtime; indicates if the app is running in Neutralino mode. */
+const NL_MODE: boolean;

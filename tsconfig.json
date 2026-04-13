@@ -10,7 +10,8 @@
             "!/*": ["node_modules/*"]
         },
         "allowJs": true,
-        "checkJs": false,
+        "checkJs": true,
+        "allowImportingTsExtensions": true,
         "resolveJsonModule": true,
         "isolatedModules": true,
         "verbatimModuleSyntax": true,
@@ -18,5 +19,5 @@
         "noEmit": true
     },
     "include": ["**/*.ts", "*.ts", "**/*.js", "*.js"],
-    "exclude": ["**/node_modules/*"]
+    "exclude": ["**/node_modules/*", "**/dist/**"]
 }

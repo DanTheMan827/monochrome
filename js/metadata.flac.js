@@ -1,6 +1,12 @@
+// @ts-check
 import { getCoverBlob, getTrackTitle } from './utils.js';
 import { getFullArtistString } from './utils.js';
 import { METADATA_STRINGS } from './METADATA_STRINGS.js';
+
+/**
+ * @typedef {{ type: number; isLast: boolean; size: number; offset: number; headerOffset: number }} FlacBlock
+ * @typedef {Array<FlacBlock> & { audioDataOffset?: number }} FlacBlocks
+ */
 
 export const FLAC_MIME_TYPE = 'audio/flac';
 const FLAC_BLOCK_TYPES = {
@@ -26,6 +32,14 @@ const FLAC_BLOCK_TYPES = {
     Picture: 6,
 };
 
+/**
+ * Reads FLAC metadata from a File and populates a metadata object in-place.
+ * Extracts title, artists, album, ISRC, copyright, explicit flag, duration, and cover art.
+ * @async
+ * @param {File} file - FLAC audio file to inspect
+ * @param {object} metadata - Metadata object to populate (mutated in-place)
+ * @returns {Promise<void>}
+ */
 export async function readFlacMetadata(file, metadata) {
     const arrayBuffer = await file.arrayBuffer();
     const dataView = new DataView(arrayBuffer);
@@ -121,6 +135,11 @@ export async function readFlacMetadata(file, metadata) {
 
 /**
  * Adds Vorbis comment metadata to FLAC files
+ * @async
+ * @param {Blob} flacBlob - Source FLAC audio blob
+ * @param {object} track - Track object containing metadata to embed
+ * @param {object} api - API client used to fetch album artwork
+ * @returns {Promise<Blob>} New FLAC Blob with metadata embedded, or the original on failure
  */
 export async function addFlacMetadata(flacBlob, track, api) {
     try {
@@ -184,13 +203,18 @@ export async function addFlacMetadata(flacBlob, track, api) {
             return flacBlob;
         }
 
-        return new Blob([newFlacData], { type: 'audio/flac' });
+        return new Blob([/** @type {ArrayBuffer} */ (newFlacData.buffer)], { type: 'audio/flac' });
     } catch (error) {
         console.error('Failed to add FLAC metadata:', error);
         return flacBlob;
     }
 }
 
+/**
+ * Checks whether the given DataView starts with the FLAC stream marker (`fLaC`).
+ * @param {DataView} dataView - DataView over the file bytes to inspect
+ * @returns {boolean} `true` if the data begins with a valid FLAC signature
+ */
 export function isFlacFile(dataView) {
     // Check for "fLaC" signature at the beginning
     return (
@@ -202,8 +226,15 @@ export function isFlacFile(dataView) {
     ); // 'C'
 }
 
+/**
+ * Parses all metadata blocks from a FLAC DataView.
+ * The returned array includes an `audioDataOffset` property indicating where audio frames begin.
+ * @param {DataView} dataView - DataView over a complete FLAC file
+ * @returns {FlacBlocks} Parsed block descriptors with an `audioDataOffset` property
+ */
 export function parseFlacBlocks(dataView) {
-    const blocks = [];
+    /** @type {FlacBlocks} */
+    const blocks = /** @type {FlacBlocks} */ ([]);
     let offset = 4; // Skip "fLaC" signature
 
     while (offset + 4 <= dataView.byteLength) {
@@ -256,8 +287,15 @@ export function parseFlacBlocks(dataView) {
     return blocks;
 }
 
+/**
+ * Builds an array of Vorbis comment key/value pairs from a track object.
+ * Includes title, artist, album, track number, disc number, BPM, replay gain, date, copyright, ISRC, and explicit flag.
+ * @param {object} track - Track object containing the metadata fields
+ * @returns {Array<[string, string]>} Array of `[KEY, value]` tuples ready to pass to {@link createVorbisCommentBlock}
+ */
 export function createVorbisComments(track) {
     // Vorbis comment structure
+    /** @type {[string, string][]} */
     const comments = [];
     const discNumber = track.volumeNumber ?? track.discNumber;
 
@@ -325,6 +363,12 @@ export function createVorbisComments(track) {
     return comments;
 }
 
+/**
+ * Serialises an array of Vorbis comment pairs into the binary block format.
+ * The result is padded to at least 1024 bytes to allow in-place future edits.
+ * @param {Array<[string, string]>} [comments=[]] - Comment pairs to encode
+ * @returns {Uint8Array} Binary Vorbis comment block data (without the 4-byte FLAC metadata header)
+ */
 export function createVorbisCommentBlock(comments = []) {
     // Calculate total size
     const vendor = METADATA_STRINGS.VENDOR_STRING;
@@ -376,6 +420,13 @@ export function createVorbisCommentBlock(comments = []) {
     return uint8Array;
 }
 
+/**
+ * Fetches album art and encodes it as a FLAC PICTURE block payload.
+ * @async
+ * @param {string} coverId - Cover identifier passed to the API client
+ * @param {object} api - API client used to fetch the cover image
+ * @returns {Promise<Uint8Array | null>} Binary picture block data, or `null` on failure
+ */
 export async function createFlacPictureBlock(coverId, api) {
     try {
         // Fetch album art
@@ -464,6 +515,16 @@ export async function createFlacPictureBlock(coverId, api) {
     }
 }
 
+/**
+ * Rebuilds a FLAC file with a new Vorbis comment block and an optional picture block.
+ * Removes any existing seek table, Vorbis comment, and picture blocks before inserting the new ones.
+ * @param {DataView} dataView - DataView over the original FLAC file bytes
+ * @param {FlacBlocks} blocks - Block descriptors produced by {@link parseFlacBlocks}
+ * @param {Uint8Array} [vorbisCommentBlock] - Encoded Vorbis comment payload; defaults to an empty block
+ * @param {Uint8Array | null} [pictureBlock] - Encoded picture payload, or falsy to omit
+ * @returns {Uint8Array} Rebuilt FLAC file as a new byte array
+ * @throws {Error} If the audio data offset cannot be determined from the block structure
+ */
 export function rebuildFlacWithMetadata(
     dataView,
     blocks,
@@ -569,6 +630,13 @@ export function rebuildFlacWithMetadata(
     return newFile;
 }
 
+/**
+ * Validates a FLAC DataView and returns its parsed metadata blocks.
+ * Convenience wrapper around {@link isFlacFile} and {@link parseFlacBlocks} that throws on any error.
+ * @param {DataView} dataView - DataView over the FLAC file to inspect
+ * @returns {FlacBlocks} Parsed block descriptors
+ * @throws {Error} If the file is not a valid FLAC, the blocks cannot be parsed, or STREAMINFO is missing
+ */
 export function getFlacBlocks(dataView) {
     // Verify FLAC signature
     if (!isFlacFile(dataView)) {
@@ -609,9 +677,16 @@ export async function rebuildFlacWithoutMetadata(flacBlob) {
         const arrayBuffer = await flacBlob.arrayBuffer();
         const dataView = new DataView(arrayBuffer);
         const blocks = getFlacBlocks(dataView);
-        return new Blob([rebuildFlacWithMetadata(dataView, blocks, createVorbisCommentBlock(), null)], {
-            type: FLAC_MIME_TYPE,
-        });
+        return new Blob(
+            [
+                /** @type {ArrayBuffer} */ (
+                    rebuildFlacWithMetadata(dataView, blocks, createVorbisCommentBlock(), null).buffer
+                ),
+            ],
+            {
+                type: FLAC_MIME_TYPE,
+            }
+        );
     } catch (err) {
         console.error('Error rebuilding FLAC file:', err);
         return flacBlob;

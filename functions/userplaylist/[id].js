@@ -69,9 +69,12 @@ export async function onRequest(context) {
             if (!response.ok) throw new Error(`PocketBase error: ${response.status}`);
 
             const result = await response.json();
-            const record = result.items && result.items.length > 0 ? result.items[0] : null;
+            const record = /** @type {Record<string, any>|null} */ (
+                result.items && result.items.length > 0 ? result.items[0] : null
+            );
 
             if (record) {
+                /** @type {Record<string, any>} */
                 let extraData = {};
                 try {
                     extraData = record.data ? JSON.parse(record.data) : {};

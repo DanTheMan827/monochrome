@@ -1,3 +1,4 @@
+// @ts-check
 //js/api.js
 import {
     RATE_LIMIT_ERROR_MESSAGE,
@@ -14,7 +15,7 @@ import { HlsDownloader } from './hls-downloader.js';
 import { loadFfmpeg, FfmpegError, ffmpeg } from './ffmpeg.js';
 import { triggerDownload, applyAudioPostProcessing } from './download-utils.ts';
 import { isCustomFormat } from './ffmpegFormats.ts';
-import { DownloadProgress } from './progressEvents.js';
+import { DownloadProgress, DownloadProgressMessage } from './progressEvents.js';
 import { resolveDownloadTotalBytes } from './downloadProgressUtils.js';
 import { readableStreamIterator } from './readableStreamIterator.js';
 import { HiFiClient, TidalResponse } from './HiFi.ts';
@@ -34,7 +35,22 @@ import {
 export const DASH_MANIFEST_UNAVAILABLE_CODE = 'DASH_MANIFEST_UNAVAILABLE';
 export { resolveDownloadTotalBytes };
 
+/**
+ * @typedef {import('./progressEvents.js').SegmentedDownloadProgress} SegmentedDownloadProgress
+ * @typedef {import('./ffmpegFormats.ts').ProgressEvent} FfmpegFormatsProgressEvent
+ * @typedef {import('./ffmpeg.types.ts').FfmpegProgress} FfmpegProgress
+ */
+
+/**
+ * API client for streaming and downloading music via Tidal-compatible backend instances.
+ * Manages multi-instance routing, response caching, search, and media retrieval.
+ */
 export class LosslessAPI {
+    /**
+     * Creates a new LosslessAPI instance.
+     * @param {object} settings - Application settings object.
+     * @param {function(string): Promise<Array<Object>>} settings.getInstances - Returns configured API backend instances for a given type.
+     */
     constructor(settings) {
         this.settings = settings;
         this.cache = new APICache({
@@ -52,6 +68,9 @@ export class LosslessAPI {
         );
     }
 
+    /**
+     * Removes the oldest entries from `streamCache` when it exceeds 50 items.
+     */
     pruneStreamCache() {
         if (this.streamCache.size > 50) {
             const entries = Array.from(this.streamCache.entries());
@@ -60,6 +79,20 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Fetches a resource from a configured API instance with automatic failover and retry logic.
+     * Attempts the HiFiClient direct path first, then falls back to configured backend instances
+     * in round-robin order, handling rate limits (429), auth failures (401), and server errors (5xx).
+     * @async
+     * @param {string} relativePath - Relative API path to request (e.g., `/track/?id=123`).
+     * @param {object} [options={}] - Request options.
+     * @param {string} [options.type='api'] - Instance type filter (`'api'` or `'streaming'`).
+     * @param {string} [options.minVersion] - Minimum required instance version string.
+     * @param {string[]} [options.allowedDomains] - Restrict requests to instances whose URL contains one of these domains.
+     * @param {AbortSignal} [options.signal] - AbortSignal to cancel the request.
+     * @returns {Promise<Response>} The successful HTTP response.
+     * @throws {Error} If all instances fail or no matching instances are configured.
+     */
     async fetchWithRetry(relativePath, options = {}) {
         const type = options.type || 'api';
         const instanceRoutes = [
@@ -165,6 +198,14 @@ export class LosslessAPI {
         throw lastError || new Error(`All API instances failed for: ${relativePath}`);
     }
 
+    /**
+     * Recursively searches a JSON response object for a section containing an `items` array.
+     * Uses a visited set to prevent infinite recursion in circular structures.
+     * @param {*} source - The object or array to search.
+     * @param {string} key - The property key to descend into when found.
+     * @param {Set} visited - Set of already-visited objects to prevent cycles.
+     * @returns {Object|undefined} The found section object, or undefined if not found.
+     */
     findSearchSection(source, key, visited) {
         if (!source || typeof source !== 'object') return;
 
@@ -192,6 +233,11 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Builds a normalized search response object from a raw section containing items.
+     * @param {Object|null|undefined} section - Raw API section with `items`, `limit`, `offset`, and `totalNumberOfItems`.
+     * @returns {{ items: Array, limit: number, offset: number, totalNumberOfItems: number }} Normalized response.
+     */
     buildSearchResponse(section) {
         const items = section?.items ?? [];
         return {
@@ -202,11 +248,23 @@ export class LosslessAPI {
         };
     }
 
+    /**
+     * Normalizes a raw search API response by locating the relevant section and standardizing its shape.
+     * @param {object} data - Raw API response body.
+     * @param {string} key - Section key to locate (e.g., `'tracks'`, `'albums'`).
+     * @returns {{ items: Array, limit: number, offset: number, totalNumberOfItems: number }} Normalized section.
+     */
     normalizeSearchResponse(data, key) {
         const section = this.findSearchSection(data, key, new Set());
         return this.buildSearchResponse(section);
     }
 
+    /**
+     * Normalizes a raw track or video object and wraps it in a `PreparedTrack` or `PreparedVideo` instance.
+     * Ensures `type`, `artist`, `audioQuality`, and `isUnavailable` fields are correctly set.
+     * @param {object} track - Raw track or video object from the API.
+     * @returns {PreparedTrack|PreparedVideo} Normalized track or video instance.
+     */
     prepareTrack(track) {
         let normalized = track;
 
@@ -235,6 +293,11 @@ export class LosslessAPI {
         return normalized.type == 'video' ? new PreparedVideo(normalized) : new PreparedTrack(normalized);
     }
 
+    /**
+     * Ensures an album object has an `artist` field, falling back to `artists[0]` when missing.
+     * @param {object} album - Raw album object from the API.
+     * @returns {object} Album object with `artist` populated if an `artists` array is present.
+     */
     prepareAlbum(album) {
         if (!album.artist && Array.isArray(album.artists) && album.artists.length > 0) {
             return { ...album, artist: album.artists[0] };
@@ -242,10 +305,20 @@ export class LosslessAPI {
         return album;
     }
 
+    /**
+     * Returns the playlist object unchanged. Placeholder for future normalization logic.
+     * @param {object} playlist - Raw playlist object from the API.
+     * @returns {object} The same playlist object unmodified.
+     */
     preparePlaylist(playlist) {
         return playlist;
     }
 
+    /**
+     * Normalizes a raw video object by ensuring `type` is `'video'` and `artist` is populated.
+     * @param {object} video - Raw video object from the API.
+     * @returns {object} Normalized video object with `type` and `artist` set.
+     */
     prepareVideo(video) {
         let normalized = { ...video, type: 'video' };
 
@@ -256,6 +329,11 @@ export class LosslessAPI {
         return normalized;
     }
 
+    /**
+     * Normalizes a raw artist object by populating the `type` field from `artistTypes` if missing.
+     * @param {object} artist - Raw artist object from the API.
+     * @returns {object} Normalized artist object.
+     */
     prepareArtist(artist) {
         if (!artist.type && Array.isArray(artist.artistTypes) && artist.artistTypes.length > 0) {
             return { ...artist, type: artist.artistTypes[0] };
@@ -263,6 +341,14 @@ export class LosslessAPI {
         return artist;
     }
 
+    /**
+     * Enriches track objects with album release dates by fetching album metadata in chunked batches.
+     * Does nothing if `trackDateSettings.useAlbumYear()` is disabled.
+     * @async
+     * @param {Array<Object>} tracks - Array of track objects to enrich.
+     * @param {number} [maxRequests=20] - Maximum number of album API requests to make.
+     * @returns {Promise<Array<Object>>} Tracks with `album.releaseDate` filled in where available.
+     */
     async enrichTracksWithAlbumDates(tracks, maxRequests = 20) {
         if (!trackDateSettings.useAlbumYear()) return tracks;
 
@@ -306,6 +392,13 @@ export class LosslessAPI {
         });
     }
 
+    /**
+     * Parses a combined track-and-playback-info API response into its individual components.
+     * Handles both single-object and array responses, identifying parts by duck typing.
+     * @param {Object|Array} data - Raw API response containing track and playback info objects.
+     * @returns {{ track: Object, info: Object, originalTrackUrl: string|undefined }} Parsed components.
+     * @throws {Error} If the response is missing required `track` or `info` data.
+     */
     parseTrackLookup(data) {
         const entries = Array.isArray(data) ? data : [data];
         let track, info, originalTrackUrl;
@@ -338,6 +431,13 @@ export class LosslessAPI {
         return { track, info, originalTrackUrl };
     }
 
+    /**
+     * Extracts a playable stream URL from a manifest value.
+     * Supports base64-encoded strings (decoded to JSON or DASH/MPD XML), raw JSON objects with `urls` arrays,
+     * and direct string URLs. Multi-URL manifests are sorted to prefer lossless formats.
+     * @param {string|Object|null} manifest - The manifest value to decode.
+     * @returns {string|null} A playable HTTP URL, a `blob:` URL for DASH manifests, or null if unresolvable.
+     */
     extractStreamUrlFromManifest(manifest) {
         if (!manifest) return null;
 
@@ -405,6 +505,12 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Deduplicates an array of album objects keyed by title and track count.
+     * Prefers explicit versions; among equal explicit status, prefers albums with more media metadata tags.
+     * @param {Array<Object>} albums - Array of album objects to deduplicate.
+     * @returns {Array<Object>} Deduplicated array of albums.
+     */
     deduplicateAlbums(albums) {
         const unique = new Map();
 
@@ -439,6 +545,15 @@ export class LosslessAPI {
         return Array.from(unique.values());
     }
 
+    /**
+     * Searches across all content types in a single request.
+     * Automatically falls back to parallel per-type searches if the combined endpoint is unavailable.
+     * @async
+     * @param {string} query - Search query string.
+     * @param {object} [options={}] - Options forwarded to `fetchWithRetry`.
+     * @returns {Promise<{ tracks: Object, artists: Object, albums: Object, playlists: Object, videos: Object }>}
+     *   An object containing paginated result sets for each content type.
+     */
     async search(query, options = {}) {
         const cached = await this.cache.get('search_all', query);
         if (cached) return cached;
@@ -508,6 +623,13 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Searches for tracks matching the given query string.
+     * @async
+     * @param {string} query - Search query string.
+     * @param {object} [options={}] - Options forwarded to `fetchWithRetry`.
+     * @returns {Promise<{ items: Array, limit: number, offset: number, totalNumberOfItems: number }>}
+     */
     async searchTracks(query, options = {}) {
         const cached = await this.cache.get('search_tracks', query);
         if (cached) return cached;
@@ -535,6 +657,13 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Searches for artists matching the given query string.
+     * @async
+     * @param {string} query - Search query string.
+     * @param {object} [options={}] - Options forwarded to `fetchWithRetry`.
+     * @returns {Promise<{ items: Array, limit: number, offset: number, totalNumberOfItems: number }>}
+     */
     async searchArtists(query, options = {}) {
         const cached = await this.cache.get('search_artists', query);
         if (cached) return cached;
@@ -559,6 +688,13 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Searches for albums matching the given query string, with deduplication applied to results.
+     * @async
+     * @param {string} query - Search query string.
+     * @param {object} [options={}] - Options forwarded to `fetchWithRetry`.
+     * @returns {Promise<{ items: Array, limit: number, offset: number, totalNumberOfItems: number }>}
+     */
     async searchAlbums(query, options = {}) {
         const cached = await this.cache.get('search_albums', query);
         if (cached) return cached;
@@ -584,6 +720,13 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Searches for playlists matching the given query string.
+     * @async
+     * @param {string} query - Search query string.
+     * @param {object} [options={}] - Options forwarded to `fetchWithRetry`.
+     * @returns {Promise<{ items: Array, limit: number, offset: number, totalNumberOfItems: number }>}
+     */
     async searchPlaylists(query, options = {}) {
         const cached = await this.cache.get('search_playlists', query);
         if (cached) return cached;
@@ -608,6 +751,13 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Searches for videos matching the given query string.
+     * @async
+     * @param {string} query - Search query string.
+     * @param {object} [options={}] - Options forwarded to `fetchWithRetry`.
+     * @returns {Promise<{ items: Array, limit: number, offset: number, totalNumberOfItems: number }>}
+     */
     async searchVideos(query, options = {}) {
         const cached = await this.cache.get('search_videos', query);
         if (cached) return cached;
@@ -634,6 +784,12 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Fetches video details and stream info by video ID.
+     * @async
+     * @param {string|number} id - Video ID.
+     * @returns {Promise<{ track: Object, info: Object, originalTrackUrl: string|null }>}
+     */
     async getVideo(id) {
         const cached = await this.cache.get('video', id);
         if (cached) return cached;
@@ -657,6 +813,14 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Fetches album metadata and all its tracks, handling automatic pagination for large albums.
+     * Enriches tracks with the album's release date when available.
+     * @async
+     * @param {string|number} id - Album ID.
+     * @returns {Promise<{ album: Album, tracks: Array<Track> }>}
+     * @throws {Error} If the album is not found in the API response.
+     */
     async getAlbum(id) {
         const cached = await this.cache.get('album', id);
         if (cached) return cached;
@@ -798,6 +962,13 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Fetches playlist metadata and all its tracks, handling automatic pagination for large playlists.
+     * @async
+     * @param {string|number} id - Playlist ID or UUID.
+     * @returns {Promise<{ playlist: Object, tracks: Array<Track> }>}
+     * @throws {Error} If the playlist is not found in the API response.
+     */
     async getPlaylist(id) {
         const cached = await this.cache.get('playlist', id);
         if (cached) return cached;
@@ -918,6 +1089,13 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Fetches mix metadata and its tracks, with limited album-date enrichment to reduce API load.
+     * @async
+     * @param {string|number} id - Mix ID.
+     * @returns {Promise<{ mix: Object, tracks: Array<Track> }>}
+     * @throws {Error} If mix metadata is not present in the API response.
+     */
     async getMix(id) {
         const cached = await this.cache.get('mix', id);
         if (cached) return cached;
@@ -962,6 +1140,13 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Fetches social media and website links for an artist from MusicBrainz.
+     * Searches by artist name, then retrieves URL relationships from the matching MusicBrainz entry.
+     * @async
+     * @param {string} artistName - The artist name to look up.
+     * @returns {Promise<Array<{ type: string, url: string }>>} Array of link objects, or empty array on failure.
+     */
     async getArtistSocials(artistName) {
         const cacheKey = `artist_socials_${artistName}`;
         const cached = await this.cache.get('artist', cacheKey);
@@ -1011,6 +1196,18 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Fetches full artist details including albums, EPs, top tracks, and videos.
+     * Fires two parallel requests: one for primary artist info and one for content.
+     * Optionally supplements with a video search when not in lightweight mode.
+     * @async
+     * @param {string|number} artistId - Artist ID.
+     * @param {object} [options={}] - Request options.
+     * @param {boolean} [options.lightweight=false] - If true, skips video search and album-date enrichment.
+     * @param {boolean} [options.skipCache=false] - If true, bypasses the response cache.
+     * @returns {Promise<Object>} Artist object augmented with `albums`, `eps`, `tracks`, and `videos` arrays.
+     * @throws {Error} If the primary artist details cannot be found.
+     */
     async getArtist(artistId, options = {}) {
         const cacheKey = options.lightweight ? `artist_${artistId}_light` : `artist_${artistId}`;
         if (!options.skipCache) {
@@ -1098,7 +1295,7 @@ export class LosslessAPI {
 
         const rawReleases = Array.from(albumMap.values()).filter(matchesArtistId);
         const allReleases = this.deduplicateAlbums(rawReleases).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         const eps = allReleases.filter((a) => a.type === 'EP' || a.type === 'SINGLE');
@@ -1110,7 +1307,7 @@ export class LosslessAPI {
             .slice(0, 15);
 
         const videos = Array.from(videoMap.values()).sort(
-            (a, b) => new Date(b.releaseDate || 0) - new Date(a.releaseDate || 0)
+            (a, b) => new Date(b.releaseDate || 0).getTime() - new Date(a.releaseDate || 0).getTime()
         );
 
         // Enrich tracks with album release dates
@@ -1124,6 +1321,17 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Fetches a paginated list of an artist's top tracks, sorted by popularity.
+     * @async
+     * @param {string|number} artistId - Artist ID.
+     * @param {object} [options={}] - Pagination and cache options.
+     * @param {number} [options.offset=0] - Number of tracks to skip.
+     * @param {number} [options.limit=15] - Maximum number of tracks to return.
+     * @param {boolean} [options.skipCache=false] - If true, bypasses the response cache.
+     * @param {string|number} [options.firstTrackId] - ID of the first known track; used as a guard against offset-ignoring APIs.
+     * @returns {Promise<{ tracks: Array<Object>, offset: number, limit: number, hasMore: boolean }>}
+     */
     async getArtistTopTracks(artistId, options = {}) {
         const offset = options.offset || 0;
         const limit = options.limit || 15;
@@ -1207,6 +1415,12 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Fetches a list of artists similar to the given artist.
+     * @async
+     * @param {string|number} artistId - Artist ID.
+     * @returns {Promise<Array<Object>>} Array of similar artist objects, or empty array on failure.
+     */
     async getSimilarArtists(artistId) {
         const cached = await this.cache.get('similar_artists', artistId);
         if (cached) return cached;
@@ -1233,6 +1447,12 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Fetches the biography text for an artist via the HiFi client's biography endpoint.
+     * @async
+     * @param {string|number} artistId - Artist ID.
+     * @returns {Promise<{ text: string, source: string }|null>} Biography object, or null if unavailable.
+     */
     async getArtistBiography(artistId) {
         const cacheKey = `artist_bio_v1_${artistId}`;
         const cached = await this.cache.get('artist', cacheKey);
@@ -1242,7 +1462,9 @@ export class LosslessAPI {
             const response = await HiFiClient.instance.query(`/artist/bio/?id=${artistId}`);
 
             if (response.ok) {
-                const { data } = await response.json();
+                const { data } = /** @type {{ data: { text?: string; source?: string }|null }} */ (
+                    await response.json()
+                );
                 if (data && data.text) {
                     const bio = {
                         text: data.text,
@@ -1260,6 +1482,12 @@ export class LosslessAPI {
         return null;
     }
 
+    /**
+     * Fetches a list of albums similar to the given album.
+     * @async
+     * @param {string|number} albumId - Album ID.
+     * @returns {Promise<Array<Object>>} Array of similar album objects, or empty array on failure.
+     */
     async getSimilarAlbums(albumId) {
         const cached = await this.cache.get('similar_albums', albumId);
         if (cached) return cached;
@@ -1285,6 +1513,17 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Generates track recommendations based on artists found in the provided seed tracks.
+     * Enriches artist data if needed, then returns a shuffled selection of unseen tracks.
+     * @async
+     * @param {Array<Object>} tracks - Seed tracks used to extract artist information.
+     * @param {number} [limit=20] - Maximum number of recommended tracks to return.
+     * @param {object} [options={}] - Recommendation options.
+     * @param {boolean} [options.refresh=false] - If true, bypasses artist cache.
+     * @param {Set<string|number>} [options.knownTrackIds] - Set of already-known track IDs; deprioritized in results.
+     * @returns {Promise<Array<Object>>} Array of recommended track objects.
+     */
     async getRecommendedTracksForPlaylist(tracks, limit = 20, options = {}) {
         const artistMap = new Map();
 
@@ -1386,6 +1625,12 @@ export class LosslessAPI {
         return shuffled.slice(0, limit);
     }
 
+    /**
+     * Normalizes a track API response from the `/info/` endpoint into the shape expected by `parseTrackLookup`.
+     * Unwraps `{ version, data }` wrappers and fabricates a minimal track stub with `duration` and `id`.
+     * @param {object} apiResponse - Raw API response from the info endpoint.
+     * @returns {Array} A two-element array `[trackStub, raw]` suitable for `parseTrackLookup`.
+     */
     normalizeTrackResponse(apiResponse) {
         if (!apiResponse || typeof apiResponse !== 'object') {
             return apiResponse;
@@ -1404,6 +1649,13 @@ export class LosslessAPI {
         return [trackStub, raw];
     }
 
+    /**
+     * Fetches lightweight track metadata (no stream info) by track ID.
+     * @async
+     * @param {string|number} id - Track ID.
+     * @returns {Promise<PreparedTrack|PreparedVideo>} Normalized track metadata object.
+     * @throws {Error} If track metadata is not found in the API response.
+     */
     async getTrackMetadata(id) {
         const cacheKey = `meta_${id}`;
         const cached = await this.cache.get('track', cacheKey);
@@ -1426,6 +1678,12 @@ export class LosslessAPI {
         throw new Error('Track metadata not found');
     }
 
+    /**
+     * Fetches track recommendations for a specific track by its ID.
+     * @async
+     * @param {string|number} id - Track ID.
+     * @returns {Promise<Array<Object>>} Array of recommended track objects, or empty array on failure.
+     */
     async getTrackRecommendations(id) {
         const cached = await this.cache.get('recommendations', id);
         if (cached) return cached;
@@ -1451,6 +1709,13 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Fetches full track data including playback info for a given audio quality.
+     * @async
+     * @param {string|number} id - Track ID.
+     * @param {string} [quality='HI_RES_LOSSLESS'] - Desired audio quality (e.g., `'HI_RES_LOSSLESS'`, `'LOSSLESS'`).
+     * @returns {Promise<{ track: Object, info: Object, originalTrackUrl: string|undefined }>}
+     */
     async getTrack(id, quality = 'HI_RES_LOSSLESS') {
         const cacheKey = `${id}_${quality}`;
         const cached = await this.cache.get('track', cacheKey);
@@ -1466,6 +1731,17 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Resolves the stream URL and ReplayGain metadata for a track.
+     * Tries the `/trackManifests/` endpoint first; falls back to `/track/` if unavailable.
+     * Results are cached in `streamCache` by quality key.
+     * @async
+     * @param {string|number} id - Track ID.
+     * @param {string} [quality='HI_RES_LOSSLESS'] - Desired audio quality.
+     * @param {boolean} [download=false] - If true, enables Dolby Atmos format even without codec detection.
+     * @returns {Promise<{ url: string, rgInfo: Object|null }>} Stream URL and optional ReplayGain metadata.
+     * @throws {Error} If the stream URL cannot be resolved from any available source.
+     */
     async getStreamUrl(id, quality = 'HI_RES_LOSSLESS', download = false) {
         const cacheKey = `stream_info_${id}_${quality}`;
 
@@ -1588,6 +1864,14 @@ export class LosslessAPI {
         return result;
     }
 
+    /**
+     * Resolves the playable stream URL for a video by its ID.
+     * Tries manifest extraction first, then falls back to various URL fields in the video lookup response.
+     * @async
+     * @param {string|number} id - Video ID.
+     * @returns {Promise<string>} Playable video stream URL.
+     * @throws {Error} If no stream URL can be resolved from the video lookup response.
+     */
     async getVideoStreamUrl(id) {
         const cacheKey = `video_stream_${id}`;
 
@@ -1635,6 +1919,15 @@ export class LosslessAPI {
         return streamUrl;
     }
 
+    /**
+     * Enriches a track or video with full playback info, ReplayGain data, and album disc metadata.
+     * Fetches album data to determine total disc count and per-disc track counts when missing.
+     * @async
+     * @param {Object|string|number} input - Track object or track ID.
+     * @param {object} options - Enrichment options.
+     * @param {string} [options.downloadQuality='HI_RES_LOSSLESS'] - Audio quality to use for playback info lookup.
+     * @returns {Promise<{ lookup: { track: Object, info: Object, originalTrackUrl: string|undefined }|Object, enrichedTrack: EnrichedTrack, isVideo: boolean }>}
+     */
     async enrichTrack(input, { downloadQuality = 'HI_RES_LOSSLESS' }) {
         if (downloadQuality == 'DOLBY_ATMOS' && !input?.audioModes?.includes('DOLBY_ATMOS')) {
             downloadQuality = 'LOSSLESS';
@@ -1660,13 +1953,17 @@ export class LosslessAPI {
             };
         }
 
-        const enrichedTrack = { ...this.prepareTrack(track) };
-        if (lookup.info) {
+        const enrichedTrack = /** @type {EnrichedTrack} */ ({ ...this.prepareTrack(track) });
+        const typedLookup =
+            /** @type {{ track: Object, info: Object & { trackReplayGain?: number, trackPeakAmplitude?: number, albumReplayGain?: number, albumPeakAmplitude?: number }, originalTrackUrl?: string }} */ (
+                lookup
+            );
+        if (typedLookup.info) {
             enrichedTrack.replayGain = new ReplayGain({
-                trackReplayGain: lookup.info.trackReplayGain,
-                trackPeakAmplitude: lookup.info.trackPeakAmplitude,
-                albumReplayGain: lookup.info.albumReplayGain,
-                albumPeakAmplitude: lookup.info.albumPeakAmplitude,
+                trackReplayGain: typedLookup.info.trackReplayGain,
+                trackPeakAmplitude: typedLookup.info.trackPeakAmplitude,
+                albumReplayGain: typedLookup.info.albumReplayGain,
+                albumPeakAmplitude: typedLookup.info.albumPeakAmplitude,
             });
         }
 
@@ -1717,11 +2014,10 @@ export class LosslessAPI {
      * @param {string} id - The TIDAL track or video ID
      * @param {string} [quality='HI_RES_LOSSLESS'] - The desired audio quality (e.g., 'HI_RES_LOSSLESS', 'LOSSLESS', 'HIGH', 'NORMAL').
      *                                               Custom FFMPEG formats are transcoded from LOSSLESS.
-     * @param {string} filename - The filename to save the downloaded content as
-     * @param {Object} [options={}] - Additional download options
-     * @param {Function} [options.onProgress] - Callback function for progress updates with signature:
-     *                                          `(progressEvent) => void`
-     * @param {Object} [options.track] - Track metadata object to attach to the audio file
+     * @param {string} [filename] - The filename to save the downloaded content as; required when `options.triggerDownload` is `true` (the default)
+     * @param {object} [options={}] - Additional download options
+     * @param {Function} [options.onProgress] - Callback function for progress updates
+     * @param {EnrichedTrack | Track} [options.track] - Track metadata object to attach to the audio file
      * @param {boolean} [options.calculateDashBytes=true] - Whether to calculate total bytes for DASH streams
      * @param {AbortSignal} [options.signal] - AbortSignal to cancel the download
      * @param {boolean} [options.triggerDownload=true] - Whether to trigger browser download after completion
@@ -1746,13 +2042,17 @@ export class LosslessAPI {
             let downloadQuality = isCustomFormat(quality) ? 'LOSSLESS' : quality;
 
             const { lookup, enrichedTrack, isVideo } = await this.enrichTrack(track, { downloadQuality });
+            const typedLookup =
+                /** @type {{ track: Object, info: Object & { audioQuality?: string, manifest?: string }, originalTrackUrl?: string }} */ (
+                    lookup
+                );
 
-            let postProcessingQuality = lookup.info?.audioQuality ?? null;
+            let postProcessingQuality = typedLookup.info?.audioQuality ?? null;
             let streamUrl;
             let blob;
 
-            if (lookup.originalTrackUrl) {
-                streamUrl = lookup.originalTrackUrl;
+            if (typedLookup.originalTrackUrl) {
+                streamUrl = typedLookup.originalTrackUrl;
             } else {
                 const findValue = (obj, key) => {
                     if (!obj || typeof obj !== 'object') return null;
@@ -1768,7 +2068,7 @@ export class LosslessAPI {
 
                 const manifest = isVideo
                     ? findValue(lookup, 'manifest') || findValue(lookup, 'Manifest')
-                    : lookup.info?.manifest;
+                    : typedLookup.info?.manifest;
 
                 if (!manifest) {
                     throw new Error('Could not resolve manifest');
@@ -1803,7 +2103,7 @@ export class LosslessAPI {
                     const downloader = new DashDownloader();
                     blob = await downloader.downloadDashStream(streamUrl, {
                         signal: options.signal,
-                        onProgress,
+                        onProgress: /** @type {MonochromeProgressListener<SegmentedDownloadProgress>} */ (onProgress),
                         calculateDashBytes: calculateDashBytes ?? true,
                     });
                 } catch (dashError) {
@@ -1822,7 +2122,7 @@ export class LosslessAPI {
                     const downloader = new HlsDownloader();
                     blob = await downloader.downloadHlsStream(streamUrl, {
                         signal: options.signal,
-                        onProgress,
+                        onProgress: /** @type {(p: SegmentedDownloadProgress) => void} */ (onProgress),
                     });
                 } catch (hlsError) {
                     console.error('HLS download failed:', hlsError);
@@ -1879,7 +2179,13 @@ export class LosslessAPI {
             }
 
             if (!isVideo) {
-                blob = await applyAudioPostProcessing(blob, quality, onProgress, options.signal, postProcessingQuality);
+                blob = await applyAudioPostProcessing(
+                    blob,
+                    quality,
+                    /** @type {(progress: FfmpegFormatsProgressEvent) => void} */ (onProgress),
+                    options.signal,
+                    postProcessingQuality
+                );
             }
 
             // Add metadata if track information is provided
@@ -1889,7 +2195,7 @@ export class LosslessAPI {
                     message: 'Adding metadata...',
                 });
 
-                onProgress?.(new DownloadProgress('Adding metadata'));
+                onProgress?.(new DownloadProgressMessage('Adding metadata'));
                 try {
                     if (isVideo) {
                         blob = new File(
@@ -1898,7 +2204,7 @@ export class LosslessAPI {
                                     args: ['-c', 'copy'],
                                     outputName: 'output.mp4',
                                     outputMime: 'video/mp4',
-                                    onProgress,
+                                    onProgress: /** @type {(progress: FfmpegProgress) => void} */ (onProgress),
                                     signal: options.signal,
                                 }),
                             ],
@@ -1942,6 +2248,14 @@ export class LosslessAPI {
         }
     }
 
+    /**
+     * Returns the TIDAL cover image URL for an album or track cover ID.
+     * Falls back to a random picsum placeholder when no ID is provided.
+     * Passes through absolute URLs, blob URLs, and asset paths unchanged.
+     * @param {string|null|undefined} id - Cover image UUID (with or without dashes).
+     * @param {string} [size='320'] - Square image size in pixels.
+     * @returns {string} Fully-qualified cover image URL.
+     */
     getCoverUrl(id, size = '320') {
         if (!id) {
             return `https://picsum.photos/seed/${Math.random()}/${size}`;
@@ -1968,6 +2282,14 @@ export class LosslessAPI {
         return `${baseUrl}/160x160.jpg 160w, ${baseUrl}/320x320.jpg 320w, ${baseUrl}/640x640.jpg 640w`;
     }
 
+    /**
+     * Returns the TIDAL artist picture URL for a given artist picture ID.
+     * Falls back to a random picsum placeholder when no ID is provided.
+     * Passes through blob and asset URLs unchanged.
+     * @param {string|null|undefined} id - Artist picture UUID.
+     * @param {string} [size='320'] - Square image size in pixels.
+     * @returns {string} Fully-qualified artist picture URL.
+     */
     getArtistPictureUrl(id, size = '320') {
         if (!id) {
             return `https://picsum.photos/seed/${Math.random()}/${size}`;
@@ -1991,6 +2313,13 @@ export class LosslessAPI {
         return `${baseUrl}/160x160.jpg 160w, ${baseUrl}/320x320.jpg 320w, ${baseUrl}/640x640.jpg 640w`;
     }
 
+    /**
+     * Returns the TIDAL video cover/thumbnail URL for a video image ID.
+     * Passes through absolute URLs, blob URLs, and asset paths unchanged.
+     * @param {string|null|undefined} imageId - Image UUID for the video cover.
+     * @param {string} [size='1280'] - Desired image width in pixels.
+     * @returns {string|null} Fully-qualified cover URL, or null if no ID is provided.
+     */
     getVideoCoverUrl(imageId, size = '1280') {
         if (!imageId) {
             return null;
@@ -2007,11 +2336,20 @@ export class LosslessAPI {
         return `https://resources.tidal.com/images/${formattedId}/${size}x720.jpg`;
     }
 
+    /**
+     * Clears both the main API response cache and the stream URL cache.
+     * @async
+     * @returns {Promise<void>}
+     */
     async clearCache() {
         await this.cache.clear();
         this.streamCache.clear();
     }
 
+    /**
+     * Returns combined cache statistics including the stream URL cache size.
+     * @returns {{ streamUrls: number, [key: string]: any }} Cache statistics object.
+     */
     getCacheStats() {
         return {
             ...this.cache.getCacheStats(),

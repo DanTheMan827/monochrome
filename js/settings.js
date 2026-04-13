@@ -51,8 +51,15 @@ import { syncManager } from './accounts/pocketbase.js';
 import { containerFormats, customFormats } from './ffmpegFormats.ts';
 import { BulkDownloadMethod, modernSettings } from './ModernSettings.js';
 
+/**
+ * Proxies butterchurn preset loading by lazily importing the butterchurn module.
+ * @async
+ * @param {...*} args - Arguments forwarded to the butterchurn module's getButterchurnPresets.
+ * @returns {Promise<*>} The presets returned by the butterchurn module.
+ */
 async function getButterchurnPresets(...args) {
     const butterchurnModule = await import('./visualizers/butterchurn.js');
+    // @ts-expect-error spread from untyped rest params
     return butterchurnModule.getButterchurnPresets(...args);
 }
 
@@ -61,6 +68,15 @@ let _autoeqIndex = [];
 let _graphAbortController = null;
 let _graphResizeObserver = null;
 
+/**
+ * Initializes all settings UI panels, event listeners, and integrations.
+ * @async
+ * @param {object} scrobbler - The scrobbler module instance used for last.fm/scrobbling settings.
+ * @param {object} player - The player module instance used for playback-related settings.
+ * @param {object} api - The API module instance used for data-fetching settings.
+ * @param {object} ui - The UI module instance used for interface-related settings.
+ * @returns {Promise<void>}
+ */
 export async function initializeSettings(scrobbler, player, api, ui) {
     // Restore last active settings tab
     const savedTab = settingsUiState.getActiveTab();
@@ -99,8 +115,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     if (signInBtn) {
         signInBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            const email = /** @type {HTMLInputElement} */ (emailInput).value;
+            const password = /** @type {HTMLInputElement} */ (passwordInput).value;
             if (!email || !password) {
                 alert('Please enter both email and password.');
                 return;
@@ -108,8 +124,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             try {
                 await authManager.signInWithEmail(email, password);
                 authModal.classList.remove('active');
-                emailInput.value = '';
-                passwordInput.value = '';
+                /** @type {HTMLInputElement} */ (emailInput).value = '';
+                /** @type {HTMLInputElement} */ (passwordInput).value = '';
             } catch {
                 // Error handled in authManager
             }
@@ -118,8 +134,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     if (signUpBtn) {
         signUpBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            const email = /** @type {HTMLInputElement} */ (emailInput).value;
+            const password = /** @type {HTMLInputElement} */ (passwordInput).value;
             if (!email || !password) {
                 alert('Please enter both email and password.');
                 return;
@@ -127,8 +143,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             try {
                 await authManager.signUpWithEmail(email, password);
                 authModal.classList.remove('active');
-                emailInput.value = '';
-                passwordInput.value = '';
+                /** @type {HTMLInputElement} */ (emailInput).value = '';
+                /** @type {HTMLInputElement} */ (passwordInput).value = '';
             } catch {
                 // Error handled in authManager
             }
@@ -137,7 +153,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     if (resetPasswordBtn) {
         resetPasswordBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
+            const email = /** @type {HTMLInputElement} */ (emailInput).value;
             if (!email) {
                 alert('Please enter your email address to reset your password.');
                 return;
@@ -177,10 +193,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             lastfmConnectBtn.classList.add('danger');
             lastfmToggleSetting.style.display = 'flex';
             lastfmLoveSetting.style.display = 'flex';
-            lastfmToggle.checked = lastFMStorage.isEnabled();
-            lastfmLoveToggle.checked = lastFMStorage.shouldLoveOnLike();
+            /** @type {HTMLInputElement} */ (lastfmToggle).checked = lastFMStorage.isEnabled();
+            /** @type {HTMLInputElement} */ (lastfmLoveToggle).checked = lastFMStorage.shouldLoveOnLike();
             lastfmCustomCredsToggleSetting.style.display = 'flex';
-            lastfmCustomCredsToggle.checked = lastFMStorage.useCustomCredentials();
+            /** @type {HTMLInputElement} */ (lastfmCustomCredsToggle).checked = lastFMStorage.useCustomCredentials();
             updateCustomCredsUI();
             hideCredentialAuth();
         } else {
@@ -206,8 +222,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     function hideCredentialAuth() {
         if (lastfmCredentialAuth) lastfmCredentialAuth.style.display = 'none';
         if (lastfmCredentialForm) lastfmCredentialForm.style.display = 'none';
-        if (lastfmUsernameInput) lastfmUsernameInput.value = '';
-        if (lastfmPasswordInput) lastfmPasswordInput.value = '';
+        if (lastfmUsernameInput) /** @type {HTMLInputElement} */ (lastfmUsernameInput).value = '';
+        if (lastfmPasswordInput) /** @type {HTMLInputElement} */ (lastfmPasswordInput).value = '';
     }
 
     function updateCustomCredsUI() {
@@ -215,8 +231,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         lastfmCustomCredsSetting.style.display = useCustom ? 'flex' : 'none';
 
         if (useCustom) {
-            lastfmCustomApiKey.value = lastFMStorage.getCustomApiKey();
-            lastfmCustomApiSecret.value = lastFMStorage.getCustomApiSecret();
+            /** @type {HTMLInputElement} */ (lastfmCustomApiKey).value = lastFMStorage.getCustomApiKey();
+            /** @type {HTMLInputElement} */ (lastfmCustomApiSecret).value = lastFMStorage.getCustomApiSecret();
 
             const hasCreds = lastFMStorage.getCustomApiKey() && lastFMStorage.getCustomApiSecret();
             lastfmClearCustomCreds.style.display = hasCreds ? 'inline-block' : 'none';
@@ -236,7 +252,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         let authWindow = window.open('', '_blank');
 
-        lastfmConnectBtn.disabled = true;
+        /** @type {HTMLButtonElement} */ (lastfmConnectBtn).disabled = true;
         lastfmConnectBtn.textContent = 'Opening Last.fm...';
 
         try {
@@ -247,7 +263,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             } else {
                 alert('Popup blocked! Please allow popups.');
                 lastfmConnectBtn.textContent = 'Connect Last.fm';
-                lastfmConnectBtn.disabled = false;
+                /** @type {HTMLButtonElement} */ (lastfmConnectBtn).disabled = false;
                 return;
             }
 
@@ -263,7 +279,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                     clearInterval(checkAuth);
                     if (authWindow && !authWindow.closed) authWindow.close();
                     lastfmConnectBtn.textContent = 'Connect Last.fm';
-                    lastfmConnectBtn.disabled = false;
+                    /** @type {HTMLButtonElement} */ (lastfmConnectBtn).disabled = false;
                     // Ask user if they want to use credentials instead
                     if (
                         confirm('Authorization timed out. Would you like to login with username and password instead?')
@@ -280,9 +296,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                         clearInterval(checkAuth);
                         if (authWindow && !authWindow.closed) authWindow.close();
                         lastFMStorage.setEnabled(true);
-                        lastfmToggle.checked = true;
+                        /** @type {HTMLInputElement} */ (lastfmToggle).checked = true;
                         updateLastFMUI();
-                        lastfmConnectBtn.disabled = false;
+                        /** @type {HTMLButtonElement} */ (lastfmConnectBtn).disabled = false;
                     }
                 } catch {
                     // Still waiting
@@ -292,7 +308,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             console.error('Last.fm connection failed:', error);
             if (authWindow && !authWindow.closed) authWindow.close();
             lastfmConnectBtn.textContent = 'Connect Last.fm';
-            lastfmConnectBtn.disabled = false;
+            /** @type {HTMLButtonElement} */ (lastfmConnectBtn).disabled = false;
             // Ask user if they want to use credentials instead
             if (confirm('Failed to connect to Last.fm. Would you like to login with username and password instead?')) {
                 showCredentialAuth();
@@ -303,27 +319,27 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Last.fm Toggles
     if (lastfmToggle) {
         lastfmToggle.addEventListener('change', (e) => {
-            lastFMStorage.setEnabled(e.target.checked);
+            lastFMStorage.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     if (lastfmLoveToggle) {
         lastfmLoveToggle.addEventListener('change', (e) => {
-            lastFMStorage.setLoveOnLike(e.target.checked);
+            lastFMStorage.setLoveOnLike(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Custom Credentials Toggle
     if (lastfmCustomCredsToggle) {
         lastfmCustomCredsToggle.addEventListener('change', (e) => {
-            lastFMStorage.setUseCustomCredentials(e.target.checked);
+            lastFMStorage.setUseCustomCredentials(/** @type {HTMLInputElement} */ (e.target).checked);
             updateCustomCredsUI();
 
             // Reload credentials in the scrobbler
             scrobbler.lastfm.reloadCredentials();
 
             // If credentials are being disabled, clear any existing session
-            if (!e.target.checked && scrobbler.lastfm.isAuthenticated()) {
+            if (!(/** @type {HTMLInputElement} */ (e.target).checked) && scrobbler.lastfm.isAuthenticated()) {
                 scrobbler.lastfm.disconnect();
                 updateLastFMUI();
                 alert('Switched to default API credentials. Please reconnect to Last.fm.');
@@ -334,8 +350,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Save Custom Credentials
     if (lastfmSaveCustomCreds) {
         lastfmSaveCustomCreds.addEventListener('click', () => {
-            const apiKey = lastfmCustomApiKey.value.trim();
-            const apiSecret = lastfmCustomApiSecret.value.trim();
+            const apiKey = /** @type {HTMLInputElement} */ (lastfmCustomApiKey).value.trim();
+            const apiSecret = /** @type {HTMLInputElement} */ (lastfmCustomApiSecret).value.trim();
 
             if (!apiKey || !apiSecret) {
                 alert('Please enter both API Key and API Secret');
@@ -364,9 +380,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         lastfmClearCustomCreds.addEventListener('click', () => {
             if (confirm('Clear custom API credentials?')) {
                 lastFMStorage.clearCustomCredentials();
-                lastfmCustomApiKey.value = '';
-                lastfmCustomApiSecret.value = '';
-                lastfmCustomCredsToggle.checked = false;
+                /** @type {HTMLInputElement} */ (lastfmCustomApiKey).value = '';
+                /** @type {HTMLInputElement} */ (lastfmCustomApiSecret).value = '';
+                /** @type {HTMLInputElement} */ (lastfmCustomCredsToggle).checked = false;
 
                 // Reload credentials
                 scrobbler.lastfm.reloadCredentials();
@@ -388,31 +404,31 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Last.fm Credential Auth - Login with credentials
     if (lastfmLoginCredentialsBtn) {
         lastfmLoginCredentialsBtn.addEventListener('click', async () => {
-            const username = lastfmUsernameInput?.value?.trim();
-            const password = lastfmPasswordInput?.value;
+            const username = /** @type {HTMLInputElement} */ (lastfmUsernameInput)?.value?.trim();
+            const password = /** @type {HTMLInputElement} */ (lastfmPasswordInput)?.value;
 
             if (!username || !password) {
                 alert('Please enter both username and password.');
                 return;
             }
 
-            lastfmLoginCredentialsBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (lastfmLoginCredentialsBtn).disabled = true;
             lastfmLoginCredentialsBtn.textContent = 'Logging in...';
 
             try {
                 const result = await scrobbler.lastfm.authenticateWithCredentials(username, password);
                 if (result.success) {
                     lastFMStorage.setEnabled(true);
-                    lastfmToggle.checked = true;
+                    /** @type {HTMLInputElement} */ (lastfmToggle).checked = true;
                     updateLastFMUI();
                     // Clear password for security
-                    if (lastfmPasswordInput) lastfmPasswordInput.value = '';
+                    if (lastfmPasswordInput) /** @type {HTMLInputElement} */ (lastfmPasswordInput).value = '';
                 }
             } catch (error) {
                 console.error('Last.fm credential login failed:', error);
                 alert('Failed to login: ' + error.message);
             } finally {
-                lastfmLoginCredentialsBtn.disabled = false;
+                /** @type {HTMLButtonElement} */ (lastfmLoginCredentialsBtn).disabled = false;
                 lastfmLoginCredentialsBtn.textContent = 'Login';
             }
         });
@@ -433,27 +449,32 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     if (scrobblePercentageSlider && scrobblePercentageInput) {
         const percentage = lastFMStorage.getScrobblePercentage();
-        scrobblePercentageSlider.value = percentage;
-        scrobblePercentageInput.value = percentage;
+        /** @type {HTMLInputElement} */ (scrobblePercentageSlider).value = String(percentage);
+
+        /** @type {HTMLInputElement} */ (scrobblePercentageInput).value = String(percentage);
 
         scrobblePercentageSlider.addEventListener('input', (e) => {
-            const newPercentage = parseInt(e.target.value, 10);
-            scrobblePercentageInput.value = newPercentage;
+            const newPercentage = parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10);
+            /** @type {HTMLInputElement} */ (scrobblePercentageInput).value = String(newPercentage);
+
             lastFMStorage.setScrobblePercentage(newPercentage);
         });
 
         scrobblePercentageInput.addEventListener('change', (e) => {
-            let newPercentage = parseInt(e.target.value, 10);
+            let newPercentage = parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10);
             newPercentage = Math.max(1, Math.min(100, newPercentage || 75));
-            scrobblePercentageSlider.value = newPercentage;
-            scrobblePercentageInput.value = newPercentage;
+            /** @type {HTMLInputElement} */ (scrobblePercentageSlider).value = String(newPercentage);
+
+            /** @type {HTMLInputElement} */ (scrobblePercentageInput).value = String(newPercentage);
+
             lastFMStorage.setScrobblePercentage(newPercentage);
         });
 
         scrobblePercentageInput.addEventListener('input', (e) => {
-            let newPercentage = parseInt(e.target.value, 10);
+            let newPercentage = parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10);
             if (!isNaN(newPercentage) && newPercentage >= 1 && newPercentage <= 100) {
-                scrobblePercentageSlider.value = newPercentage;
+                /** @type {HTMLInputElement} */ (scrobblePercentageSlider).value = String(newPercentage);
+
                 lastFMStorage.setScrobblePercentage(newPercentage);
             }
         });
@@ -472,20 +493,22 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     const updateListenBrainzUI = () => {
         const isEnabled = listenBrainzSettings.isEnabled();
-        if (lbToggle) lbToggle.checked = isEnabled;
+        if (lbToggle) /** @type {HTMLInputElement} */ (lbToggle).checked = isEnabled;
         if (lbTokenSetting) lbTokenSetting.style.display = isEnabled ? 'flex' : 'none';
         if (lbCustomUrlSetting) lbCustomUrlSetting.style.display = isEnabled ? 'flex' : 'none';
         if (lbLoveSetting) lbLoveSetting.style.display = isEnabled ? 'flex' : 'none';
-        if (lbTokenInput) lbTokenInput.value = listenBrainzSettings.getToken();
-        if (lbCustomUrlInput) lbCustomUrlInput.value = listenBrainzSettings.getCustomUrl();
-        if (lbLoveToggle) lbLoveToggle.checked = listenBrainzSettings.shouldLoveOnLike();
+        if (lbTokenInput) /** @type {HTMLInputElement} */ (lbTokenInput).value = listenBrainzSettings.getToken();
+        if (lbCustomUrlInput)
+            /** @type {HTMLInputElement} */ (lbCustomUrlInput).value = listenBrainzSettings.getCustomUrl();
+        if (lbLoveToggle)
+            /** @type {HTMLInputElement} */ (lbLoveToggle).checked = listenBrainzSettings.shouldLoveOnLike();
     };
 
     updateListenBrainzUI();
 
     if (lbToggle) {
         lbToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             listenBrainzSettings.setEnabled(enabled);
             updateListenBrainzUI();
         });
@@ -493,19 +516,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     if (lbTokenInput) {
         lbTokenInput.addEventListener('change', (e) => {
-            listenBrainzSettings.setToken(e.target.value.trim());
+            listenBrainzSettings.setToken(/** @type {HTMLInputElement} */ (e.target).value.trim());
         });
     }
 
     if (lbCustomUrlInput) {
         lbCustomUrlInput.addEventListener('change', (e) => {
-            listenBrainzSettings.setCustomUrl(e.target.value.trim());
+            listenBrainzSettings.setCustomUrl(/** @type {HTMLInputElement} */ (e.target).value.trim());
         });
     }
 
     if (lbLoveToggle) {
         lbLoveToggle.addEventListener('change', (e) => {
-            listenBrainzSettings.setLoveOnLike(e.target.checked);
+            listenBrainzSettings.setLoveOnLike(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -520,18 +543,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     const updateMalojaUI = () => {
         const isEnabled = malojaSettings.isEnabled();
-        if (malojaToggle) malojaToggle.checked = isEnabled;
+        if (malojaToggle) /** @type {HTMLInputElement} */ (malojaToggle).checked = isEnabled;
         if (malojaTokenSetting) malojaTokenSetting.style.display = isEnabled ? 'flex' : 'none';
         if (malojaCustomUrlSetting) malojaCustomUrlSetting.style.display = isEnabled ? 'flex' : 'none';
-        if (malojaTokenInput) malojaTokenInput.value = malojaSettings.getToken();
-        if (malojaCustomUrlInput) malojaCustomUrlInput.value = malojaSettings.getCustomUrl();
+        if (malojaTokenInput) /** @type {HTMLInputElement} */ (malojaTokenInput).value = malojaSettings.getToken();
+        if (malojaCustomUrlInput)
+            /** @type {HTMLInputElement} */ (malojaCustomUrlInput).value = malojaSettings.getCustomUrl();
     };
 
     updateMalojaUI();
 
     if (malojaToggle) {
         malojaToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             malojaSettings.setEnabled(enabled);
             updateMalojaUI();
         });
@@ -539,13 +563,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     if (malojaTokenInput) {
         malojaTokenInput.addEventListener('change', (e) => {
-            malojaSettings.setToken(e.target.value.trim());
+            malojaSettings.setToken(/** @type {HTMLInputElement} */ (e.target).value.trim());
         });
     }
 
     if (malojaCustomUrlInput) {
         malojaCustomUrlInput.addEventListener('change', (e) => {
-            malojaSettings.setCustomUrl(e.target.value.trim());
+            malojaSettings.setCustomUrl(/** @type {HTMLInputElement} */ (e.target).value.trim());
         });
     }
 
@@ -566,8 +590,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             librefmConnectBtn.classList.add('danger');
             librefmToggleSetting.style.display = 'flex';
             librefmLoveSetting.style.display = 'flex';
-            librefmToggle.checked = libreFmSettings.isEnabled();
-            librefmLoveToggle.checked = libreFmSettings.shouldLoveOnLike();
+            /** @type {HTMLInputElement} */ (librefmToggle).checked = libreFmSettings.isEnabled();
+            /** @type {HTMLInputElement} */ (librefmLoveToggle).checked = libreFmSettings.shouldLoveOnLike();
         } else {
             librefmStatus.textContent = 'Connect your Libre.fm account to scrobble tracks';
             librefmConnectBtn.textContent = 'Connect Libre.fm';
@@ -591,7 +615,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
             let authWindow = window.open('', '_blank');
 
-            librefmConnectBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (librefmConnectBtn).disabled = true;
             librefmConnectBtn.textContent = 'Opening Libre.fm...';
 
             try {
@@ -602,7 +626,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 } else {
                     alert('Popup blocked! Please allow popups.');
                     librefmConnectBtn.textContent = 'Connect Libre.fm';
-                    librefmConnectBtn.disabled = false;
+                    /** @type {HTMLButtonElement} */ (librefmConnectBtn).disabled = false;
                     return;
                 }
 
@@ -617,7 +641,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                     if (attempts > maxAttempts) {
                         clearInterval(checkAuth);
                         librefmConnectBtn.textContent = 'Connect Libre.fm';
-                        librefmConnectBtn.disabled = false;
+                        /** @type {HTMLButtonElement} */ (librefmConnectBtn).disabled = false;
                         if (authWindow && !authWindow.closed) authWindow.close();
                         alert('Authorization timed out. Please try again.');
                         return;
@@ -630,9 +654,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                             clearInterval(checkAuth);
                             if (authWindow && !authWindow.closed) authWindow.close();
                             libreFmSettings.setEnabled(true);
-                            librefmToggle.checked = true;
+                            /** @type {HTMLInputElement} */ (librefmToggle).checked = true;
                             updateLibreFmUI();
-                            librefmConnectBtn.disabled = false;
+                            /** @type {HTMLButtonElement} */ (librefmConnectBtn).disabled = false;
                             alert(`Successfully connected to Libre.fm as ${result.username}!`);
                         }
                     } catch {
@@ -643,7 +667,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 console.error('Libre.fm connection failed:', error);
                 alert('Failed to connect to Libre.fm: ' + error.message);
                 librefmConnectBtn.textContent = 'Connect Libre.fm';
-                librefmConnectBtn.disabled = false;
+                /** @type {HTMLButtonElement} */ (librefmConnectBtn).disabled = false;
                 if (authWindow && !authWindow.closed) authWindow.close();
             }
         });
@@ -651,13 +675,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         // Libre.fm Toggles
         if (librefmToggle) {
             librefmToggle.addEventListener('change', (e) => {
-                libreFmSettings.setEnabled(e.target.checked);
+                libreFmSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
             });
         }
 
         if (librefmLoveToggle) {
             librefmLoveToggle.addEventListener('change', (e) => {
-                libreFmSettings.setLoveOnLike(e.target.checked);
+                libreFmSettings.setLoveOnLike(/** @type {HTMLInputElement} */ (e.target).checked);
             });
         }
     }
@@ -667,12 +691,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const currentTheme = themeManager.getTheme();
 
     themePicker.querySelectorAll('.theme-option').forEach((option) => {
-        if (option.dataset.theme === currentTheme) {
+        if (/** @type {HTMLElement} */ (option).dataset.theme === currentTheme) {
             option.classList.add('active');
         }
 
         option.addEventListener('click', () => {
-            const theme = option.dataset.theme;
+            const theme = /** @type {HTMLElement} */ (option).dataset.theme;
 
             themePicker.querySelectorAll('.theme-option').forEach((opt) => opt.classList.remove('active'));
             option.classList.add('active');
@@ -770,7 +794,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     document.getElementById('apply-custom-theme')?.addEventListener('click', () => {
         const colors = {};
         document.querySelectorAll('#theme-color-grid input[type="color"]').forEach((input) => {
-            colors[input.dataset.color] = input.value;
+            colors[/** @type {HTMLElement} */ (input).dataset.color] = /** @type {HTMLInputElement} */ (input).value;
         });
         themeManager.setCustomTheme(colors);
     });
@@ -782,9 +806,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Music Provider setting
     const musicProviderSetting = document.getElementById('music-provider-setting');
     if (musicProviderSetting) {
-        musicProviderSetting.value = musicProviderSettings.getProvider();
+        /** @type {HTMLInputElement} */ (musicProviderSetting).value = musicProviderSettings.getProvider();
         musicProviderSetting.addEventListener('change', (e) => {
-            musicProviderSettings.setProvider(e.target.value);
+            musicProviderSettings.setProvider(/** @type {HTMLInputElement} */ (e.target).value);
             // Reload page to apply changes
             window.location.reload();
         });
@@ -796,20 +820,23 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const savedAdaptiveQuality = localStorage.getItem('adaptive-playback-quality') || 'auto';
 
         // Map the stored auto state to the dropdown, or if it doesn't match an option, use the playback-quality value
-        const optionExists = Array.from(streamingQualitySetting.options).some(
+        const optionExists = Array.from(/** @type {HTMLSelectElement} */ (streamingQualitySetting).options).some(
             (opt) => opt.value === savedAdaptiveQuality
         );
-        streamingQualitySetting.value = optionExists
+        /** @type {HTMLInputElement} */ (streamingQualitySetting).value = optionExists
             ? savedAdaptiveQuality
             : localStorage.getItem('playback-quality') || 'auto';
 
         // Apply initially
-        if (player.forceQuality) player.forceQuality(streamingQualitySetting.value);
-        const apiQuality = streamingQualitySetting.value === 'auto' ? 'HI_RES_LOSSLESS' : streamingQualitySetting.value;
+        if (player.forceQuality) player.forceQuality(/** @type {HTMLInputElement} */ (streamingQualitySetting).value);
+        const apiQuality =
+            /** @type {HTMLInputElement} */ (streamingQualitySetting).value === 'auto'
+                ? 'HI_RES_LOSSLESS'
+                : /** @type {HTMLInputElement} */ (streamingQualitySetting).value;
         player.setQuality(localStorage.getItem('playback-quality') || apiQuality);
 
         streamingQualitySetting.addEventListener('change', (e) => {
-            const val = e.target.value;
+            const val = /** @type {HTMLInputElement} */ (e.target).value;
 
             // Set adaptive DASH quality
             localStorage.setItem('adaptive-playback-quality', val);
@@ -834,7 +861,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         };
 
         // Collect static options first (preserving their original order)
-        const allOptions = Array.from(downloadQualitySetting.options).map((opt) => ({
+        const allOptions = Array.from(/** @type {HTMLSelectElement} */ (downloadQualitySetting).options).map((opt) => ({
             value: opt.value,
             text: opt.textContent,
             category: staticCategories[opt.value] || 'Other',
@@ -883,19 +910,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             currentGroup.appendChild(option);
         }
 
-        downloadQualitySetting.value = downloadQualitySettings.getQuality();
+        /** @type {HTMLInputElement} */ (downloadQualitySetting).value = downloadQualitySettings.getQuality();
 
         downloadQualitySetting.addEventListener('change', (e) => {
-            downloadQualitySettings.setQuality(e.target.value);
+            downloadQualitySettings.setQuality(/** @type {HTMLInputElement} */ (e.target).value);
             updateLosslessContainerVisibility();
         });
     }
 
     const prefersAtmosSetting = document.getElementById('dolby-atmos-toggle');
     if (prefersAtmosSetting) {
-        prefersAtmosSetting.checked = preferDolbyAtmosSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (prefersAtmosSetting).checked = preferDolbyAtmosSettings.isEnabled();
         prefersAtmosSetting.addEventListener('change', (e) => {
-            preferDolbyAtmosSettings.setEnabled(e.target.checked);
+            preferDolbyAtmosSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -907,7 +934,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         if (!losslessContainerSettingItem) return;
         const quality = downloadQualitySettings.getQuality();
         const isLossless = quality === 'LOSSLESS' || quality === 'HI_RES_LOSSLESS';
-        losslessContainerSettingItem.style.display = isLossless ? '' : 'none';
+        /** @type {HTMLElement} */ (losslessContainerSettingItem).style.display = isLossless ? '' : 'none';
     }
 
     if (losslessContainerSetting) {
@@ -923,10 +950,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         losslessContainerSetting.append(noChangeOption);
 
-        losslessContainerSetting.value = losslessContainerSettings.getContainer();
+        /** @type {HTMLInputElement} */ (losslessContainerSetting).value = losslessContainerSettings.getContainer();
 
         losslessContainerSetting.addEventListener('change', (e) => {
-            losslessContainerSettings.setContainer(e.target.value);
+            losslessContainerSettings.setContainer(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
@@ -935,19 +962,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Cover Art Size setting
     const coverArtSizeSetting = document.getElementById('cover-art-size-setting');
     if (coverArtSizeSetting) {
-        coverArtSizeSetting.value = coverArtSizeSettings.getSize();
+        /** @type {HTMLInputElement} */ (coverArtSizeSetting).value = coverArtSizeSettings.getSize();
 
         coverArtSizeSetting.addEventListener('change', (e) => {
-            coverArtSizeSettings.setSize(e.target.value);
+            coverArtSizeSettings.setSize(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
     // Quality Badge Settings
     const showQualityBadgesToggle = document.getElementById('show-quality-badges-toggle');
     if (showQualityBadgesToggle) {
-        showQualityBadgesToggle.checked = qualityBadgeSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (showQualityBadgesToggle).checked = qualityBadgeSettings.isEnabled();
         showQualityBadgesToggle.addEventListener('change', async (e) => {
-            qualityBadgeSettings.setEnabled(e.target.checked);
+            qualityBadgeSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
             // Re-render queue if available, but don't force navigation to library
             if (window.renderQueueFunction) await window.renderQueueFunction();
         });
@@ -956,9 +983,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Track Date Settings
     const useAlbumReleaseYearToggle = document.getElementById('use-album-release-year-toggle');
     if (useAlbumReleaseYearToggle) {
-        useAlbumReleaseYearToggle.checked = trackDateSettings.useAlbumYear();
+        /** @type {HTMLInputElement} */ (useAlbumReleaseYearToggle).checked = trackDateSettings.useAlbumYear();
         useAlbumReleaseYearToggle.addEventListener('change', (e) => {
-            trackDateSettings.setUseAlbumYear(e.target.checked);
+            trackDateSettings.setUseAlbumYear(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -983,7 +1010,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const method = modernSettings.bulkDownloadMethod;
         // Only relevant when zip method is selected and the browser supports streaming
         const visible = method === BulkDownloadMethod.Zip && hasFileSystemAccess;
-        forceZipBlobSettingItem.style.display = visible ? '' : 'none';
+        /** @type {HTMLElement} */ (forceZipBlobSettingItem).style.display = visible ? '' : 'none';
     }
 
     /** Shows/hides folder-picker-specific and folder-method settings */
@@ -1029,14 +1056,14 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 modernSettings.bulkDownloadMethod = BulkDownloadMethod.Zip;
             }
         }
-        bulkDownloadMethod.value = modernSettings.bulkDownloadMethod;
+        /** @type {HTMLInputElement} */ (bulkDownloadMethod).value = modernSettings.bulkDownloadMethod;
         bulkDownloadMethod.addEventListener('change', async (e) => {
             const previousMethod = modernSettings.bulkDownloadMethod;
-            const newMethod = e.target.value;
-            modernSettings.bulkDownloadMethod = newMethod;
+            const newMethod = /** @type {HTMLInputElement} */ (e.target).value;
+            modernSettings.bulkDownloadMethod = /** @type {BulkDownloadMethod} */ (newMethod);
 
             // When switching to 'local', prompt to select the local media folder if not yet configured
-            if (newMethod === BulkDownloadMethod.LocalMedia) {
+            if (modernSettings.bulkDownloadMethod === BulkDownloadMethod.LocalMedia) {
                 const existingHandle = await db.getSetting('local_folder_handle');
                 if (!existingHandle) {
                     let picked = false;
@@ -1058,11 +1085,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                         // no longer exists in the dropdown (e.g. removed due to no API support).
                         if (bulkDownloadMethod.querySelector(`option[value="${previousMethod}"]`)) {
                             modernSettings.bulkDownloadMethod = previousMethod;
-                            bulkDownloadMethod.value = previousMethod;
+                            /** @type {HTMLInputElement} */ (bulkDownloadMethod).value = previousMethod;
                         } else {
                             // Fall back to zip which is always present
-                            modernSettings.bulkDownloadMethod = 'zip';
-                            bulkDownloadMethod.value = 'zip';
+                            modernSettings.bulkDownloadMethod = /** @type {BulkDownloadMethod} */ ('zip');
+                            /** @type {HTMLInputElement} */ (bulkDownloadMethod).value = 'zip';
                         }
                     }
                 }
@@ -1075,9 +1102,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     }
 
     if (rememberFolderToggle) {
-        rememberFolderToggle.checked = modernSettings.rememberBulkDownloadFolder;
+        /** @type {HTMLInputElement} */ (rememberFolderToggle).checked = modernSettings.rememberBulkDownloadFolder;
         rememberFolderToggle.addEventListener('change', async (e) => {
-            modernSettings.rememberBulkDownloadFolder = !!e.target.checked;
+            modernSettings.rememberBulkDownloadFolder = !!(/** @type {HTMLInputElement} */ (e.target).checked);
             await modernSettings.waitPending();
             await updateFolderMethodVisibility();
         });
@@ -1092,16 +1119,16 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     }
 
     if (singleToFolderToggle) {
-        singleToFolderToggle.checked = modernSettings.downloadSinglesToFolder;
+        /** @type {HTMLInputElement} */ (singleToFolderToggle).checked = modernSettings.downloadSinglesToFolder;
         singleToFolderToggle.addEventListener('change', (e) => {
-            modernSettings.downloadSinglesToFolder = !!e.target.checked;
+            modernSettings.downloadSinglesToFolder = !!(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     if (forceZipBlobToggle) {
-        forceZipBlobToggle.checked = modernSettings.forceZipBlob;
+        /** @type {HTMLInputElement} */ (forceZipBlobToggle).checked = modernSettings.forceZipBlob;
         forceZipBlobToggle.addEventListener('change', (e) => {
-            modernSettings.forceZipBlob = !!e.target.checked;
+            modernSettings.forceZipBlob = !!(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -1110,35 +1137,36 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     const includeCoverToggle = document.getElementById('include-cover-toggle');
     if (includeCoverToggle) {
-        includeCoverToggle.checked = playlistSettings.shouldIncludeCover();
+        /** @type {HTMLInputElement} */ (includeCoverToggle).checked = playlistSettings.shouldIncludeCover();
         includeCoverToggle.addEventListener('change', (e) => {
-            playlistSettings.setIncludeCover(e.target.checked);
+            playlistSettings.setIncludeCover(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const gaplessPlaybackToggle = document.getElementById('gapless-playback-toggle');
     if (gaplessPlaybackToggle) {
-        gaplessPlaybackToggle.checked = gaplessPlaybackSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (gaplessPlaybackToggle).checked = gaplessPlaybackSettings.isEnabled();
         gaplessPlaybackToggle.addEventListener('change', (e) => {
-            gaplessPlaybackSettings.setEnabled(e.target.checked);
+            gaplessPlaybackSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // ReplayGain Settings
     const replayGainMode = document.getElementById('replay-gain-mode');
     if (replayGainMode) {
-        replayGainMode.value = replayGainSettings.getMode();
+        /** @type {HTMLInputElement} */ (replayGainMode).value = replayGainSettings.getMode();
         replayGainMode.addEventListener('change', (e) => {
-            replayGainSettings.setMode(e.target.value);
+            replayGainSettings.setMode(/** @type {HTMLInputElement} */ (e.target).value);
             player.applyReplayGain();
         });
     }
 
     const replayGainPreamp = document.getElementById('replay-gain-preamp');
     if (replayGainPreamp) {
-        replayGainPreamp.value = replayGainSettings.getPreamp();
+        /** @type {HTMLInputElement} */ (replayGainPreamp).value = String(replayGainSettings.getPreamp());
+
         replayGainPreamp.addEventListener('change', (e) => {
-            const val = parseFloat(e.target.value);
+            const val = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
             replayGainSettings.setPreamp(isNaN(val) ? 3 : val);
             player.applyReplayGain();
         });
@@ -1147,9 +1175,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Mono Audio Toggle
     const monoAudioToggle = document.getElementById('mono-audio-toggle');
     if (monoAudioToggle) {
-        monoAudioToggle.checked = monoAudioSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (monoAudioToggle).checked = monoAudioSettings.isEnabled();
         monoAudioToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             monoAudioSettings.setEnabled(enabled);
             audioContextManager.toggleMonoAudio(enabled);
         });
@@ -1158,15 +1186,25 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     // Binaural / Spatial DSP
     // ========================================
-    const binauralToggle = document.getElementById('binaural-dsp-toggle');
+    const binauralToggle = /** @type {HTMLInputElement | null} */ (document.getElementById('binaural-dsp-toggle'));
     const binauralContainer = document.getElementById('binaural-dsp-container');
-    const binauralAutoSpatialToggle = document.getElementById('binaural-auto-spatial-toggle');
-    const binauralCrossfeedToggle = document.getElementById('binaural-crossfeed-toggle');
-    const binauralCrossfeedLevel = document.getElementById('binaural-crossfeed-level');
+    const binauralAutoSpatialToggle = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('binaural-auto-spatial-toggle')
+    );
+    const binauralCrossfeedToggle = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('binaural-crossfeed-toggle')
+    );
+    const binauralCrossfeedLevel = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('binaural-crossfeed-level')
+    );
     const crossfeedLevelRow = document.getElementById('crossfeed-level-row');
-    const binauralHrtfPreset = document.getElementById('binaural-hrtf-preset');
-    const binauralWideningToggle = document.getElementById('binaural-widening-toggle');
-    const binauralWideningSlider = document.getElementById('binaural-widening-slider');
+    const binauralHrtfPreset = /** @type {HTMLInputElement | null} */ (document.getElementById('binaural-hrtf-preset'));
+    const binauralWideningToggle = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('binaural-widening-toggle')
+    );
+    const binauralWideningSlider = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('binaural-widening-slider')
+    );
     const binauralWidthValue = document.getElementById('binaural-width-value');
     const wideningSliderRow = document.getElementById('widening-slider-row');
 
@@ -1176,7 +1214,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         binauralContainer.style.display = isEnabled ? 'block' : 'none';
 
         binauralToggle.addEventListener('change', async (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             binauralContainer.style.display = enabled ? 'block' : 'none';
             await audioContextManager.toggleBinaural(enabled);
         });
@@ -1185,7 +1223,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (binauralAutoSpatialToggle) {
         binauralAutoSpatialToggle.checked = binauralDspSettings.getAutoEnableForSpatial();
         binauralAutoSpatialToggle.addEventListener('change', (e) => {
-            binauralDspSettings.setAutoEnableForSpatial(e.target.checked);
+            binauralDspSettings.setAutoEnableForSpatial(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -1195,7 +1233,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             crossfeedLevelRow.style.display = binauralCrossfeedToggle.checked ? 'flex' : 'none';
         }
         binauralCrossfeedToggle.addEventListener('change', async (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             if (crossfeedLevelRow) {
                 crossfeedLevelRow.style.display = enabled ? 'flex' : 'none';
             }
@@ -1206,14 +1244,18 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (binauralCrossfeedLevel) {
         binauralCrossfeedLevel.value = binauralDspSettings.getCrossfeedLevel();
         binauralCrossfeedLevel.addEventListener('change', (e) => {
-            audioContextManager.setBinauralCrossfeedLevel(e.target.value);
+            audioContextManager.setBinauralCrossfeedLevel(
+                /** @type {any} */ (/** @type {HTMLInputElement} */ (e.target).value)
+            );
         });
     }
 
     if (binauralHrtfPreset) {
         binauralHrtfPreset.value = binauralDspSettings.getHrtfPreset();
         binauralHrtfPreset.addEventListener('change', async (e) => {
-            await audioContextManager.setBinauralHrtfPreset(e.target.value);
+            await audioContextManager.setBinauralHrtfPreset(
+                /** @type {any} */ (/** @type {HTMLInputElement} */ (e.target).value)
+            );
         });
     }
 
@@ -1223,7 +1265,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             wideningSliderRow.style.display = binauralWideningToggle.checked ? 'flex' : 'none';
         }
         binauralWideningToggle.addEventListener('change', async (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             if (wideningSliderRow) {
                 wideningSliderRow.style.display = enabled ? 'flex' : 'none';
             }
@@ -1235,7 +1277,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         binauralWideningSlider.value = binauralDspSettings.getWideningAmount();
         binauralWidthValue.textContent = parseFloat(binauralWideningSlider.value).toFixed(2);
         binauralWideningSlider.addEventListener('input', (e) => {
-            const amount = parseFloat(e.target.value);
+            const amount = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
             binauralWidthValue.textContent = amount.toFixed(2);
             audioContextManager.setBinauralWidening(amount);
         });
@@ -1259,9 +1301,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Exponential Volume Toggle
     const exponentialVolumeToggle = document.getElementById('exponential-volume-toggle');
     if (exponentialVolumeToggle) {
-        exponentialVolumeToggle.checked = exponentialVolumeSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (exponentialVolumeToggle).checked = exponentialVolumeSettings.isEnabled();
         exponentialVolumeToggle.addEventListener('change', (e) => {
-            exponentialVolumeSettings.setEnabled(e.target.checked);
+            exponentialVolumeSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
             // Re-apply current volume to use new curve
             player.applyReplayGain();
         });
@@ -1270,8 +1312,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     // Audio Effects (Playback Speed)
     // ========================================
-    const playbackSpeedSlider = document.getElementById('playback-speed-slider');
-    const playbackSpeedInput = document.getElementById('playback-speed-input');
+    const playbackSpeedSlider = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('playback-speed-slider')
+    );
+    const playbackSpeedInput = /** @type {HTMLInputElement | null} */ (document.getElementById('playback-speed-input'));
     const playbackSpeedReset = document.getElementById('playback-speed-reset');
 
     if (playbackSpeedSlider && playbackSpeedInput) {
@@ -1279,10 +1323,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const updatePlaybackSpeedControls = (speed) => {
             const parsedSpeed = parseFloat(speed);
             const validSpeed = Math.max(0.01, Math.min(100, isNaN(parsedSpeed) ? 1.0 : parsedSpeed));
-            playbackSpeedInput.value = validSpeed;
+            playbackSpeedInput.value = String(validSpeed);
             // Only update slider if value is within slider range
             if (validSpeed >= 0.25 && validSpeed <= 4.0) {
-                playbackSpeedSlider.value = validSpeed;
+                /** @type {HTMLInputElement} */ (playbackSpeedSlider).value = String(validSpeed);
             }
             return validSpeed;
         };
@@ -1292,17 +1336,18 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         updatePlaybackSpeedControls(currentSpeed);
 
         playbackSpeedSlider.addEventListener('input', (e) => {
-            const speed = parseFloat(e.target.value);
-            playbackSpeedInput.value = speed;
+            const speed = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
+            /** @type {HTMLInputElement} */ (playbackSpeedInput).value = String(speed);
+
             audioEffectsSettings.setSpeed(speed);
             player.setPlaybackSpeed(speed);
         });
 
         playbackSpeedInput.addEventListener('input', (e) => {
-            const speed = parseFloat(e.target.value);
+            const speed = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
             if (!isNaN(speed) && speed >= 0.01 && speed <= 100) {
                 if (speed >= 0.25 && speed <= 4.0) {
-                    playbackSpeedSlider.value = speed;
+                    /** @type {HTMLInputElement} */ (playbackSpeedSlider).value = String(speed);
                 }
                 audioEffectsSettings.setSpeed(speed);
                 player.setPlaybackSpeed(speed);
@@ -1310,7 +1355,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         });
 
         playbackSpeedInput.addEventListener('change', (e) => {
-            const speed = parseFloat(e.target.value);
+            const speed = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
             const validSpeed = updatePlaybackSpeedControls(speed);
             audioEffectsSettings.setSpeed(validSpeed);
             player.setPlaybackSpeed(validSpeed);
@@ -1330,10 +1375,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     const preservePitchToggle = document.getElementById('preserve-pitch-toggle');
     if (preservePitchToggle) {
-        preservePitchToggle.checked = audioEffectsSettings.isPreservePitchEnabled();
+        /** @type {HTMLInputElement} */ (preservePitchToggle).checked = audioEffectsSettings.isPreservePitchEnabled();
 
         preservePitchToggle.addEventListener('change', (e) => {
-            player.setPreservePitch(e.target.checked);
+            player.setPreservePitch(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -1367,20 +1412,28 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     let GEQ_LABELS = GEQ_FREQUENCIES.map(formatGeqFreq);
 
     const geqBandsContainer = document.getElementById('graphic-eq-bands');
-    const geqPreampSlider = document.getElementById('graphic-eq-preamp-slider');
+    const geqPreampSlider = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('graphic-eq-preamp-slider')
+    );
     const geqPreampValue = document.getElementById('graphic-eq-preamp-value');
-    const geqPresetSelect = document.getElementById('graphic-eq-preset-select');
+    const geqPresetSelect = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('graphic-eq-preset-select')
+    );
     const geqResetBtn = document.getElementById('graphic-eq-reset-btn');
 
     const legacyGeqBandsContainer = document.getElementById('legacy-graphic-eq-bands');
-    const legacyGeqPreampSlider = document.getElementById('legacy-graphic-eq-preamp-slider');
+    const legacyGeqPreampSlider = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('legacy-graphic-eq-preamp-slider')
+    );
     const legacyGeqPreampValue = document.getElementById('legacy-graphic-eq-preamp-value');
-    const legacyGeqPresetSelect = document.getElementById('legacy-graphic-eq-preset-select');
+    const legacyGeqPresetSelect = /** @type {HTMLInputElement | null} */ (
+        document.getElementById('legacy-graphic-eq-preset-select')
+    );
     const legacyGeqResetBtn = document.getElementById('legacy-graphic-eq-reset-btn');
 
-    const geqBandCountInput = document.getElementById('legacy-geq-band-count');
-    const geqFreqMinInput = document.getElementById('legacy-geq-freq-min');
-    const geqFreqMaxInput = document.getElementById('legacy-geq-freq-max');
+    const geqBandCountInput = /** @type {HTMLInputElement | null} */ (document.getElementById('legacy-geq-band-count'));
+    const geqFreqMinInput = /** @type {HTMLInputElement | null} */ (document.getElementById('legacy-geq-freq-min'));
+    const geqFreqMaxInput = /** @type {HTMLInputElement | null} */ (document.getElementById('legacy-geq-freq-max'));
 
     const geqPreampSliders = [geqPreampSlider, legacyGeqPreampSlider].filter(Boolean);
     const geqPreampValues = [geqPreampValue, legacyGeqPreampValue].filter(Boolean);
@@ -1396,7 +1449,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             ['geq', 'legacy-geq'].forEach((prefix) => {
                 const sl = document.getElementById(`${prefix}-slider-${i}`);
                 const vl = document.getElementById(`${prefix}-value-${i}`);
-                if (sl) sl.value = g;
+                if (sl) /** @type {HTMLInputElement} */ (sl).value = String(g);
                 if (vl) vl.textContent = `${g > 0 ? '+' : ''}${g.toFixed(1)}`;
             });
         });
@@ -1420,10 +1473,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
             const slider = document.createElement('input');
             slider.type = 'range';
-            slider.min = geqRange.min;
-            slider.max = geqRange.max;
+            slider.min = String(geqRange.min);
+            slider.max = String(geqRange.max);
             slider.step = '0.1';
-            slider.value = geqGains[i];
+            slider.value = String(geqGains[i]);
             slider.id = `${idPrefix}-slider-${i}`;
             slider.setAttribute('aria-label', `${GEQ_LABELS[i]} Hz`);
 
@@ -1454,13 +1507,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     // Wire up preamp sliders
     geqPreampSliders.forEach((slider) => {
-        slider.value = geqPreamp;
+        slider.value = String(geqPreamp);
         slider.addEventListener('input', () => {
             geqPreamp = parseFloat(slider.value);
             const text = `${geqPreamp.toFixed(1)} dB`;
             geqPreampValues.forEach((v) => (v.textContent = text));
             geqPreampSliders.forEach((s) => {
-                if (s !== slider) s.value = geqPreamp;
+                if (s !== slider) s.value = String(geqPreamp);
             });
             equalizerSettings.setGraphicEqPreamp(geqPreamp);
             audioContextManager.setGraphicEqPreamp(geqPreamp);
@@ -1507,10 +1560,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     };
 
     if (geqBandCountInput) {
-        geqBandCountInput.value = geqBandCount;
+        geqBandCountInput.value = String(geqBandCount);
         geqBandCountInput.addEventListener('change', () => {
             const newCount = Math.max(3, Math.min(32, parseInt(geqBandCountInput.value, 10) || 16));
-            geqBandCountInput.value = newCount;
+            geqBandCountInput.value = String(newCount);
             if (newCount === geqBandCount) return;
             geqGains = equalizerSettings.interpolateGains(geqGains, newCount);
             geqBandCount = newCount;
@@ -1522,14 +1575,14 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     }
 
     if (geqFreqMinInput && geqFreqMaxInput) {
-        geqFreqMinInput.value = geqFreqRange.min;
-        geqFreqMaxInput.value = geqFreqRange.max;
+        geqFreqMinInput.value = String(geqFreqRange.min);
+        geqFreqMaxInput.value = String(geqFreqRange.max);
 
         const handleFreqRangeChange = () => {
             const newMin = Math.max(10, Math.min(96000, parseInt(geqFreqMinInput.value, 10) || 25));
             const newMax = Math.max(10, Math.min(96000, parseInt(geqFreqMaxInput.value, 10) || 20000));
-            geqFreqMinInput.value = newMin;
-            geqFreqMaxInput.value = newMax;
+            geqFreqMinInput.value = String(newMin);
+            geqFreqMaxInput.value = String(newMax);
             if (newMin >= newMax) return;
             if (newMin === geqFreqRange.min && newMax === geqFreqRange.max) return;
             geqFreqRange = { min: newMin, max: newMax };
@@ -1599,12 +1652,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (legacyGeqImportBtn && legacyGeqImportFile) {
         legacyGeqImportBtn.addEventListener('click', () => legacyGeqImportFile.click());
         legacyGeqImportFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
-                    const text = event.target.result;
+                    const text = /** @type {string} */ (event.target.result);
                     const lines = text.split('\n');
                     let preamp = geqPreamp;
                     let hasPreamp = false;
@@ -1662,7 +1715,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                             }
                         }
                         // Clamp to slider range
-                        return Math.max(parseFloat(geqRange.min), Math.min(parseFloat(geqRange.max), closest.gain));
+                        return Math.max(
+                            parseFloat(String(geqRange.min)),
+                            Math.min(parseFloat(String(geqRange.max)), closest.gain)
+                        );
                     });
 
                     geqGains = newGains;
@@ -1673,7 +1729,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                         geqPreamp = Math.max(-20, Math.min(20, preamp));
                         equalizerSettings.setGraphicEqPreamp(geqPreamp);
                         audioContextManager.setGraphicEqPreamp(geqPreamp);
-                        geqPreampSliders.forEach((s) => (s.value = geqPreamp));
+                        geqPreampSliders.forEach((s) => (s.value = String(geqPreamp)));
                         geqPreampValues.forEach((v) => (v.textContent = `${geqPreamp.toFixed(1)} dB`));
                     }
                     geqPresetSelects.forEach((s) => {
@@ -1685,7 +1741,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 }
             };
             reader.readAsText(file);
-            e.target.value = '';
+            /** @type {HTMLInputElement} */ (e.target).value = '';
         });
     }
 
@@ -1782,7 +1838,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 geqGains = adjusted.map((g) => {
                     const n = Number(g);
                     return Number.isFinite(n)
-                        ? Math.max(parseFloat(geqRange.min), Math.min(parseFloat(geqRange.max), n))
+                        ? Math.max(parseFloat(String(geqRange.min)), Math.min(parseFloat(String(geqRange.max)), n))
                         : 0;
                 });
                 equalizerSettings.setGraphicEqGains(geqGains);
@@ -1792,7 +1848,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                     geqPreamp = customPresets[key].preamp;
                     equalizerSettings.setGraphicEqPreamp(geqPreamp);
                     audioContextManager.setGraphicEqPreamp(geqPreamp);
-                    geqPreampSliders.forEach((s) => (s.value = geqPreamp));
+                    geqPreampSliders.forEach((s) => (s.value = String(geqPreamp)));
                     geqPreampValues.forEach((v) => (v.textContent = `${geqPreamp.toFixed(1)} dB`));
                 }
                 geqPresetSelects.forEach((s) => {
@@ -1891,17 +1947,17 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const setAutoeqBandCount = (count, bands) => {
         if (!autoeqBandCount) return;
         const val = String(count || (bands && bands.length) || 10);
-        autoeqBandCount.value = val;
+        /** @type {HTMLInputElement} */ (autoeqBandCount).value = val;
         // If value didn't match any option (dropdown shows blank), add it or fall back
-        if (autoeqBandCount.value !== val) {
+        if (/** @type {HTMLInputElement} */ (autoeqBandCount).value !== val) {
             // Try using actual band count from the bands array
             if (bands && bands.length) {
                 const bandsVal = String(bands.length);
-                autoeqBandCount.value = bandsVal;
-                if (autoeqBandCount.value === bandsVal) return;
+                /** @type {HTMLInputElement} */ (autoeqBandCount).value = bandsVal;
+                if (/** @type {HTMLInputElement} */ (autoeqBandCount).value === bandsVal) return;
             }
             // Fall back to default
-            autoeqBandCount.value = '10';
+            /** @type {HTMLInputElement} */ (autoeqBandCount).value = '10';
         }
     };
     const autoeqRunBtn = document.getElementById('autoeq-run-btn');
@@ -1938,7 +1994,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         // When user picks a popular headphone from the dropdown, load it
         autoeqHeadphoneSelect.addEventListener('change', async () => {
-            const selected = autoeqHeadphoneSelect.value;
+            const selected = /** @type {HTMLInputElement} */ (autoeqHeadphoneSelect).value;
             if (!selected) return;
             const popularEntry = POPULAR_HEADPHONES.find((hp) => hp.name === selected);
             if (popularEntry && (!autoeqSelectedEntry || autoeqSelectedEntry.name !== selected)) {
@@ -1982,13 +2038,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const drawAutoEQGraph = () => {
         if (!autoeqCanvas) return;
         const activeBands = getActiveBands();
-        const ctx = autoeqCanvas.getContext('2d');
+        const ctx = /** @type {HTMLCanvasElement} */ (autoeqCanvas).getContext('2d');
         const dpr = window.devicePixelRatio || 1;
         const rect = autoeqCanvas.getBoundingClientRect();
         if (rect.width === 0 || rect.height === 0) return;
 
-        autoeqCanvas.width = rect.width * dpr;
-        autoeqCanvas.height = rect.height * dpr;
+        /** @type {HTMLCanvasElement} */ (autoeqCanvas).width = rect.width * dpr;
+        /** @type {HTMLCanvasElement} */ (autoeqCanvas).width = rect.height * dpr;
         ctx.scale(dpr, dpr);
 
         const padLeft = 40,
@@ -2085,7 +2141,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             targetData = targetEntry?.data;
             graphMeasurement = sCh?.measurement;
         } else {
-            targetId = autoeqTargetSelect ? autoeqTargetSelect.value : 'harman_oe_2018';
+            targetId = autoeqTargetSelect
+                ? /** @type {HTMLInputElement} */ (autoeqTargetSelect).value
+                : 'harman_oe_2018';
             targetEntry = TARGETS.find((t) => t.id === targetId);
             targetData = targetEntry?.data;
             graphMeasurement = autoeqSelectedMeasurement;
@@ -2103,7 +2161,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             ctx.stroke();
 
             if (activeBands && activeBands.length > 0) {
-                const sampleRate = autoeqSampleRate ? parseInt(autoeqSampleRate.value, 10) : 48000;
+                const sampleRate = autoeqSampleRate
+                    ? parseInt(/** @type {HTMLInputElement} */ (autoeqSampleRate).value, 10)
+                    : 48000;
                 const nodeColors = [
                     '#f472b6',
                     '#fb923c',
@@ -2205,8 +2265,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         // Speaker EQ: draw bass limit & room limit markers
         if (currentMode === 'speaker') {
-            const bassHz = speakerBassCutoff ? parseInt(speakerBassCutoff.value, 10) : 40;
-            const roomHz = speakerRoomLimit ? parseInt(speakerRoomLimit.value, 10) : 500;
+            const bassHz = speakerBassCutoff
+                ? parseInt(/** @type {HTMLInputElement} */ (speakerBassCutoff).value, 10)
+                : 40;
+            const roomHz = speakerRoomLimit
+                ? parseInt(/** @type {HTMLInputElement} */ (speakerRoomLimit).value, 10)
+                : 500;
 
             // Shaded regions outside EQ range
             ctx.fillStyle = 'rgba(34, 211, 238, 0.04)';
@@ -2255,7 +2319,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         // Draw interactive nodes
         if (activeBands && activeBands.length > 0 && (autoeqCorrectedCurve || isParametricMode)) {
-            const sampleRate = autoeqSampleRate ? parseInt(autoeqSampleRate.value, 10) : 48000;
+            const sampleRate = autoeqSampleRate
+                ? parseInt(/** @type {HTMLInputElement} */ (autoeqSampleRate).value, 10)
+                : 48000;
             activeBands.forEach((band, i) => {
                 if (!band.enabled) return;
                 const x = gx(band.freq);
@@ -2375,7 +2441,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         } else {
             measurement = autoeqSelectedMeasurement;
             bands = autoeqCurrentBands;
-            tId = autoeqTargetSelect ? autoeqTargetSelect.value : 'harman_oe_2018';
+            tId = autoeqTargetSelect ? /** @type {HTMLInputElement} */ (autoeqTargetSelect).value : 'harman_oe_2018';
             tList = TARGETS;
         }
 
@@ -2386,7 +2452,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const targetEntry = tList.find((t) => t.id === tId);
         const targetData = targetEntry?.data;
         const normOff = targetData ? getNormalizationOffset(measurement, targetData) : 0;
-        const sampleRate = autoeqSampleRate ? parseInt(autoeqSampleRate.value, 10) : 48000;
+        const sampleRate = autoeqSampleRate
+            ? parseInt(/** @type {HTMLInputElement} */ (autoeqSampleRate).value, 10)
+            : 48000;
 
         autoeqCorrectedCurve = measurement.map((p) => {
             let correction = 0;
@@ -2436,7 +2504,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 tList = SPEAKER_TARGETS;
                 meas = sCh?.measurement;
             } else {
-                tId = autoeqTargetSelect ? autoeqTargetSelect.value : 'harman_oe_2018';
+                tId = autoeqTargetSelect
+                    ? /** @type {HTMLInputElement} */ (autoeqTargetSelect).value
+                    : 'harman_oe_2018';
                 tList = TARGETS;
                 meas = autoeqSelectedMeasurement;
             }
@@ -2481,7 +2551,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             // Pass skipPreamp=true when auto preamp is off so the engine doesn't override manual preamp
             audioContextManager.applyAutoEQBands(bands, !autoPreampEnabled);
             currentPreamp = equalizerSettings.getPreamp();
-            if (eqPreampSlider) eqPreampSlider.value = currentPreamp;
+            if (eqPreampSlider) /** @type {HTMLInputElement} */ (eqPreampSlider).value = String(currentPreamp);
+
             if (autoeqPreampValue) autoeqPreampValue.textContent = `${currentPreamp} dB`;
         }
     };
@@ -2494,12 +2565,55 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             hideEqContextMenu();
             hideEmptyContextMenu();
             const coords = getCanvasCoords(e);
-            const nodeIdx = findClosestNode(coords.x, coords.y, 18);
+            let nodeIdx = findClosestNode(coords.x, coords.y, 18);
             if (nodeIdx >= 0) {
                 // Clicked directly on a node - start dragging
                 draggedNode = nodeIdx;
                 autoeqCanvas.style.cursor = 'grabbing';
                 e.preventDefault();
+            } else {
+                // Clicked empty space - find nearest node (no threshold) and snap it
+                nodeIdx = findClosestNode(coords.x, coords.y, Infinity);
+                if (nodeIdx >= 0) {
+                    const bands = getActiveBands();
+                    if (bands && bands[nodeIdx]) {
+                        const rect = autoeqCanvas.getBoundingClientRect();
+                        const padLeft = 40,
+                            padRight = 10,
+                            padTop = 10,
+                            padBottom = 30;
+                        const w = rect.width - padLeft - padRight;
+                        const h = rect.height - padTop - padBottom;
+                        const isParam = currentMode === 'parametric';
+                        const dbCenter = isParam ? 0 : 75;
+                        const dbHalf = isParam ? graphDbHalfParametric : graphDbHalfAutoEQ;
+                        const dbMin = dbCenter - dbHalf;
+                        const dbMax = dbCenter + dbHalf;
+
+                        // Snap frequency to click position
+                        const freq = xToFreq(coords.x - padLeft, w);
+                        bands[nodeIdx].freq = Math.max(20, Math.min(20000, freq));
+
+                        // Snap gain to click position
+                        if (isParam) {
+                            const newGain = yToDb(coords.y - padTop, h, dbMin, dbMax);
+                            bands[nodeIdx].gain = Math.max(-30, Math.min(30, Math.round(newGain * 10) / 10));
+                        } else {
+                            const corrGain = interpolate(bands[nodeIdx].freq, autoeqCorrectedCurve || []);
+                            const newDb = yToDb(coords.y - padTop, h, dbMin, dbMax);
+                            const gainDelta = newDb - corrGain;
+                            bands[nodeIdx].gain = Math.max(-30, Math.min(30, bands[nodeIdx].gain + gainDelta * 0.3));
+                        }
+
+                        draggedNode = nodeIdx;
+                        autoeqCanvas.style.cursor = 'grabbing';
+                        computeCorrectedCurve();
+                        applyBandsToAudio(bands);
+                        drawAutoEQGraph();
+                        renderBandControls(bands);
+                        e.preventDefault();
+                    }
+                }
             }
         });
 
@@ -2630,7 +2744,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
             // Update active states for filter type items
             eqCtxMenu.querySelectorAll('.eq-ctx-type').forEach((li) => {
-                const action = li.dataset.action;
+                const action = /** @type {HTMLElement} */ (li).dataset.action;
                 const isActive =
                     (action === 'eq-type-lowshelf' && band.type === 'lowshelf') ||
                     (action === 'eq-type-peaking' && band.type === 'peaking') ||
@@ -2641,7 +2755,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             // Update active states for channel items (per-band M/S mode)
             const bandChannel = band.channel || 'stereo';
             eqCtxMenu.querySelectorAll('.eq-ctx-channel').forEach((li) => {
-                const action = li.dataset.action;
+                const action = /** @type {HTMLElement} */ (li).dataset.action;
                 const isActive =
                     (action === 'eq-channel-stereo' && bandChannel === 'stereo') ||
                     (action === 'eq-channel-mid' && bandChannel === 'mid') ||
@@ -2661,10 +2775,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         if (eqCtxMenu) {
             // Handle menu item clicks
             eqCtxMenu.addEventListener('click', (e) => {
-                const li = e.target.closest('li[data-action]');
+                const li = /** @type {Element} */ (e.target).closest('li[data-action]');
                 if (!li) return;
 
-                const action = li.dataset.action;
+                const action = /** @type {HTMLElement} */ (li).dataset.action;
                 const bands = getActiveBands();
 
                 // Filter type actions
@@ -2735,8 +2849,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         if (eqEmptyCtxMenu) {
             eqEmptyCtxMenu.addEventListener('click', (e) => {
-                const li = e.target.closest('li[data-action]');
-                if (!li || li.dataset.action !== 'eq-add-node' || !pendingAddCoords) return;
+                const li = /** @type {Element} */ (e.target).closest('li[data-action]');
+                if (!li || /** @type {HTMLElement} */ (li).dataset.action !== 'eq-add-node' || !pendingAddCoords)
+                    return;
 
                 const isParam = currentMode === 'parametric';
                 let bands = getActiveBands();
@@ -2803,16 +2918,16 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 if (
                     contextMenuNodeIdx !== null &&
                     eqCtxMenu &&
-                    !eqCtxMenu.contains(e.target) &&
-                    (!graphWrapper || !graphWrapper.contains(e.target))
+                    !eqCtxMenu.contains(/** @type {Node} */ (e.target)) &&
+                    (!graphWrapper || !graphWrapper.contains(/** @type {Node} */ (e.target)))
                 ) {
                     hideEqContextMenu();
                 }
                 if (
                     pendingAddCoords &&
                     eqEmptyCtxMenu &&
-                    !eqEmptyCtxMenu.contains(e.target) &&
-                    (!graphWrapper || !graphWrapper.contains(e.target))
+                    !eqEmptyCtxMenu.contains(/** @type {Node} */ (e.target)) &&
+                    (!graphWrapper || !graphWrapper.contains(/** @type {Node} */ (e.target)))
                 ) {
                     hideEmptyContextMenu();
                 }
@@ -2932,6 +3047,46 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 if (touchNodeIdx >= 0) {
                     draggedNode = touchNodeIdx;
                     e.preventDefault();
+                } else {
+                    // Snap nearest node to touch position
+                    touchNodeIdx = findClosestNode(coords.x, coords.y, Infinity);
+                    if (touchNodeIdx >= 0) {
+                        const bands = getActiveBands();
+                        if (bands && bands[touchNodeIdx]) {
+                            const padLeft = 40,
+                                padRight = 10,
+                                padTop = 10,
+                                padBottom = 30;
+                            const w = rect.width - padLeft - padRight;
+                            const h = rect.height - padTop - padBottom;
+                            const isParam = currentMode === 'parametric';
+                            const dbCenter = isParam ? 0 : 75;
+                            const dbHalf = isParam ? graphDbHalfParametric : graphDbHalfAutoEQ;
+                            const dbMin = dbCenter - dbHalf;
+                            const dbMax = dbCenter + dbHalf;
+
+                            const freq = xToFreq(coords.x - padLeft, w);
+                            bands[touchNodeIdx].freq = Math.max(20, Math.min(20000, freq));
+                            if (isParam) {
+                                const newGain = yToDb(coords.y - padTop, h, dbMin, dbMax);
+                                bands[touchNodeIdx].gain = Math.max(-30, Math.min(30, Math.round(newGain * 10) / 10));
+                            } else {
+                                const corrGain = interpolate(bands[touchNodeIdx].freq, autoeqCorrectedCurve || []);
+                                const newDb = yToDb(coords.y - padTop, h, dbMin, dbMax);
+                                const gainDelta = newDb - corrGain;
+                                bands[touchNodeIdx].gain = Math.max(
+                                    -30,
+                                    Math.min(30, bands[touchNodeIdx].gain + gainDelta * 0.3)
+                                );
+                            }
+                            draggedNode = touchNodeIdx;
+                            computeCorrectedCurve();
+                            applyBandsToAudio(bands);
+                            drawAutoEQGraph();
+                            renderBandControls(bands);
+                            e.preventDefault();
+                        }
+                    }
                 }
             },
             { passive: false }
@@ -3067,7 +3222,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             freqSlider.addEventListener('input', () => {
                 const bands = getActiveBands();
                 if (!bands || !bands[i]) return;
-                bands[i].freq = parseFloat(freqSlider.value);
+                bands[i].freq = parseFloat(/** @type {HTMLInputElement} */ (freqSlider).value);
                 freqVal.textContent = `${formatFreq(bands[i].freq)} Hz`;
                 computeCorrectedCurve();
                 applyBandsToAudio(bands);
@@ -3077,7 +3232,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             gainSlider.addEventListener('input', () => {
                 const bands = getActiveBands();
                 if (!bands || !bands[i]) return;
-                bands[i].gain = parseFloat(gainSlider.value);
+                bands[i].gain = parseFloat(/** @type {HTMLInputElement} */ (gainSlider).value);
                 gainVal.textContent = `${bands[i].gain > 0 ? '+' : ''}${bands[i].gain.toFixed(1)} dB`;
                 computeCorrectedCurve();
                 applyBandsToAudio(bands);
@@ -3087,7 +3242,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             qSlider.addEventListener('input', () => {
                 const bands = getActiveBands();
                 if (!bands || !bands[i]) return;
-                bands[i].q = parseFloat(qSlider.value);
+                bands[i].q = parseFloat(/** @type {HTMLInputElement} */ (qSlider).value);
                 qVal.textContent = bands[i].q.toFixed(2);
                 computeCorrectedCurve();
                 applyBandsToAudio(bands);
@@ -3098,7 +3253,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             typeSelect.addEventListener('change', () => {
                 const bands = getActiveBands();
                 if (!bands || !bands[i]) return;
-                bands[i].type = typeSelect.value;
+                bands[i].type = /** @type {HTMLInputElement} */ (typeSelect).value;
                 computeCorrectedCurve();
                 applyBandsToAudio(bands);
                 scheduleDrawAutoEQGraph();
@@ -3108,7 +3263,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             channelSelect.addEventListener('change', () => {
                 const bands = getActiveBands();
                 if (!bands || !bands[i]) return;
-                bands[i].channel = channelSelect.value;
+                bands[i].channel = /** @type {HTMLInputElement} */ (channelSelect).value;
                 computeCorrectedCurve();
                 applyBandsToAudio(bands);
                 scheduleDrawAutoEQGraph();
@@ -3393,7 +3548,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const activeId = equalizerSettings.getActiveAutoEQProfile();
         const keys = Object.keys(profiles);
 
-        if (autoeqSavedCount) autoeqSavedCount.textContent = keys.length;
+        if (autoeqSavedCount) autoeqSavedCount.textContent = String(keys.length);
         autoeqSavedGrid.innerHTML = '';
 
         if (keys.length === 0) return;
@@ -3448,7 +3603,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const saveAutoEQProfile = (name) => {
         if (!autoeqCurrentBands || !autoeqSelectedMeasurement) return;
 
-        const targetId = autoeqTargetSelect ? autoeqTargetSelect.value : 'harman_oe_2018';
+        const targetId = autoeqTargetSelect
+            ? /** @type {HTMLInputElement} */ (autoeqTargetSelect).value
+            : 'harman_oe_2018';
         const targetEntry = TARGETS.find((t) => t.id === targetId);
 
         const profile = {
@@ -3459,11 +3616,15 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             targetId,
             targetLabel: targetEntry ? targetEntry.label : targetId,
             bandCount:
-                (autoeqBandCount && autoeqBandCount.value ? parseInt(autoeqBandCount.value, 10) : null) ||
+                (autoeqBandCount && /** @type {HTMLInputElement} */ (autoeqBandCount).value
+                    ? parseInt(/** @type {HTMLInputElement} */ (autoeqBandCount).value, 10)
+                    : null) ||
                 autoeqCurrentBands.length ||
                 10,
-            maxFreq: autoeqMaxFreq ? parseInt(autoeqMaxFreq.value, 10) : 16000,
-            sampleRate: autoeqSampleRate ? parseInt(autoeqSampleRate.value, 10) : 48000,
+            maxFreq: autoeqMaxFreq ? parseInt(/** @type {HTMLInputElement} */ (autoeqMaxFreq).value, 10) : 16000,
+            sampleRate: autoeqSampleRate
+                ? parseInt(/** @type {HTMLInputElement} */ (autoeqSampleRate).value, 10)
+                : 48000,
             bands: autoeqCurrentBands.map((b) => ({ ...b })),
             gains: audioContextManager.getGains ? audioContextManager.getGains() : [],
             preamp: equalizerSettings.getPreamp(),
@@ -3474,7 +3635,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         };
 
         const id = equalizerSettings.saveAutoEQProfile(profile);
-        equalizerSettings.setActiveAutoEQProfile(id);
+        if (id) equalizerSettings.setActiveAutoEQProfile(id);
         renderSavedProfiles();
         setAutoEQStatus(`Profile "${name}" saved`, 'success');
     };
@@ -3494,18 +3655,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             let opt = autoeqHeadphoneSelect.querySelector(`option[value="${profile.headphoneName}"]`);
             if (!opt) {
                 opt = document.createElement('option');
-                opt.value = profile.headphoneName;
+                /** @type {HTMLInputElement} */ (opt).value = profile.headphoneName;
                 opt.textContent = profile.headphoneName.replace(/\s*\([^)]*\)\s*$/, '');
                 autoeqHeadphoneSelect.appendChild(opt);
             }
-            autoeqHeadphoneSelect.value = profile.headphoneName;
+            /** @type {HTMLInputElement} */ (autoeqHeadphoneSelect).value = profile.headphoneName;
         }
 
         // Update UI selects
-        if (autoeqTargetSelect) autoeqTargetSelect.value = profile.targetId || 'harman_oe_2018';
+        if (autoeqTargetSelect)
+            /** @type {HTMLInputElement} */ (autoeqTargetSelect).value = profile.targetId || 'harman_oe_2018';
         setAutoeqBandCount(profile.bandCount, profile.bands);
-        if (autoeqMaxFreq) autoeqMaxFreq.value = profile.maxFreq || 16000;
-        if (autoeqSampleRate) autoeqSampleRate.value = profile.sampleRate || 48000;
+        if (autoeqMaxFreq) /** @type {HTMLInputElement} */ (autoeqMaxFreq).value = profile.maxFreq || 16000;
+        if (autoeqSampleRate) /** @type {HTMLInputElement} */ (autoeqSampleRate).value = profile.sampleRate || 48000;
 
         // Apply to audio
         applyBandsToAudio(autoeqCurrentBands);
@@ -3520,13 +3682,15 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Save button
     if (autoeqSaveBtn) {
         autoeqSaveBtn.addEventListener('click', () => {
-            const name = autoeqProfileNameInput ? autoeqProfileNameInput.value.trim() : '';
+            const name = autoeqProfileNameInput
+                ? /** @type {HTMLInputElement} */ (autoeqProfileNameInput).value.trim()
+                : '';
             if (!name) {
                 setAutoEQStatus('Enter a profile name', 'error');
                 return;
             }
             saveAutoEQProfile(name);
-            if (autoeqProfileNameInput) autoeqProfileNameInput.value = '';
+            if (autoeqProfileNameInput) /** @type {HTMLInputElement} */ (autoeqProfileNameInput).value = '';
         });
     }
 
@@ -3549,18 +3713,18 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 let opt = autoeqHeadphoneSelect.querySelector(`option[value="${entry.name}"]`);
                 if (!opt) {
                     opt = document.createElement('option');
-                    opt.value = entry.name;
+                    /** @type {HTMLInputElement} */ (opt).value = entry.name;
                     opt.textContent = entry.name;
                     autoeqHeadphoneSelect.appendChild(opt);
                 }
-                autoeqHeadphoneSelect.value = entry.name;
+                /** @type {HTMLInputElement} */ (autoeqHeadphoneSelect).value = entry.name;
             }
 
             if (autoeqTargetSelect && entry.type === 'in-ear') {
-                autoeqTargetSelect.value = 'harman_ie_2019';
+                /** @type {HTMLInputElement} */ (autoeqTargetSelect).value = 'harman_ie_2019';
             }
 
-            if (autoeqRunBtn) autoeqRunBtn.disabled = false;
+            if (autoeqRunBtn) /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
             drawAutoEQGraph();
             setAutoEQStatus(`Loaded ${data.length} points for ${entry.name}`, 'success');
 
@@ -3738,12 +3902,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     {
         const searchEl = document.getElementById('autoeq-headphone-search');
 
-        if (searchEl && !searchEl._autoeqBound) {
-            searchEl._autoeqBound = true;
+        if (searchEl && !(/** @type {HTMLElement & { _autoeqBound?: EventListener }} */ (searchEl)._autoeqBound)) {
+            /** @type {HTMLElement & { _autoeqBound?: EventListener | boolean }} */ (searchEl)._autoeqBound = true;
             let timer = null;
 
             const doSearch = async () => {
-                const query = searchEl.value.trim();
+                const query = /** @type {HTMLInputElement} */ (searchEl).value.trim();
                 if (!query) {
                     resetDatabaseList(_autoeqIndex);
                     return;
@@ -3770,21 +3934,29 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             if (!autoeqSelectedMeasurement) return;
 
             setAutoEQStatus('Running AutoEQ...', '');
-            autoeqRunBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = true;
 
             setTimeout(() => {
                 try {
-                    const targetId = autoeqTargetSelect ? autoeqTargetSelect.value : 'harman_oe_2018';
+                    const targetId = autoeqTargetSelect
+                        ? /** @type {HTMLInputElement} */ (autoeqTargetSelect).value
+                        : 'harman_oe_2018';
                     const targetEntry = TARGETS.find((t) => t.id === targetId);
                     if (!targetEntry || !targetEntry.data || targetEntry.data.length === 0) {
                         setAutoEQStatus('Invalid target curve', 'error');
-                        autoeqRunBtn.disabled = false;
+                        /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
                         return;
                     }
 
-                    const bandCount = autoeqBandCount ? parseInt(autoeqBandCount.value, 10) : 10;
-                    const maxFreq = autoeqMaxFreq ? parseInt(autoeqMaxFreq.value, 10) : 16000;
-                    const sampleRate = autoeqSampleRate ? parseInt(autoeqSampleRate.value, 10) : 48000;
+                    const bandCount = autoeqBandCount
+                        ? parseInt(/** @type {HTMLInputElement} */ (autoeqBandCount).value, 10)
+                        : 10;
+                    const maxFreq = autoeqMaxFreq
+                        ? parseInt(/** @type {HTMLInputElement} */ (autoeqMaxFreq).value, 10)
+                        : 16000;
+                    const sampleRate = autoeqSampleRate
+                        ? parseInt(/** @type {HTMLInputElement} */ (autoeqSampleRate).value, 10)
+                        : 48000;
 
                     const bands = runAutoEqAlgorithm(
                         autoeqSelectedMeasurement,
@@ -3798,7 +3970,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
                     if (!bands || bands.length === 0) {
                         setAutoEQStatus('No correction needed', 'success');
-                        autoeqRunBtn.disabled = false;
+                        /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
                         return;
                     }
 
@@ -3810,11 +3982,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
                     const headphoneName = autoeqSelectedEntry ? autoeqSelectedEntry.name : 'Custom';
                     setAutoEQStatus(`Applied ${bands.length} bands for ${headphoneName}`, 'success');
-                    autoeqRunBtn.disabled = false;
+                    /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
                 } catch (err) {
                     console.error('[AutoEQ] Algorithm failed:', err);
                     setAutoEQStatus('Error: ' + err.message, 'error');
-                    autoeqRunBtn.disabled = false;
+                    /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
                 }
             }, 50);
         });
@@ -3829,20 +4001,20 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         });
 
         autoeqImportFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
-                    const data = parseRawData(event.target.result);
+                    const data = parseRawData(/** @type {string} */ (event.target.result));
                     if (data.length === 0) {
                         setAutoEQStatus('Invalid measurement file', 'error');
                         return;
                     }
                     autoeqSelectedMeasurement = data;
                     autoeqSelectedEntry = { name: file.name.replace(/\.(txt|csv)$/i, ''), type: 'over-ear' };
-                    if (autoeqRunBtn) autoeqRunBtn.disabled = false;
+                    if (autoeqRunBtn) /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
                     drawAutoEQGraph();
                     setAutoEQStatus(`Imported ${data.length} points from ${file.name}`, 'success');
                 } catch {
@@ -3850,7 +4022,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 }
             };
             reader.readAsText(file);
-            e.target.value = '';
+            /** @type {HTMLInputElement} */ (e.target).value = '';
         });
     }
 
@@ -3864,13 +4036,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         autoeqImportTargetBtn.addEventListener('click', () => autoeqImportTargetFile.click());
 
         autoeqImportTargetFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
-                    const data = parseRawData(event.target.result);
+                    const data = parseRawData(/** @type {string} */ (event.target.result));
                     if (data.length === 0) {
                         setAutoEQStatus('Invalid target file', 'error');
                         return;
@@ -3892,11 +4064,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                         let opt = autoeqTargetSelect.querySelector('option[value="custom_target"]');
                         if (!opt) {
                             opt = document.createElement('option');
-                            opt.value = customId;
+                            /** @type {HTMLInputElement} */ (opt).value = customId;
                             autoeqTargetSelect.appendChild(opt);
                         }
                         opt.textContent = customLabel;
-                        autoeqTargetSelect.value = customId;
+                        /** @type {HTMLInputElement} */ (autoeqTargetSelect).value = customId;
                     }
 
                     computeCorrectedCurve();
@@ -3907,7 +4079,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 }
             };
             reader.readAsText(file);
-            e.target.value = '';
+            /** @type {HTMLInputElement} */ (e.target).value = '';
         });
     }
 
@@ -3946,7 +4118,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // ========================================
     if (autoPreampToggle) {
         autoPreampToggle.addEventListener('change', () => {
-            autoPreampEnabled = autoPreampToggle.checked;
+            autoPreampEnabled = /** @type {HTMLInputElement} */ (autoPreampToggle).checked;
             if (autoPreampEnabled) {
                 // Recalculate and apply auto preamp immediately
                 const bands = getActiveBands();
@@ -3956,7 +4128,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                     currentPreamp = autoPreamp;
                     equalizerSettings.setPreamp(autoPreamp);
                     if (audioContextManager.setPreamp) audioContextManager.setPreamp(autoPreamp);
-                    if (eqPreampSlider) eqPreampSlider.value = autoPreamp;
+                    if (eqPreampSlider) /** @type {HTMLInputElement} */ (eqPreampSlider).value = String(autoPreamp);
+
                     if (autoeqPreampValue) autoeqPreampValue.textContent = `${autoPreamp} dB`;
                 }
             } else {
@@ -3964,7 +4137,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 currentPreamp = 0;
                 equalizerSettings.setPreamp(0);
                 if (audioContextManager.setPreamp) audioContextManager.setPreamp(0);
-                if (eqPreampSlider) eqPreampSlider.value = 0;
+                if (eqPreampSlider) /** @type {HTMLInputElement} */ (eqPreampSlider).value = String(0);
+
                 if (autoeqPreampValue) autoeqPreampValue.textContent = '0 dB';
             }
         });
@@ -3974,16 +4148,17 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Preamp Slider
     // ========================================
     if (eqPreampSlider) {
-        eqPreampSlider.value = currentPreamp;
+        /** @type {HTMLInputElement} */ (eqPreampSlider).value = String(currentPreamp);
+
         if (autoeqPreampValue) autoeqPreampValue.textContent = `${currentPreamp} dB`;
 
         eqPreampSlider.addEventListener('input', () => {
             // Manual preamp adjustment disables auto compensation
             if (autoPreampEnabled) {
                 autoPreampEnabled = false;
-                if (autoPreampToggle) autoPreampToggle.checked = false;
+                if (autoPreampToggle) /** @type {HTMLInputElement} */ (autoPreampToggle).checked = false;
             }
-            const val = parseFloat(eqPreampSlider.value);
+            const val = parseFloat(/** @type {HTMLInputElement} */ (eqPreampSlider).value);
             currentPreamp = val;
             equalizerSettings.setPreamp(val);
             if (autoeqPreampValue) autoeqPreampValue.textContent = `${val} dB`;
@@ -4042,7 +4217,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const setEQMode = (mode) => {
         currentMode = mode;
         localStorage.setItem(EQ_MODE_KEY, mode);
-        modeButtons.forEach((b) => b.classList.toggle('active', b.dataset.mode === mode));
+        modeButtons.forEach((b) => b.classList.toggle('active', /** @type {HTMLElement} */ (b).dataset.mode === mode));
 
         const graphSection = document.querySelector('.autoeq-graph-section');
         const controlsSection = document.querySelector('.autoeq-controls-section');
@@ -4060,15 +4235,17 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         hoveredNode = null;
 
         // Graph visible in all modes except legacy
-        if (graphSection) graphSection.style.display = mode === 'legacy' ? 'none' : '';
+        if (graphSection) /** @type {HTMLElement} */ (graphSection).style.display = mode === 'legacy' ? 'none' : '';
         // Legend only relevant in modes with Original/Target/Corrected curves
         const graphLegend = document.querySelector('.autoeq-graph-legend');
-        if (graphLegend) graphLegend.style.display = mode === 'autoeq' || mode === 'speaker' ? '' : 'none';
+        if (graphLegend)
+            /** @type {HTMLElement} */ (graphLegend).style.display =
+                mode === 'autoeq' || mode === 'speaker' ? '' : 'none';
         // Only show shared AutoEq button in AutoEQ mode
         if (autoeqRunBtn) autoeqRunBtn.style.display = mode === 'autoeq' ? '' : 'none';
 
         // Hide all mode-specific sections first
-        if (controlsSection) controlsSection.style.display = 'none';
+        if (controlsSection) /** @type {HTMLElement} */ (controlsSection).style.display = 'none';
         if (savedSection) savedSection.style.display = 'none';
         if (databaseSection) databaseSection.style.display = 'none';
         if (filtersSection) filtersSection.style.display = 'none';
@@ -4092,7 +4269,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         }
 
         if (mode === 'autoeq') {
-            if (controlsSection) controlsSection.style.display = '';
+            if (controlsSection) /** @type {HTMLElement} */ (controlsSection).style.display = '';
             if (savedSection) savedSection.style.display = '';
             if (databaseSection) databaseSection.style.display = '';
             if (filtersSection) filtersSection.style.display = '';
@@ -4166,7 +4343,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     };
 
     modeButtons.forEach((btn) => {
-        btn.addEventListener('click', () => setEQMode(btn.dataset.mode));
+        btn.addEventListener('click', () => setEQMode(/** @type {HTMLElement} */ (btn).dataset.mode));
     });
 
     // ========================================
@@ -4356,7 +4533,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const parametricPresetSelect = document.getElementById('parametric-preset-select');
     if (parametricPresetSelect) {
         parametricPresetSelect.addEventListener('change', () => {
-            const presetKey = parametricPresetSelect.value;
+            const presetKey = /** @type {HTMLInputElement} */ (parametricPresetSelect).value;
             if (!presetKey) return; // "Custom" selected
 
             // Check for M/S preset first (replaces entire band array)
@@ -4413,7 +4590,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const profiles = getParametricProfiles();
         const activeId = localStorage.getItem(PARAMETRIC_ACTIVE_KEY);
         const keys = Object.keys(profiles);
-        if (countEl) countEl.textContent = keys.length;
+        if (countEl) countEl.textContent = String(keys.length);
         grid.innerHTML = '';
 
         keys.forEach((id) => {
@@ -4457,7 +4634,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 computeCorrectedCurve();
                 drawAutoEQGraph();
                 localStorage.setItem(PARAMETRIC_ACTIVE_KEY, id);
-                if (parametricPresetSelect) parametricPresetSelect.value = '';
+                if (parametricPresetSelect) /** @type {HTMLInputElement} */ (parametricPresetSelect).value = '';
                 renderParametricProfiles();
             });
 
@@ -4476,7 +4653,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (parametricSaveBtn) {
         parametricSaveBtn.addEventListener('click', () => {
             if (!parametricBands || parametricBands.length === 0) return;
-            const name = parametricProfileName ? parametricProfileName.value.trim() : '';
+            const name = parametricProfileName
+                ? /** @type {HTMLInputElement} */ (parametricProfileName).value.trim()
+                : '';
             if (!name) return;
 
             const profiles = getParametricProfiles();
@@ -4490,7 +4669,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             };
             localStorage.setItem(PARAMETRIC_PROFILES_KEY, JSON.stringify(profiles));
             localStorage.setItem(PARAMETRIC_ACTIVE_KEY, id);
-            if (parametricProfileName) parametricProfileName.value = '';
+            if (parametricProfileName) /** @type {HTMLInputElement} */ (parametricProfileName).value = '';
             renderParametricProfiles();
         });
     }
@@ -4527,7 +4706,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (parametricImportBtn && parametricImportFile) {
         parametricImportBtn.addEventListener('click', () => parametricImportFile.click());
         parametricImportFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
@@ -4535,7 +4714,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                     const text = event.target.result;
                     const bands = [];
                     let preamp = 0;
-                    const lines = text.split('\n');
+                    const lines = /** @type {string} */ (text).split('\n');
                     for (const line of lines) {
                         const preampMatch = line.match(/Preamp:\s*([-\d.]+)\s*dB/i);
                         if (preampMatch) {
@@ -4569,18 +4748,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                     parametricBands = bands;
                     applyBandsToAudio(parametricBands);
                     equalizerSettings.setPreamp(preamp);
-                    if (eqPreampSlider) eqPreampSlider.value = preamp;
+                    if (eqPreampSlider) /** @type {HTMLInputElement} */ (eqPreampSlider).value = String(preamp);
+
                     if (autoeqPreampValue) autoeqPreampValue.textContent = `${preamp} dB`;
                     renderBandControls(parametricBands);
                     computeCorrectedCurve();
                     drawAutoEQGraph();
-                    if (parametricPresetSelect) parametricPresetSelect.value = '';
+                    if (parametricPresetSelect) /** @type {HTMLInputElement} */ (parametricPresetSelect).value = '';
                 } catch (err) {
                     console.error('[PEQ Import] Failed:', err);
                 }
             };
             reader.readAsText(file);
-            e.target.value = '';
+            /** @type {HTMLInputElement} */ (e.target).value = '';
         });
     }
 
@@ -4639,16 +4819,16 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             speakerMeasStatus.classList.toggle('loaded', !!ch.measurement);
         }
         if (speakerClearMeasBtn) speakerClearMeasBtn.style.display = ch.measurement ? '' : 'none';
-        if (speakerAutoEqBtn) speakerAutoEqBtn.disabled = !ch.measurement;
+        if (speakerAutoEqBtn) /** @type {HTMLButtonElement} */ (speakerAutoEqBtn).disabled = !ch.measurement;
         // Target
-        if (speakerTargetSelect) speakerTargetSelect.value = ch.targetId;
+        if (speakerTargetSelect) /** @type {HTMLInputElement} */ (speakerTargetSelect).value = ch.targetId;
         // Preamp
     };
 
     // Config change
     if (speakerConfigSelect) {
         speakerConfigSelect.addEventListener('change', () => {
-            speakerConfig = speakerConfigSelect.value;
+            speakerConfig = /** @type {HTMLInputElement} */ (speakerConfigSelect).value;
             const ids = SPEAKER_CONFIGS[speakerConfig];
             if (!ids.includes(speakerActiveChannel)) speakerActiveChannel = ids[0];
             renderSpeakerChannelTabs();
@@ -4660,11 +4840,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (speakerImportMeasBtn && speakerImportMeasFile) {
         speakerImportMeasBtn.addEventListener('click', () => speakerImportMeasFile.click());
         speakerImportMeasFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (ev) => {
-                const data = parseRawData(ev.target.result);
+                const data = parseRawData(/** @type {string} */ (ev.target.result));
                 if (data.length > 0) {
                     getSpeakerChannel().measurement = data;
                     updateSpeakerUI();
@@ -4673,7 +4853,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 }
             };
             reader.readAsText(file);
-            e.target.value = '';
+            /** @type {HTMLInputElement} */ (e.target).value = '';
         });
     }
 
@@ -4691,7 +4871,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const speakerMeasureBtn = document.getElementById('speaker-measure-btn');
     if (speakerMeasureBtn) {
         speakerMeasureBtn.addEventListener('click', async () => {
-            speakerMeasureBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (speakerMeasureBtn).disabled = true;
             if (speakerMeasStatus) {
                 speakerMeasStatus.textContent = 'Requesting mic...';
                 speakerMeasStatus.classList.remove('loaded');
@@ -4833,7 +5013,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 // Cleanup
                 if (stream) stream.getTracks().forEach((t) => t.stop());
                 if (measCtx && measCtx.state !== 'closed') measCtx.close().catch(() => {});
-                speakerMeasureBtn.disabled = false;
+                /** @type {HTMLButtonElement} */ (speakerMeasureBtn).disabled = false;
             }
         });
     }
@@ -4842,8 +5022,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const speakerMeasureAllBtn = document.getElementById('speaker-measure-all-btn');
     if (speakerMeasureAllBtn) {
         speakerMeasureAllBtn.addEventListener('click', async () => {
-            speakerMeasureAllBtn.disabled = true;
-            if (speakerMeasureBtn) speakerMeasureBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (speakerMeasureAllBtn).disabled = true;
+            if (speakerMeasureBtn) /** @type {HTMLButtonElement} */ (speakerMeasureBtn).disabled = true;
             if (speakerMeasStatus) {
                 speakerMeasStatus.textContent = 'Requesting mic...';
                 speakerMeasStatus.classList.remove('loaded');
@@ -4976,8 +5156,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             } finally {
                 if (stream) stream.getTracks().forEach((t) => t.stop());
                 if (measCtx && measCtx.state !== 'closed') measCtx.close().catch(() => {});
-                speakerMeasureAllBtn.disabled = false;
-                if (speakerMeasureBtn) speakerMeasureBtn.disabled = false;
+                /** @type {HTMLButtonElement} */ (speakerMeasureAllBtn).disabled = false;
+                if (speakerMeasureBtn) /** @type {HTMLButtonElement} */ (speakerMeasureBtn).disabled = false;
             }
         });
     }
@@ -4990,14 +5170,20 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             const measuredIds = activeIds.filter((id) => speakerChannels[id].measurement);
             if (measuredIds.length === 0) return;
 
-            speakerAutoEqAllBtn.disabled = true;
-            if (speakerAutoEqBtn) speakerAutoEqBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (speakerAutoEqAllBtn).disabled = true;
+            if (speakerAutoEqBtn) /** @type {HTMLButtonElement} */ (speakerAutoEqBtn).disabled = true;
             if (speakerEqStatus) speakerEqStatus.textContent = 'Running all...';
 
             setTimeout(() => {
-                const bandCount = speakerBandCountSelect ? parseInt(speakerBandCountSelect.value, 10) : 10;
-                const bassCut = speakerBassCutoff ? parseInt(speakerBassCutoff.value, 10) : 40;
-                const roomLim = speakerRoomLimit ? parseInt(speakerRoomLimit.value, 10) : 500;
+                const bandCount = speakerBandCountSelect
+                    ? parseInt(/** @type {HTMLInputElement} */ (speakerBandCountSelect).value, 10)
+                    : 10;
+                const bassCut = speakerBassCutoff
+                    ? parseInt(/** @type {HTMLInputElement} */ (speakerBassCutoff).value, 10)
+                    : 40;
+                const roomLim = speakerRoomLimit
+                    ? parseInt(/** @type {HTMLInputElement} */ (speakerRoomLimit).value, 10)
+                    : 500;
 
                 measuredIds.forEach((id) => {
                     const ch = speakerChannels[id];
@@ -5027,8 +5213,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 computeCorrectedCurve();
                 drawAutoEQGraph();
 
-                speakerAutoEqAllBtn.disabled = false;
-                if (speakerAutoEqBtn) speakerAutoEqBtn.disabled = !ch.measurement;
+                /** @type {HTMLButtonElement} */ (speakerAutoEqAllBtn).disabled = false;
+                if (speakerAutoEqBtn) /** @type {HTMLButtonElement} */ (speakerAutoEqBtn).disabled = !ch.measurement;
                 if (speakerEqStatus) speakerEqStatus.textContent = `${measuredIds.length} channels optimized`;
                 setTimeout(() => {
                     if (speakerEqStatus) speakerEqStatus.textContent = '';
@@ -5040,7 +5226,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Target change
     if (speakerTargetSelect) {
         speakerTargetSelect.addEventListener('change', () => {
-            getSpeakerChannel().targetId = speakerTargetSelect.value;
+            getSpeakerChannel().targetId = /** @type {HTMLInputElement} */ (speakerTargetSelect).value;
             drawAutoEQGraph();
         });
     }
@@ -5049,11 +5235,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (speakerImportTargetBtn && speakerImportTargetFile) {
         speakerImportTargetBtn.addEventListener('click', () => speakerImportTargetFile.click());
         speakerImportTargetFile.addEventListener('change', (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
             const reader = new FileReader();
             reader.onload = (ev) => {
-                const data = parseRawData(ev.target.result);
+                const data = parseRawData(/** @type {string} */ (ev.target.result));
                 if (data.length === 0) return;
                 const customId = 'custom_speaker_target';
                 const label = file.name.replace(/\.(txt|csv)$/i, '');
@@ -5063,29 +5249,31 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 let opt = speakerTargetSelect.querySelector('option[value="custom_speaker_target"]');
                 if (!opt) {
                     opt = document.createElement('option');
-                    opt.value = customId;
+                    /** @type {HTMLInputElement} */ (opt).value = customId;
                     speakerTargetSelect.appendChild(opt);
                 }
                 opt.textContent = label;
-                speakerTargetSelect.value = customId;
+                /** @type {HTMLInputElement} */ (speakerTargetSelect).value = customId;
                 getSpeakerChannel().targetId = customId;
                 drawAutoEQGraph();
             };
             reader.readAsText(file);
-            e.target.value = '';
+            /** @type {HTMLInputElement} */ (e.target).value = '';
         });
     }
 
     // Slider labels
     if (speakerBassCutoff) {
         speakerBassCutoff.addEventListener('input', () => {
-            if (speakerBassCutoffValue) speakerBassCutoffValue.textContent = `${speakerBassCutoff.value} Hz`;
+            if (speakerBassCutoffValue)
+                speakerBassCutoffValue.textContent = `${/** @type {HTMLInputElement} */ (speakerBassCutoff).value} Hz`;
             drawAutoEQGraph();
         });
     }
     if (speakerRoomLimit) {
         speakerRoomLimit.addEventListener('input', () => {
-            if (speakerRoomLimitValue) speakerRoomLimitValue.textContent = `${speakerRoomLimit.value} Hz`;
+            if (speakerRoomLimitValue)
+                speakerRoomLimitValue.textContent = `${/** @type {HTMLInputElement} */ (speakerRoomLimit).value} Hz`;
             drawAutoEQGraph();
         });
     }
@@ -5094,17 +5282,25 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         speakerAutoEqBtn.addEventListener('click', () => {
             const ch = getSpeakerChannel();
             if (!ch.measurement) return;
-            speakerAutoEqBtn.disabled = true;
+            /** @type {HTMLButtonElement} */ (speakerAutoEqBtn).disabled = true;
             if (speakerEqStatus) speakerEqStatus.textContent = 'Running...';
 
             setTimeout(() => {
                 const targetEntry = SPEAKER_TARGETS.find((t) => t.id === ch.targetId);
                 const targetData = targetEntry?.data || [];
-                const bandCount = speakerBandCountSelect ? parseInt(speakerBandCountSelect.value, 10) : 10;
-                const bassCut = speakerBassCutoff ? parseInt(speakerBassCutoff.value, 10) : 40;
-                const roomLim = speakerRoomLimit ? parseInt(speakerRoomLimit.value, 10) : 500;
+                const bandCount = speakerBandCountSelect
+                    ? parseInt(/** @type {HTMLInputElement} */ (speakerBandCountSelect).value, 10)
+                    : 10;
+                const bassCut = speakerBassCutoff
+                    ? parseInt(/** @type {HTMLInputElement} */ (speakerBassCutoff).value, 10)
+                    : 40;
+                const roomLim = speakerRoomLimit
+                    ? parseInt(/** @type {HTMLInputElement} */ (speakerRoomLimit).value, 10)
+                    : 500;
 
-                const sampleRate = autoeqSampleRate ? parseInt(autoeqSampleRate.value, 10) : 48000;
+                const sampleRate = autoeqSampleRate
+                    ? parseInt(/** @type {HTMLInputElement} */ (autoeqSampleRate).value, 10)
+                    : 48000;
                 const bands = runAutoEqAlgorithm(
                     ch.measurement,
                     targetData,
@@ -5136,7 +5332,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 computeCorrectedCurve();
                 drawAutoEQGraph();
 
-                speakerAutoEqBtn.disabled = false;
+                /** @type {HTMLButtonElement} */ (speakerAutoEqBtn).disabled = false;
                 if (speakerEqStatus) speakerEqStatus.textContent = `${speakerActiveChannel} optimized`;
                 setTimeout(() => {
                     if (speakerEqStatus) speakerEqStatus.textContent = '';
@@ -5184,7 +5380,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (speakerImportBtn && speakerImportFile) {
         speakerImportBtn.addEventListener('click', () => speakerImportFile.click());
         speakerImportFile.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
+            const file = /** @type {HTMLInputElement} */ (e.target).files[0];
             if (!file) return;
             try {
                 const text = await file.text();
@@ -5195,7 +5391,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 // Change config if different
                 if (data.config !== speakerConfig) {
                     speakerConfig = data.config;
-                    if (speakerConfigSelect) speakerConfigSelect.value = speakerConfig;
+                    if (speakerConfigSelect)
+                        /** @type {HTMLInputElement} */ (speakerConfigSelect).value = speakerConfig;
                 }
                 // Load channels
                 data.channels.forEach((ch) => {
@@ -5221,7 +5418,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             } catch (err) {
                 if (speakerEqStatus) speakerEqStatus.textContent = `Error: ${err.message}`;
             }
-            speakerImportFile.value = '';
+            /** @type {HTMLInputElement} */ (speakerImportFile).value = '';
         });
     }
 
@@ -5270,7 +5467,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const profiles = getSpeakerProfiles();
         const activeId = localStorage.getItem(SPEAKER_ACTIVE_PROFILE_KEY);
         const keys = Object.keys(profiles);
-        if (countEl) countEl.textContent = keys.length;
+        if (countEl) countEl.textContent = String(keys.length);
+
         grid.innerHTML = '';
 
         if (keys.length === 0) return;
@@ -5341,7 +5539,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         // Switch config if different
         if (profile.config && profile.config !== speakerConfig) {
             speakerConfig = profile.config;
-            if (speakerConfigSelect) speakerConfigSelect.value = speakerConfig;
+            if (speakerConfigSelect) /** @type {HTMLInputElement} */ (speakerConfigSelect).value = speakerConfig;
         }
 
         // Load all channels
@@ -5381,7 +5579,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (speakerSaveBtn) {
         speakerSaveBtn.addEventListener('click', async () => {
             try {
-                const name = speakerProfileNameInput?.value.trim() || `Speaker ${speakerConfig}`;
+                const name =
+                    /** @type {HTMLInputElement} */ (speakerProfileNameInput)?.value.trim() ||
+                    `Speaker ${speakerConfig}`;
                 const activeIds = SPEAKER_CONFIGS[speakerConfig];
                 const profiles = getSpeakerProfiles();
                 const id = 'spk_' + Date.now();
@@ -5411,7 +5611,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
                 await saveSpeakerProfiles(profiles);
                 localStorage.setItem(SPEAKER_ACTIVE_PROFILE_KEY, id);
-                if (speakerProfileNameInput) speakerProfileNameInput.value = '';
+                if (speakerProfileNameInput) /** @type {HTMLInputElement} */ (speakerProfileNameInput).value = '';
                 renderSpeakerProfiles();
                 if (speakerEqStatus) speakerEqStatus.textContent = `Saved "${name}"`;
                 setTimeout(() => {
@@ -5495,11 +5695,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // EQ Toggle (enable/disable)
     // ========================================
     if (eqToggle) {
-        eqToggle.checked = equalizerSettings.isEnabled();
-        updateEQContainerVisibility(eqToggle.checked);
+        /** @type {HTMLInputElement} */ (eqToggle).checked = equalizerSettings.isEnabled();
+        updateEQContainerVisibility(/** @type {HTMLInputElement} */ (eqToggle).checked);
 
         eqToggle.addEventListener('change', (e) => {
-            const enabled = e.target.checked;
+            const enabled = /** @type {HTMLInputElement} */ (e.target).checked;
             equalizerSettings.setEnabled(enabled);
             updateEQContainerVisibility(enabled);
 
@@ -5539,13 +5739,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 let opt = autoeqHeadphoneSelect.querySelector(`option[value="${lastHp.entry.name}"]`);
                 if (!opt) {
                     opt = document.createElement('option');
-                    opt.value = lastHp.entry.name;
+                    /** @type {HTMLInputElement} */ (opt).value = lastHp.entry.name;
                     opt.textContent = lastHp.entry.name.replace(/\s*\([^)]*\)\s*$/, '');
                     autoeqHeadphoneSelect.appendChild(opt);
                 }
-                autoeqHeadphoneSelect.value = lastHp.entry.name;
+                /** @type {HTMLInputElement} */ (autoeqHeadphoneSelect).value = lastHp.entry.name;
             }
-            if (autoeqRunBtn) autoeqRunBtn.disabled = false;
+            if (autoeqRunBtn) /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
             requestAnimationFrame(drawAutoEQGraph);
         } else if (POPULAR_HEADPHONES.length > 0) {
             await loadHeadphoneEntry(POPULAR_HEADPHONES[0]);
@@ -5572,17 +5772,19 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 let opt = autoeqHeadphoneSelect.querySelector(`option[value="${profile.headphoneName}"]`);
                 if (!opt) {
                     opt = document.createElement('option');
-                    opt.value = profile.headphoneName;
+                    /** @type {HTMLInputElement} */ (opt).value = profile.headphoneName;
                     opt.textContent = profile.headphoneName.replace(/\s*\([^)]*\)\s*$/, '');
                     autoeqHeadphoneSelect.appendChild(opt);
                 }
-                autoeqHeadphoneSelect.value = profile.headphoneName;
+                /** @type {HTMLInputElement} */ (autoeqHeadphoneSelect).value = profile.headphoneName;
             }
-            if (autoeqTargetSelect) autoeqTargetSelect.value = profile.targetId || 'harman_oe_2018';
+            if (autoeqTargetSelect)
+                /** @type {HTMLInputElement} */ (autoeqTargetSelect).value = profile.targetId || 'harman_oe_2018';
             setAutoeqBandCount(profile.bandCount, profile.bands);
-            if (autoeqMaxFreq) autoeqMaxFreq.value = profile.maxFreq || 16000;
-            if (autoeqSampleRate) autoeqSampleRate.value = profile.sampleRate || 48000;
-            if (autoeqRunBtn) autoeqRunBtn.disabled = false;
+            if (autoeqMaxFreq) /** @type {HTMLInputElement} */ (autoeqMaxFreq).value = profile.maxFreq || 16000;
+            if (autoeqSampleRate)
+                /** @type {HTMLInputElement} */ (autoeqSampleRate).value = profile.sampleRate || 48000;
+            if (autoeqRunBtn) /** @type {HTMLButtonElement} */ (autoeqRunBtn).disabled = false;
             if (autoeqCurrentBands) renderBandControls(autoeqCurrentBands);
             requestAnimationFrame(drawAutoEQGraph);
         }
@@ -5606,7 +5808,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         if (spkProfile) {
             if (spkProfile.config) {
                 speakerConfig = spkProfile.config;
-                if (speakerConfigSelect) speakerConfigSelect.value = speakerConfig;
+                if (speakerConfigSelect) /** @type {HTMLInputElement} */ (speakerConfigSelect).value = speakerConfig;
             }
             if (spkProfile.channels) {
                 spkProfile.channels.forEach((saved) => {
@@ -5633,100 +5835,106 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Now Playing Mode
     const nowPlayingMode = document.getElementById('now-playing-mode');
     if (nowPlayingMode) {
-        nowPlayingMode.value = nowPlayingSettings.getMode();
+        /** @type {HTMLInputElement} */ (nowPlayingMode).value = nowPlayingSettings.getMode();
         nowPlayingMode.addEventListener('change', (e) => {
-            nowPlayingSettings.setMode(e.target.value);
+            nowPlayingSettings.setMode(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
     // Fullscreen Cover Click Action
     const fullscreenCoverClickAction = document.getElementById('fullscreen-cover-click-action');
     if (fullscreenCoverClickAction) {
-        fullscreenCoverClickAction.value = fullscreenCoverClickSettings.getAction();
+        /** @type {HTMLInputElement} */ (fullscreenCoverClickAction).value = fullscreenCoverClickSettings.getAction();
         fullscreenCoverClickAction.addEventListener('change', (e) => {
-            fullscreenCoverClickSettings.setAction(e.target.value);
+            fullscreenCoverClickSettings.setAction(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
     // Close Modals on Navigation Toggle
     const closeModalsOnNavigationToggle = document.getElementById('close-modals-on-navigation-toggle');
     if (closeModalsOnNavigationToggle) {
-        closeModalsOnNavigationToggle.checked = modalSettings.shouldCloseOnNavigation();
+        /** @type {HTMLInputElement} */ (closeModalsOnNavigationToggle).checked =
+            modalSettings.shouldCloseOnNavigation();
         closeModalsOnNavigationToggle.addEventListener('change', (e) => {
-            modalSettings.setCloseOnNavigation(e.target.checked);
+            modalSettings.setCloseOnNavigation(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Intercept Back to Close Modals Toggle
     const interceptBackToCloseToggle = document.getElementById('intercept-back-to-close-modals-toggle');
     if (interceptBackToCloseToggle) {
-        interceptBackToCloseToggle.checked = modalSettings.shouldInterceptBackToClose();
+        /** @type {HTMLInputElement} */ (interceptBackToCloseToggle).checked =
+            modalSettings.shouldInterceptBackToClose();
         interceptBackToCloseToggle.addEventListener('change', (e) => {
-            modalSettings.setInterceptBackToClose(e.target.checked);
+            modalSettings.setInterceptBackToClose(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Compact Artist Toggle
     const compactArtistToggle = document.getElementById('compact-artist-toggle');
     if (compactArtistToggle) {
-        compactArtistToggle.checked = cardSettings.isCompactArtist();
+        /** @type {HTMLInputElement} */ (compactArtistToggle).checked = cardSettings.isCompactArtist();
         compactArtistToggle.addEventListener('change', (e) => {
-            cardSettings.setCompactArtist(e.target.checked);
+            cardSettings.setCompactArtist(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Compact Album Toggle
     const compactAlbumToggle = document.getElementById('compact-album-toggle');
     if (compactAlbumToggle) {
-        compactAlbumToggle.checked = cardSettings.isCompactAlbum();
+        /** @type {HTMLInputElement} */ (compactAlbumToggle).checked = cardSettings.isCompactAlbum();
         compactAlbumToggle.addEventListener('change', (e) => {
-            cardSettings.setCompactAlbum(e.target.checked);
+            cardSettings.setCompactAlbum(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Write multiple artists toggle
     const writeArtistsSeparatelyToggle = document.getElementById('write-artists-separately-toggle');
     if (writeArtistsSeparatelyToggle) {
-        writeArtistsSeparatelyToggle.checked = modernSettings.writeArtistsSeparately;
+        /** @type {HTMLInputElement} */ (writeArtistsSeparatelyToggle).checked = modernSettings.writeArtistsSeparately;
         writeArtistsSeparatelyToggle.addEventListener('change', (e) => {
-            modernSettings.writeArtistsSeparately = e.target.checked;
+            modernSettings.writeArtistsSeparately = /** @type {HTMLInputElement} */ (e.target).checked;
         });
     }
 
     // Download Lyrics Toggle
     const downloadLyricsToggle = document.getElementById('download-lyrics-toggle');
     if (downloadLyricsToggle) {
-        downloadLyricsToggle.checked = lyricsSettings.shouldDownloadLyrics();
+        /** @type {HTMLInputElement} */ (downloadLyricsToggle).checked = lyricsSettings.shouldDownloadLyrics();
         downloadLyricsToggle.addEventListener('change', (e) => {
-            lyricsSettings.setDownloadLyrics(e.target.checked);
+            lyricsSettings.setDownloadLyrics(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Romaji Lyrics Toggle
     const romajiLyricsToggle = document.getElementById('romaji-lyrics-toggle');
     if (romajiLyricsToggle) {
-        romajiLyricsToggle.checked = localStorage.getItem('lyricsRomajiMode') === 'true';
+        /** @type {HTMLInputElement} */ (romajiLyricsToggle).checked =
+            localStorage.getItem('lyricsRomajiMode') === 'true';
         romajiLyricsToggle.addEventListener('change', (e) => {
-            localStorage.setItem('lyricsRomajiMode', e.target.checked ? 'true' : 'false');
+            localStorage.setItem(
+                'lyricsRomajiMode',
+                /** @type {HTMLInputElement} */ (e.target).checked ? 'true' : 'false'
+            );
         });
     }
 
     // Album Background Toggle
     const albumBackgroundToggle = document.getElementById('album-background-toggle');
     if (albumBackgroundToggle) {
-        albumBackgroundToggle.checked = backgroundSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (albumBackgroundToggle).checked = backgroundSettings.isEnabled();
         albumBackgroundToggle.addEventListener('change', (e) => {
-            backgroundSettings.setEnabled(e.target.checked);
+            backgroundSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Dynamic Color Toggle
     const dynamicColorToggle = document.getElementById('dynamic-color-toggle');
     if (dynamicColorToggle) {
-        dynamicColorToggle.checked = dynamicColorSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (dynamicColorToggle).checked = dynamicColorSettings.isEnabled();
         dynamicColorToggle.addEventListener('change', (e) => {
-            dynamicColorSettings.setEnabled(e.target.checked);
-            if (!e.target.checked) {
+            dynamicColorSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
+            if (!(/** @type {HTMLInputElement} */ (e.target).checked)) {
                 // Reset colors immediately when disabled
                 window.dispatchEvent(new CustomEvent('reset-dynamic-color'));
             }
@@ -5736,9 +5944,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Fullscreen Cover No Round Toggle
     const fullscreenCoverNoRoundToggle = document.getElementById('fullscreen-cover-no-round-toggle');
     if (fullscreenCoverNoRoundToggle) {
-        fullscreenCoverNoRoundToggle.checked = fullscreenCoverNoRoundSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (fullscreenCoverNoRoundToggle).checked =
+            fullscreenCoverNoRoundSettings.isEnabled();
         fullscreenCoverNoRoundToggle.addEventListener('change', (e) => {
-            fullscreenCoverNoRoundSettings.setEnabled(e.target.checked);
+            fullscreenCoverNoRoundSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
             window.dispatchEvent(new CustomEvent('fullscreen-cover-settings-changed'));
         });
     }
@@ -5746,9 +5955,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Fullscreen Cover Vanilla Tilt Toggle
     const fullscreenCoverVanillaTiltToggle = document.getElementById('fullscreen-cover-vanilla-tilt-toggle');
     if (fullscreenCoverVanillaTiltToggle) {
-        fullscreenCoverVanillaTiltToggle.checked = fullscreenCoverVanillaTiltSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (fullscreenCoverVanillaTiltToggle).checked =
+            fullscreenCoverVanillaTiltSettings.isEnabled();
         fullscreenCoverVanillaTiltToggle.addEventListener('change', (e) => {
-            fullscreenCoverVanillaTiltSettings.setEnabled(e.target.checked);
+            fullscreenCoverVanillaTiltSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
             window.dispatchEvent(new CustomEvent('fullscreen-cover-settings-changed'));
         });
     }
@@ -5756,9 +5966,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Fullscreen Cover Tilt Distance
     const fullscreenCoverTiltDistanceSlider = document.getElementById('fullscreen-cover-tilt-distance');
     if (fullscreenCoverTiltDistanceSlider) {
-        fullscreenCoverTiltDistanceSlider.value = fullscreenCoverTiltDistanceSettings.getValue();
+        /** @type {HTMLInputElement} */ (fullscreenCoverTiltDistanceSlider).value = String(
+            fullscreenCoverTiltDistanceSettings.getValue()
+        );
+
         fullscreenCoverTiltDistanceSlider.addEventListener('input', (e) => {
-            fullscreenCoverTiltDistanceSettings.setValue(parseInt(e.target.value));
+            fullscreenCoverTiltDistanceSettings.setValue(parseInt(/** @type {HTMLInputElement} */ (e.target).value));
             window.dispatchEvent(new CustomEvent('fullscreen-cover-settings-changed'));
         });
     }
@@ -5766,9 +5979,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Fullscreen Cover Tilt Speed
     const fullscreenCoverTiltSpeedSlider = document.getElementById('fullscreen-cover-tilt-speed');
     if (fullscreenCoverTiltSpeedSlider) {
-        fullscreenCoverTiltSpeedSlider.value = fullscreenCoverTiltSpeedSettings.getValue();
+        /** @type {HTMLInputElement} */ (fullscreenCoverTiltSpeedSlider).value = String(
+            fullscreenCoverTiltSpeedSettings.getValue()
+        );
+
         fullscreenCoverTiltSpeedSlider.addEventListener('input', (e) => {
-            fullscreenCoverTiltSpeedSettings.setValue(parseInt(e.target.value));
+            fullscreenCoverTiltSpeedSettings.setValue(parseInt(/** @type {HTMLInputElement} */ (e.target).value));
             window.dispatchEvent(new CustomEvent('fullscreen-cover-settings-changed'));
         });
     }
@@ -5776,11 +5992,15 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Waveform Toggle
     const waveformToggle = document.getElementById('waveform-toggle');
     if (waveformToggle) {
-        waveformToggle.checked = waveformSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (waveformToggle).checked = waveformSettings.isEnabled();
         waveformToggle.addEventListener('change', (e) => {
-            waveformSettings.setEnabled(e.target.checked);
+            waveformSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
 
-            window.dispatchEvent(new CustomEvent('waveform-toggle', { detail: { enabled: e.target.checked } }));
+            window.dispatchEvent(
+                new CustomEvent('waveform-toggle', {
+                    detail: { enabled: /** @type {HTMLInputElement} */ (e.target).checked },
+                })
+            );
         });
     }
 
@@ -5789,11 +6009,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const visualizerSensitivityValue = document.getElementById('visualizer-sensitivity-value');
     if (visualizerSensitivitySlider && visualizerSensitivityValue) {
         const currentSensitivity = visualizerSettings.getSensitivity();
-        visualizerSensitivitySlider.value = currentSensitivity;
+        /** @type {HTMLInputElement} */ (visualizerSensitivitySlider).value = String(currentSensitivity);
+
         visualizerSensitivityValue.textContent = `${(currentSensitivity * 100).toFixed(0)}%`;
 
         visualizerSensitivitySlider.addEventListener('input', (e) => {
-            const newSensitivity = parseFloat(e.target.value);
+            const newSensitivity = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
             visualizerSettings.setSensitivity(newSensitivity);
             visualizerSensitivityValue.textContent = `${(newSensitivity * 100).toFixed(0)}%`;
         });
@@ -5803,11 +6024,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const visualizerDimmingValue = document.getElementById('visualizer-dimming-value');
     if (visualizerDimmingSlider && visualizerDimmingValue) {
         const currentDimming = visualizerSettings.getDimAmount();
-        visualizerDimmingSlider.value = currentDimming;
+        /** @type {HTMLInputElement} */ (visualizerDimmingSlider).value = String(currentDimming);
+
         visualizerDimmingValue.textContent = `${(currentDimming * 100).toFixed(0)}%`;
 
         visualizerDimmingSlider.addEventListener('input', (e) => {
-            const newDimming = parseFloat(e.target.value);
+            const newDimming = parseFloat(/** @type {HTMLInputElement} */ (e.target).value);
             visualizerSettings.setDimAmount(newDimming);
             visualizerDimmingValue.textContent = `${(newDimming * 100).toFixed(0)}%`;
             window.dispatchEvent(new CustomEvent('visualizer-dim-change', { detail: { dimAmount: newDimming } }));
@@ -5818,11 +6040,11 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const smartIntensityToggle = document.getElementById('smart-intensity-toggle');
     if (smartIntensityToggle) {
         const isSmart = visualizerSettings.isSmartIntensityEnabled();
-        smartIntensityToggle.checked = isSmart;
+        /** @type {HTMLInputElement} */ (smartIntensityToggle).checked = isSmart;
 
         const updateSliderState = (enabled) => {
             if (visualizerSensitivitySlider) {
-                visualizerSensitivitySlider.disabled = enabled;
+                /** @type {HTMLButtonElement} */ (visualizerSensitivitySlider).disabled = enabled;
                 visualizerSensitivitySlider.parentElement.style.opacity = enabled ? '0.5' : '1';
                 visualizerSensitivitySlider.parentElement.style.pointerEvents = enabled ? 'none' : 'auto';
             }
@@ -5830,8 +6052,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         updateSliderState(isSmart);
 
         smartIntensityToggle.addEventListener('change', (e) => {
-            visualizerSettings.setSmartIntensity(e.target.checked);
-            updateSliderState(e.target.checked);
+            visualizerSettings.setSmartIntensity(/** @type {HTMLInputElement} */ (e.target).checked);
+            updateSliderState(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -5854,15 +6076,21 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     const butterchurnRandomizeToggle = document.getElementById('butterchurn-randomize-toggle');
 
     const updateButterchurnSettingsVisibility = async () => {
-        const isEnabled = visualizerEnabledToggle ? visualizerEnabledToggle.checked : false;
-        const isButterchurn = visualizerPresetSelect ? visualizerPresetSelect.value === 'butterchurn' : false;
+        const isEnabled = visualizerEnabledToggle
+            ? /** @type {HTMLInputElement} */ (visualizerEnabledToggle).checked
+            : false;
+        const isButterchurn = visualizerPresetSelect
+            ? /** @type {HTMLInputElement} */ (visualizerPresetSelect).value === 'butterchurn'
+            : false;
         const show = isEnabled && isButterchurn;
 
         if (butterchurnCycleSetting) butterchurnCycleSetting.style.display = show ? 'flex' : 'none';
         if (butterchurnSpecificPresetSetting) butterchurnSpecificPresetSetting.style.display = show ? 'flex' : 'none';
 
         // Cycle duration and randomize only show if cycle is enabled
-        const isCycleEnabled = butterchurnCycleToggle ? butterchurnCycleToggle.checked : false;
+        const isCycleEnabled = butterchurnCycleToggle
+            ? /** @type {HTMLInputElement} */ (butterchurnCycleToggle).checked
+            : false;
         const showSubSettings = show && isCycleEnabled;
 
         if (butterchurnDurationSetting) butterchurnDurationSetting.style.display = showSubSettings ? 'flex' : 'none';
@@ -5873,7 +6101,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const select = butterchurnSpecificPresetSelect;
 
         if (select && presetNames.length > 0) {
-            const currentNames = Array.from(select.options).map((opt) => opt.value);
+            const currentNames = Array.from(/** @type {HTMLSelectElement} */ (select).options).map((opt) => opt.value);
             // Check if dropdown only has "Loading..." or needs full update
             const hasOnlyLoadingOption = currentNames.length === 1 && currentNames[0] === '';
             const needsUpdate =
@@ -5883,7 +6111,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
             if (needsUpdate) {
                 // Save current selection
-                const currentSelection = select.value;
+                const currentSelection = /** @type {HTMLInputElement} */ (select).value;
 
                 // Clear and rebuild dropdown
                 select.innerHTML = '';
@@ -5896,9 +6124,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
                 // Restore selection if it still exists
                 if (presetNames.includes(currentSelection)) {
-                    select.value = currentSelection;
+                    /** @type {HTMLInputElement} */ (select).value = currentSelection;
                 } else {
-                    select.selectedIndex = 0;
+                    /** @type {HTMLSelectElement} */ (select).selectedIndex = 0;
                 }
             }
         }
@@ -5917,17 +6145,17 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
     // Initialize preset select value early so visibility logic works correctly on load
     if (visualizerPresetSelect) {
-        visualizerPresetSelect.value = visualizerSettings.getPreset();
+        /** @type {HTMLInputElement} */ (visualizerPresetSelect).value = visualizerSettings.getPreset();
     }
 
     if (visualizerEnabledToggle) {
-        visualizerEnabledToggle.checked = visualizerSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (visualizerEnabledToggle).checked = visualizerSettings.isEnabled();
 
-        await updateVisualizerSettingsVisibility(visualizerEnabledToggle.checked);
+        await updateVisualizerSettingsVisibility(/** @type {HTMLInputElement} */ (visualizerEnabledToggle).checked);
 
         visualizerEnabledToggle.addEventListener('change', async (e) => {
-            visualizerSettings.setEnabled(e.target.checked);
-            await updateVisualizerSettingsVisibility(e.target.checked);
+            visualizerSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
+            await updateVisualizerSettingsVisibility(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -5935,7 +6163,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     if (visualizerPresetSelect) {
         // value set above
         visualizerPresetSelect.addEventListener('change', async (e) => {
-            const val = e.target.value;
+            const val = /** @type {HTMLInputElement} */ (e.target).value;
             visualizerSettings.setPreset(val);
             if (ui && ui.visualizer) {
                 ui.visualizer.setPreset(val);
@@ -5948,28 +6176,33 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     }
 
     if (butterchurnCycleToggle) {
-        butterchurnCycleToggle.checked = visualizerSettings.isButterchurnCycleEnabled();
+        /** @type {HTMLInputElement} */ (butterchurnCycleToggle).checked =
+            visualizerSettings.isButterchurnCycleEnabled();
         butterchurnCycleToggle.addEventListener('change', async (e) => {
-            visualizerSettings.setButterchurnCycleEnabled(e.target.checked);
+            visualizerSettings.setButterchurnCycleEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
             await updateButterchurnSettingsVisibility();
         });
     }
 
     if (butterchurnDurationInput) {
-        butterchurnDurationInput.value = visualizerSettings.getButterchurnCycleDuration();
+        /** @type {HTMLInputElement} */ (butterchurnDurationInput).value = String(
+            visualizerSettings.getButterchurnCycleDuration()
+        );
+
         butterchurnDurationInput.addEventListener('change', (e) => {
-            let val = parseInt(e.target.value, 10);
+            let val = parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10);
             if (isNaN(val) || val < 5) val = 5;
             if (val > 300) val = 300;
-            e.target.value = val;
+            /** @type {HTMLInputElement} */ (e.target).value = String(val);
             visualizerSettings.setButterchurnCycleDuration(val);
         });
     }
 
     if (butterchurnRandomizeToggle) {
-        butterchurnRandomizeToggle.checked = visualizerSettings.isButterchurnRandomizeEnabled();
+        /** @type {HTMLInputElement} */ (butterchurnRandomizeToggle).checked =
+            visualizerSettings.isButterchurnRandomizeEnabled();
         butterchurnRandomizeToggle.addEventListener('change', (e) => {
-            visualizerSettings.setButterchurnRandomizeEnabled(e.target.checked);
+            visualizerSettings.setButterchurnRandomizeEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -5977,7 +6210,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         butterchurnSpecificPresetSelect.addEventListener('change', (e) => {
             // Try to load via visualizer if active, otherwise just store the selection
             if (ui && ui.visualizer && ui.visualizer.presets['butterchurn']) {
-                ui.visualizer.presets['butterchurn'].loadPreset(e.target.value);
+                ui.visualizer.presets['butterchurn'].loadPreset(/** @type {HTMLInputElement} */ (e.target).value);
             }
         });
     }
@@ -6031,58 +6264,62 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Visualizer Mode Select
     const visualizerModeSelect = document.getElementById('visualizer-mode-select');
     if (visualizerModeSelect) {
-        visualizerModeSelect.value = visualizerSettings.getMode();
+        /** @type {HTMLInputElement} */ (visualizerModeSelect).value = visualizerSettings.getMode();
         visualizerModeSelect.addEventListener('change', (e) => {
-            visualizerSettings.setMode(e.target.value);
+            visualizerSettings.setMode(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
     // Home Page Section Toggles
     const showRecommendedSongsToggle = document.getElementById('show-recommended-songs-toggle');
     if (showRecommendedSongsToggle) {
-        showRecommendedSongsToggle.checked = homePageSettings.shouldShowRecommendedSongs();
+        /** @type {HTMLInputElement} */ (showRecommendedSongsToggle).checked =
+            homePageSettings.shouldShowRecommendedSongs();
         showRecommendedSongsToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowRecommendedSongs(e.target.checked);
+            homePageSettings.setShowRecommendedSongs(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const showRecommendedAlbumsToggle = document.getElementById('show-recommended-albums-toggle');
     if (showRecommendedAlbumsToggle) {
-        showRecommendedAlbumsToggle.checked = homePageSettings.shouldShowRecommendedAlbums();
+        /** @type {HTMLInputElement} */ (showRecommendedAlbumsToggle).checked =
+            homePageSettings.shouldShowRecommendedAlbums();
         showRecommendedAlbumsToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowRecommendedAlbums(e.target.checked);
+            homePageSettings.setShowRecommendedAlbums(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const showRecommendedArtistsToggle = document.getElementById('show-recommended-artists-toggle');
     if (showRecommendedArtistsToggle) {
-        showRecommendedArtistsToggle.checked = homePageSettings.shouldShowRecommendedArtists();
+        /** @type {HTMLInputElement} */ (showRecommendedArtistsToggle).checked =
+            homePageSettings.shouldShowRecommendedArtists();
         showRecommendedArtistsToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowRecommendedArtists(e.target.checked);
+            homePageSettings.setShowRecommendedArtists(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const showJumpBackInToggle = document.getElementById('show-jump-back-in-toggle');
     if (showJumpBackInToggle) {
-        showJumpBackInToggle.checked = homePageSettings.shouldShowJumpBackIn();
+        /** @type {HTMLInputElement} */ (showJumpBackInToggle).checked = homePageSettings.shouldShowJumpBackIn();
         showJumpBackInToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowJumpBackIn(e.target.checked);
+            homePageSettings.setShowJumpBackIn(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const showEditorsPicksToggle = document.getElementById('show-editors-picks-toggle');
     if (showEditorsPicksToggle) {
-        showEditorsPicksToggle.checked = homePageSettings.shouldShowEditorsPicks();
+        /** @type {HTMLInputElement} */ (showEditorsPicksToggle).checked = homePageSettings.shouldShowEditorsPicks();
         showEditorsPicksToggle.addEventListener('change', (e) => {
-            homePageSettings.setShowEditorsPicks(e.target.checked);
+            homePageSettings.setShowEditorsPicks(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const shuffleEditorsPicksToggle = document.getElementById('shuffle-editors-picks-toggle');
     if (shuffleEditorsPicksToggle) {
-        shuffleEditorsPicksToggle.checked = homePageSettings.shouldShuffleEditorsPicks();
+        /** @type {HTMLInputElement} */ (shuffleEditorsPicksToggle).checked =
+            homePageSettings.shouldShuffleEditorsPicks();
         shuffleEditorsPicksToggle.addEventListener('change', (e) => {
-            homePageSettings.setShuffleEditorsPicks(e.target.checked);
+            homePageSettings.setShuffleEditorsPicks(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -6104,12 +6341,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
                 console.warn('Could not load editors-picks-old index:', e);
             }
             const currentSource = homePageSettings.getEditorsPicksSource();
-            editorsPicksSourceSelect.value = currentSource;
+            /** @type {HTMLInputElement} */ (editorsPicksSourceSelect).value = currentSource;
         }
         await populateEditorsPicksSource();
 
         editorsPicksSourceSelect.addEventListener('change', (e) => {
-            homePageSettings.setEditorsPicksSource(e.target.value);
+            homePageSettings.setEditorsPicksSource(/** @type {HTMLInputElement} */ (e.target).value);
             window.dispatchEvent(new CustomEvent('refresh-home-editors-picks'));
         });
     }
@@ -6117,79 +6354,80 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Sidebar Section Toggles
     const sidebarShowHomeToggle = document.getElementById('sidebar-show-home-toggle');
     if (sidebarShowHomeToggle) {
-        sidebarShowHomeToggle.checked = sidebarSectionSettings.shouldShowHome();
+        /** @type {HTMLInputElement} */ (sidebarShowHomeToggle).checked = sidebarSectionSettings.shouldShowHome();
         sidebarShowHomeToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowHome(e.target.checked);
+            sidebarSectionSettings.setShowHome(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowLibraryToggle = document.getElementById('sidebar-show-library-toggle');
     if (sidebarShowLibraryToggle) {
-        sidebarShowLibraryToggle.checked = sidebarSectionSettings.shouldShowLibrary();
+        /** @type {HTMLInputElement} */ (sidebarShowLibraryToggle).checked = sidebarSectionSettings.shouldShowLibrary();
         sidebarShowLibraryToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowLibrary(e.target.checked);
+            sidebarSectionSettings.setShowLibrary(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowRecentToggle = document.getElementById('sidebar-show-recent-toggle');
     if (sidebarShowRecentToggle) {
-        sidebarShowRecentToggle.checked = sidebarSectionSettings.shouldShowRecent();
+        /** @type {HTMLInputElement} */ (sidebarShowRecentToggle).checked = sidebarSectionSettings.shouldShowRecent();
         sidebarShowRecentToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowRecent(e.target.checked);
+            sidebarSectionSettings.setShowRecent(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowUnreleasedToggle = document.getElementById('sidebar-show-unreleased-toggle');
     if (sidebarShowUnreleasedToggle) {
-        sidebarShowUnreleasedToggle.checked = sidebarSectionSettings.shouldShowUnreleased();
+        /** @type {HTMLInputElement} */ (sidebarShowUnreleasedToggle).checked =
+            sidebarSectionSettings.shouldShowUnreleased();
         sidebarShowUnreleasedToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowUnreleased(e.target.checked);
+            sidebarSectionSettings.setShowUnreleased(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowDonateToggle = document.getElementById('sidebar-show-donate-toggle');
     if (sidebarShowDonateToggle) {
-        sidebarShowDonateToggle.checked = sidebarSectionSettings.shouldShowDonate();
+        /** @type {HTMLInputElement} */ (sidebarShowDonateToggle).checked = sidebarSectionSettings.shouldShowDonate();
         sidebarShowDonateToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowDonate(e.target.checked);
+            sidebarSectionSettings.setShowDonate(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowSettingsToggle = document.getElementById('sidebar-show-settings-toggle');
     if (sidebarShowSettingsToggle) {
-        sidebarShowSettingsToggle.checked = true;
-        sidebarShowSettingsToggle.disabled = true;
+        /** @type {HTMLInputElement} */ (sidebarShowSettingsToggle).checked = true;
+        /** @type {HTMLButtonElement} */ (sidebarShowSettingsToggle).disabled = true;
         sidebarSectionSettings.setShowSettings(true);
     }
 
     const sidebarShowAboutToggle = document.getElementById('sidebar-show-about-bottom-toggle');
     if (sidebarShowAboutToggle) {
-        sidebarShowAboutToggle.checked = sidebarSectionSettings.shouldShowAbout();
+        /** @type {HTMLInputElement} */ (sidebarShowAboutToggle).checked = sidebarSectionSettings.shouldShowAbout();
         sidebarShowAboutToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowAbout(e.target.checked);
+            sidebarSectionSettings.setShowAbout(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowDiscordToggle = document.getElementById('sidebar-show-discordbtn-toggle');
     if (sidebarShowDiscordToggle) {
-        sidebarShowDiscordToggle.checked = sidebarSectionSettings.shouldShowDiscord();
+        /** @type {HTMLInputElement} */ (sidebarShowDiscordToggle).checked = sidebarSectionSettings.shouldShowDiscord();
         sidebarShowDiscordToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowDiscord(e.target.checked);
+            sidebarSectionSettings.setShowDiscord(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
 
     const sidebarShowGithubToggle = document.getElementById('sidebar-show-githubbtn-toggle');
     if (sidebarShowGithubToggle) {
-        sidebarShowGithubToggle.checked = sidebarSectionSettings.shouldShowGithub();
+        /** @type {HTMLInputElement} */ (sidebarShowGithubToggle).checked = sidebarSectionSettings.shouldShowGithub();
         sidebarShowGithubToggle.addEventListener('change', (e) => {
-            sidebarSectionSettings.setShowGithub(e.target.checked);
+            sidebarSectionSettings.setShowGithub(/** @type {HTMLInputElement} */ (e.target).checked);
             sidebarSectionSettings.applySidebarVisibility();
         });
     }
@@ -6211,9 +6449,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             const toggle = document.getElementById(toggleId);
             const item = toggle?.closest('.setting-item');
             if (!item) return;
-            item.dataset.sidebarId = sidebarId;
+            /** @type {HTMLElement} */ (item).dataset.sidebarId = sidebarId;
             item.classList.add('sidebar-setting-item');
-            item.draggable = true;
+            /** @type {HTMLElement} */ (item).draggable = true;
         });
 
         const mainContainer = sidebarSettingsGroup.querySelector('.sidebar-settings-main');
@@ -6230,7 +6468,9 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             const mainOrder = order.filter((id) => !bottomIds.includes(id));
             const bottomOrder = order.filter((id) => bottomIds.includes(id));
             const allItems = getSidebarItems();
-            const itemMap = new Map(allItems.map((item) => [item.dataset.sidebarId, item]));
+            const itemMap = new Map(
+                allItems.map((item) => [/** @type {HTMLElement} */ (item).dataset.sidebarId, item])
+            );
 
             mainOrder.forEach((id) => {
                 const item = itemMap.get(id);
@@ -6247,7 +6487,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         let draggedItem = null;
 
         const saveSidebarOrder = () => {
-            const order = getSidebarItems().map((item) => item.dataset.sidebarId);
+            const order = getSidebarItems().map((item) => /** @type {HTMLElement} */ (item).dataset.sidebarId);
             sidebarSectionSettings.setOrder(order);
             sidebarSectionSettings.applySidebarVisibility();
         };
@@ -6309,75 +6549,75 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // Filename template setting
     const filenameTemplate = document.getElementById('filename-template');
     if (filenameTemplate) {
-        filenameTemplate.value = modernSettings.filenameTemplate;
+        /** @type {HTMLInputElement} */ (filenameTemplate).value = modernSettings.filenameTemplate;
         filenameTemplate.addEventListener('change', (e) => {
-            modernSettings.filenameTemplate = String(e.target.value);
+            modernSettings.filenameTemplate = String(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
     // ZIP folder template
     const zipFolderTemplate = document.getElementById('zip-folder-template');
     if (zipFolderTemplate) {
-        zipFolderTemplate.value = modernSettings.folderTemplate;
+        /** @type {HTMLInputElement} */ (zipFolderTemplate).value = modernSettings.folderTemplate;
         zipFolderTemplate.addEventListener('change', (e) => {
-            modernSettings.folderTemplate = String(e.target.value);
+            modernSettings.folderTemplate = String(/** @type {HTMLInputElement} */ (e.target).value);
         });
     }
 
     // Playlist file generation settings
     const generateM3UToggle = document.getElementById('generate-m3u-toggle');
     if (generateM3UToggle) {
-        generateM3UToggle.checked = playlistSettings.shouldGenerateM3U();
+        /** @type {HTMLInputElement} */ (generateM3UToggle).checked = playlistSettings.shouldGenerateM3U();
         generateM3UToggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateM3U(e.target.checked);
+            playlistSettings.setGenerateM3U(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const generateM3U8Toggle = document.getElementById('generate-m3u8-toggle');
     if (generateM3U8Toggle) {
-        generateM3U8Toggle.checked = playlistSettings.shouldGenerateM3U8();
+        /** @type {HTMLInputElement} */ (generateM3U8Toggle).checked = playlistSettings.shouldGenerateM3U8();
         generateM3U8Toggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateM3U8(e.target.checked);
+            playlistSettings.setGenerateM3U8(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const generateCUEtoggle = document.getElementById('generate-cue-toggle');
     if (generateCUEtoggle) {
-        generateCUEtoggle.checked = playlistSettings.shouldGenerateCUE();
+        /** @type {HTMLInputElement} */ (generateCUEtoggle).checked = playlistSettings.shouldGenerateCUE();
         generateCUEtoggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateCUE(e.target.checked);
+            playlistSettings.setGenerateCUE(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const generateNFOtoggle = document.getElementById('generate-nfo-toggle');
     if (generateNFOtoggle) {
-        generateNFOtoggle.checked = playlistSettings.shouldGenerateNFO();
+        /** @type {HTMLInputElement} */ (generateNFOtoggle).checked = playlistSettings.shouldGenerateNFO();
         generateNFOtoggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateNFO(e.target.checked);
+            playlistSettings.setGenerateNFO(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const generateJSONtoggle = document.getElementById('generate-json-toggle');
     if (generateJSONtoggle) {
-        generateJSONtoggle.checked = playlistSettings.shouldGenerateJSON();
+        /** @type {HTMLInputElement} */ (generateJSONtoggle).checked = playlistSettings.shouldGenerateJSON();
         generateJSONtoggle.addEventListener('change', (e) => {
-            playlistSettings.setGenerateJSON(e.target.checked);
+            playlistSettings.setGenerateJSON(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const relativePathsToggle = document.getElementById('relative-paths-toggle');
     if (relativePathsToggle) {
-        relativePathsToggle.checked = playlistSettings.shouldUseRelativePaths();
+        /** @type {HTMLInputElement} */ (relativePathsToggle).checked = playlistSettings.shouldUseRelativePaths();
         relativePathsToggle.addEventListener('change', (e) => {
-            playlistSettings.setUseRelativePaths(e.target.checked);
+            playlistSettings.setUseRelativePaths(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     const separateDiscsZipToggle = document.getElementById('separate-discs-zip-toggle');
     if (separateDiscsZipToggle) {
-        separateDiscsZipToggle.checked = playlistSettings.shouldSeparateDiscsInZip();
+        /** @type {HTMLInputElement} */ (separateDiscsZipToggle).checked = playlistSettings.shouldSeparateDiscsInZip();
         separateDiscsZipToggle.addEventListener('change', (e) => {
-            playlistSettings.setSeparateDiscsInZip(e.target.checked);
+            playlistSettings.setSeparateDiscsInZip(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -6386,7 +6626,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const btn = document.getElementById('refresh-speed-test-btn');
         const originalText = btn.textContent;
         btn.textContent = 'Testing...';
-        btn.disabled = true;
+        /** @type {HTMLButtonElement} */ (btn).disabled = true;
 
         try {
             await api.settings.refreshInstances();
@@ -6394,20 +6634,20 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             btn.textContent = 'Done!';
             setTimeout(() => {
                 btn.textContent = originalText;
-                btn.disabled = false;
+                /** @type {HTMLButtonElement} */ (btn).disabled = false;
             }, 1500);
         } catch (error) {
             console.error('Failed to refresh speed tests:', error);
             btn.textContent = 'Error';
             setTimeout(() => {
                 btn.textContent = originalText;
-                btn.disabled = false;
+                /** @type {HTMLButtonElement} */ (btn).disabled = false;
             }, 1500);
         }
     });
 
     document.getElementById('api-instance-list')?.addEventListener('click', async (e) => {
-        const button = e.target.closest('button');
+        const button = /** @type {Element} */ (e.target).closest('button');
         if (!button) return;
 
         const li = button.closest('li');
@@ -6454,14 +6694,14 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         const btn = document.getElementById('clear-cache-btn');
         const originalText = btn.textContent;
         btn.textContent = 'Clearing...';
-        btn.disabled = true;
+        /** @type {HTMLButtonElement} */ (btn).disabled = true;
 
         try {
             await api.clearCache();
             btn.textContent = 'Cleared!';
             setTimeout(() => {
                 btn.textContent = originalText;
-                btn.disabled = false;
+                /** @type {HTMLButtonElement} */ (btn).disabled = false;
                 if (window.location.hash.includes('settings')) {
                     ui.renderApiSettings();
                 }
@@ -6471,7 +6711,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             btn.textContent = 'Error';
             setTimeout(() => {
                 btn.textContent = originalText;
-                btn.disabled = false;
+                /** @type {HTMLButtonElement} */ (btn).disabled = false;
             }, 1500);
         }
     });
@@ -6509,13 +6749,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     });
 
     importInput?.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+        const file = /** @type {HTMLInputElement} */ (e.target).files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                const data = JSON.parse(event.target.result);
+                const data = JSON.parse(/** @type {string} */ (event.target.result));
                 await db.importData(data);
                 alert('Library imported successfully!');
                 window.location.reload(); // Simple way to refresh all state
@@ -6558,13 +6798,13 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     });
 
     settingsImportInput?.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+        const file = /** @type {HTMLInputElement} */ (e.target).files[0];
         if (!file) return;
 
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                const settingsToImport = JSON.parse(event.target.result);
+                const settingsToImport = JSON.parse(/** @type {string} */ (event.target.result));
                 for (const [key, value] of Object.entries(settingsToImport)) {
                     if (key.startsWith('monochrome-')) {
                         localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
@@ -6596,14 +6836,17 @@ export async function initializeSettings(scrobbler, player, api, ui) {
         // Hide entire setting if both are server-configured
         if (appwriteFromEnv && pbFromEnv) {
             const settingItem = customDbBtn.closest('.setting-item');
-            if (settingItem) settingItem.style.display = 'none';
+            if (settingItem) /** @type {HTMLElement} */ (settingItem).style.display = 'none';
         }
 
         // Hide individual fields in the modal
-        if (pbFromEnv && customPbUrlInput) customPbUrlInput.closest('div[style]').style.display = 'none';
+        if (pbFromEnv && customPbUrlInput)
+            /** @type {HTMLElement} */ (customPbUrlInput.closest('div[style]')).style.display = 'none';
         if (appwriteFromEnv) {
-            if (customAppwriteEndpointInput) customAppwriteEndpointInput.closest('div[style]').style.display = 'none';
-            if (customAppwriteProjectInput) customAppwriteProjectInput.closest('div[style]').style.display = 'none';
+            if (customAppwriteEndpointInput)
+                /** @type {HTMLElement} */ (customAppwriteEndpointInput.closest('div[style]')).style.display = 'none';
+            if (customAppwriteProjectInput)
+                /** @type {HTMLElement} */ (customAppwriteProjectInput.closest('div[style]')).style.display = 'none';
         }
 
         customDbBtn.addEventListener('click', () => {
@@ -6611,10 +6854,12 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             const appwriteEndpoint = localStorage.getItem('monochrome-appwrite-endpoint') || '';
             const appwriteProject = localStorage.getItem('monochrome-appwrite-project') || '';
 
-            if (!pbFromEnv && customPbUrlInput) customPbUrlInput.value = pbUrl;
+            if (!pbFromEnv && customPbUrlInput) /** @type {HTMLInputElement} */ (customPbUrlInput).value = pbUrl;
             if (!appwriteFromEnv) {
-                if (customAppwriteEndpointInput) customAppwriteEndpointInput.value = appwriteEndpoint;
-                if (customAppwriteProjectInput) customAppwriteProjectInput.value = appwriteProject;
+                if (customAppwriteEndpointInput)
+                    /** @type {HTMLInputElement} */ (customAppwriteEndpointInput).value = appwriteEndpoint;
+                if (customAppwriteProjectInput)
+                    /** @type {HTMLInputElement} */ (customAppwriteProjectInput).value = appwriteProject;
             }
 
             customDbModal.classList.add('active');
@@ -6629,7 +6874,7 @@ export async function initializeSettings(scrobbler, player, api, ui) {
 
         customDbSaveBtn.addEventListener('click', () => {
             if (!pbFromEnv && customPbUrlInput) {
-                const pbUrl = customPbUrlInput.value.trim();
+                const pbUrl = /** @type {HTMLInputElement} */ (customPbUrlInput).value.trim();
                 if (pbUrl) {
                     localStorage.setItem('monochrome-pocketbase-url', pbUrl);
                 } else {
@@ -6638,8 +6883,8 @@ export async function initializeSettings(scrobbler, player, api, ui) {
             }
 
             if (!appwriteFromEnv) {
-                const endpoint = customAppwriteEndpointInput?.value.trim();
-                const project = customAppwriteProjectInput?.value.trim();
+                const endpoint = /** @type {HTMLInputElement} */ (customAppwriteEndpointInput)?.value.trim();
+                const project = /** @type {HTMLInputElement} */ (customAppwriteProjectInput)?.value.trim();
 
                 if (endpoint) {
                     localStorage.setItem('monochrome-appwrite-endpoint', endpoint);
@@ -6672,18 +6917,18 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     // PWA Auto-Update Toggle
     const pwaAutoUpdateToggle = document.getElementById('pwa-auto-update-toggle');
     if (pwaAutoUpdateToggle) {
-        pwaAutoUpdateToggle.checked = pwaUpdateSettings.isAutoUpdateEnabled();
+        /** @type {HTMLInputElement} */ (pwaAutoUpdateToggle).checked = pwaUpdateSettings.isAutoUpdateEnabled();
         pwaAutoUpdateToggle.addEventListener('change', (e) => {
-            pwaUpdateSettings.setAutoUpdateEnabled(e.target.checked);
+            pwaUpdateSettings.setAutoUpdateEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
     // Analytics Toggle
     const analyticsToggle = document.getElementById('analytics-toggle');
     if (analyticsToggle) {
-        analyticsToggle.checked = analyticsSettings.isEnabled();
+        /** @type {HTMLInputElement} */ (analyticsToggle).checked = analyticsSettings.isEnabled();
         analyticsToggle.addEventListener('change', (e) => {
-            analyticsSettings.setEnabled(e.target.checked);
+            analyticsSettings.setEnabled(/** @type {HTMLInputElement} */ (e.target).checked);
         });
     }
 
@@ -6768,6 +7013,10 @@ export async function initializeSettings(scrobbler, player, api, ui) {
     initializeBlockedContentManager();
 }
 
+/**
+ * Sets up font-related settings UI, including preset, Google Fonts, URL, and upload options.
+ * @returns {void}
+ */
 function initializeFontSettings() {
     const fontTypeSelect = document.getElementById('font-type-select');
     const fontPresetSection = document.getElementById('font-preset-section');
@@ -6797,26 +7046,26 @@ function initializeFontSettings() {
     }
 
     // Initialize UI state
-    fontTypeSelect.value = config.type;
+    /** @type {HTMLInputElement} */ (fontTypeSelect).value = config.type;
     showFontSection(config.type);
 
     if (config.type === 'preset') {
-        fontPresetSelect.value = config.family;
+        /** @type {HTMLInputElement} */ (fontPresetSelect).value = config.family;
     } else if (config.type === 'google') {
-        fontGoogleInput.value = config.family || '';
+        /** @type {HTMLInputElement} */ (fontGoogleInput).value = config.family || '';
     } else if (config.type === 'url') {
-        fontUrlInput.value = config.url || '';
-        fontUrlName.value = config.family || '';
+        /** @type {HTMLInputElement} */ (fontUrlInput).value = config.url || '';
+        /** @type {HTMLInputElement} */ (fontUrlName).value = config.family || '';
     }
 
     // Type selector change
     fontTypeSelect.addEventListener('change', (e) => {
-        showFontSection(e.target.value);
+        showFontSection(/** @type {HTMLInputElement} */ (e.target).value);
     });
 
     // Preset font change
     fontPresetSelect.addEventListener('change', (e) => {
-        const value = e.target.value;
+        const value = /** @type {HTMLInputElement} */ (e.target).value;
         if (value === 'System UI') {
             fontSettings.loadPresetFont(
                 "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue'",
@@ -6833,7 +7082,7 @@ function initializeFontSettings() {
 
     // Google Fonts apply
     fontGoogleApply.addEventListener('click', async () => {
-        const input = fontGoogleInput.value.trim();
+        const input = /** @type {HTMLInputElement} */ (fontGoogleInput).value.trim();
         if (!input) return;
 
         let fontName = input;
@@ -6856,8 +7105,8 @@ function initializeFontSettings() {
 
     // URL font apply
     fontUrlApply.addEventListener('click', async () => {
-        const url = fontUrlInput.value.trim();
-        const name = fontUrlName.value.trim();
+        const url = /** @type {HTMLInputElement} */ (fontUrlInput).value.trim();
+        const name = /** @type {HTMLInputElement} */ (fontUrlName).value.trim();
         if (!url) return;
 
         await fontSettings.loadFontFromUrl(url, name || 'CustomFont');
@@ -6865,14 +7114,14 @@ function initializeFontSettings() {
 
     // File upload
     fontUploadInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+        const file = /** @type {HTMLInputElement} */ (e.target).files[0];
         if (!file) return;
 
         try {
             const font = await fontSettings.saveUploadedFont(file);
             await fontSettings.loadUploadedFont(font.id);
             renderUploadedFontsList();
-            fontUploadInput.value = '';
+            /** @type {HTMLInputElement} */ (fontUploadInput).value = '';
         } catch (err) {
             console.error('Failed to upload font:', err);
             alert('Failed to upload font');
@@ -6905,7 +7154,7 @@ function initializeFontSettings() {
 
                 if (action === 'use') {
                     await fontSettings.loadUploadedFont(fontId);
-                    fontTypeSelect.value = 'upload';
+                    /** @type {HTMLInputElement} */ (fontTypeSelect).value = 'upload';
                     showFontSection('upload');
                 } else if (action === 'delete') {
                     if (confirm('Delete this font?')) {
@@ -6927,8 +7176,10 @@ function initializeFontSettings() {
     // Helper function to update both controls
     const updateFontSizeControls = (size) => {
         const validSize = Math.max(50, Math.min(200, parseInt(size, 10) || 100));
-        if (fontSizeSlider) fontSizeSlider.value = validSize;
-        if (fontSizeInput) fontSizeInput.value = validSize;
+        if (fontSizeSlider) /** @type {HTMLInputElement} */ (fontSizeSlider).value = String(validSize);
+
+        if (fontSizeInput) /** @type {HTMLInputElement} */ (fontSizeInput).value = String(validSize);
+
         return validSize;
     };
 
@@ -6939,8 +7190,9 @@ function initializeFontSettings() {
     // Slider change handler
     if (fontSizeSlider) {
         fontSizeSlider.addEventListener('input', () => {
-            const size = parseInt(fontSizeSlider.value, 10);
-            if (fontSizeInput) fontSizeInput.value = size;
+            const size = parseInt(/** @type {HTMLInputElement} */ (fontSizeSlider).value, 10);
+            if (fontSizeInput) /** @type {HTMLInputElement} */ (fontSizeInput).value = String(size);
+
             fontSettings.setFontSize(size);
         });
     }
@@ -6948,7 +7200,7 @@ function initializeFontSettings() {
     // Number input change handler
     if (fontSizeInput) {
         fontSizeInput.addEventListener('change', () => {
-            let size = parseInt(fontSizeInput.value, 10);
+            let size = parseInt(/** @type {HTMLInputElement} */ (fontSizeInput).value, 10);
             // Clamp to valid range
             size = Math.max(50, Math.min(200, size || 100));
             updateFontSizeControls(size);
@@ -6957,9 +7209,10 @@ function initializeFontSettings() {
 
         // Also update on input for real-time feedback
         fontSizeInput.addEventListener('input', () => {
-            let size = parseInt(fontSizeInput.value, 10);
+            let size = parseInt(/** @type {HTMLInputElement} */ (fontSizeInput).value, 10);
             if (!isNaN(size) && size >= 50 && size <= 200) {
-                if (fontSizeSlider) fontSizeSlider.value = size;
+                if (fontSizeSlider) /** @type {HTMLInputElement} */ (fontSizeSlider).value = String(size);
+
                 fontSettings.setFontSize(size);
             }
         });
@@ -6973,6 +7226,10 @@ function initializeFontSettings() {
     }
 }
 
+/**
+ * Initializes the settings search bar and wires up input/clear event listeners.
+ * @returns {void}
+ */
 function setupSettingsSearch() {
     const searchInput = document.getElementById('settings-search-input');
     if (!searchInput) return;
@@ -6981,7 +7238,7 @@ function setupSettingsSearch() {
     const clearBtn = searchInput.parentElement.querySelector('.search-clear-btn');
     if (clearBtn) {
         clearBtn.addEventListener('click', () => {
-            searchInput.value = '';
+            /** @type {HTMLInputElement} */ (searchInput).value = '';
             searchInput.dispatchEvent(new Event('input'));
             searchInput.focus();
         });
@@ -6990,18 +7247,25 @@ function setupSettingsSearch() {
     // Show/hide clear button based on input
     const updateClearButton = () => {
         if (clearBtn) {
-            clearBtn.style.display = searchInput.value ? 'flex' : 'none';
+            /** @type {HTMLElement} */ (clearBtn).style.display = /** @type {HTMLInputElement} */ (searchInput).value
+                ? 'flex'
+                : 'none';
         }
     };
 
     searchInput.addEventListener('input', () => {
         updateClearButton();
-        filterSettings(searchInput.value.toLowerCase().trim());
+        filterSettings(/** @type {HTMLInputElement} */ (searchInput).value.toLowerCase().trim());
     });
 
     searchInput.addEventListener('focus', updateClearButton);
 }
 
+/**
+ * Filters visible settings panels and groups based on a search query string.
+ * @param {string} query - The lowercase, trimmed search string to match against settings labels.
+ * @returns {void}
+ */
 function filterSettings(query) {
     const settingsPage = document.getElementById('page-settings');
     if (!settingsPage) return;
@@ -7032,8 +7296,8 @@ function filterSettings(query) {
         }
 
         // Show all settings groups and items
-        const allGroups = settingsPage.querySelectorAll('.settings-group');
-        const allItems = settingsPage.querySelectorAll('.setting-item');
+        const allGroups = /** @type {NodeListOf<HTMLElement>} */ (settingsPage.querySelectorAll('.settings-group'));
+        const allItems = /** @type {NodeListOf<HTMLElement>} */ (settingsPage.querySelectorAll('.setting-item'));
         allGroups.forEach((group) => (group.style.display = ''));
         allItems.forEach((item) => (item.style.display = ''));
         return;
@@ -7064,18 +7328,22 @@ function filterSettings(query) {
             const matches = labelText.includes(query) || descriptionText.includes(query);
 
             if (matches) {
-                item.style.display = '';
+                /** @type {HTMLElement} */ (item).style.display = '';
                 hasMatch = true;
             } else {
-                item.style.display = 'none';
+                /** @type {HTMLElement} */ (item).style.display = 'none';
             }
         });
 
         // Show/hide group based on whether it has any visible items
-        group.style.display = hasMatch ? '' : 'none';
+        /** @type {HTMLElement} */ (group).style.display = hasMatch ? '' : 'none';
     });
 }
 
+/**
+ * Sets up the blocked artists, albums, and tracks UI manager with render and clear controls.
+ * @returns {void}
+ */
 function initializeBlockedContentManager() {
     const manageBtn = document.getElementById('manage-blocked-btn');
     const clearAllBtn = document.getElementById('clear-all-blocked-btn');
@@ -7165,8 +7433,8 @@ function initializeBlockedContentManager() {
         blockedListContainer.querySelectorAll('.unblock-btn').forEach((btn) => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                const id = btn.dataset.id;
-                const type = btn.dataset.type;
+                const id = /** @type {HTMLElement} */ (btn).dataset.id;
+                const type = /** @type {HTMLElement} */ (btn).dataset.type;
 
                 if (type === 'artist') {
                     contentBlockingSettings.unblockArtist(id);
@@ -7204,6 +7472,11 @@ function initializeBlockedContentManager() {
     renderBlockedLists();
 }
 
+/**
+ * Escapes HTML special characters in a string to prevent injection.
+ * @param {string} text - The raw string to escape.
+ * @returns {string} The HTML-escaped string, or an empty string if input is falsy.
+ */
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');

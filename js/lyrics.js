@@ -1,3 +1,4 @@
+// @ts-check
 //js/lyrics.js
 import { getTrackTitle, getTrackArtists, buildTrackFilename } from './utils.js';
 import {
@@ -16,7 +17,7 @@ const loadAmLyrics = () => {
     if (images.length === 0) {
         import('@uimaxbai/am-lyrics/am-lyrics.js').catch(console.error);
     } else {
-        Promise.all(
+        void Promise.all(
             images.map(
                 (img) =>
                     new Promise((res) => {
@@ -34,6 +35,12 @@ if (document.readyState === 'complete') {
 }
 
 // Check if text contains Japanese, Chinese, or Korean characters
+/**
+ * Checks whether the given text contains any CJK (Japanese, Chinese, or Korean) characters.
+ *
+ * @param {string|null|undefined} text - The text to test.
+ * @returns {boolean} `true` if the text contains at least one Asian character.
+ */
 function containsAsianText(text) {
     if (!text) return false;
     // Japanese: Hiragana (3040-309F), Katakana (30A0-30FF), Kanji (4E00-9FFF, 3400-4DBF)
@@ -44,6 +51,12 @@ function containsAsianText(text) {
 }
 
 // Check if track has Asian text in title or artist names
+/**
+ * Returns whether a track's title or artist name contains any CJK characters.
+ *
+ * @param {object|null|undefined} track - The track to inspect.
+ * @returns {boolean} `true` if the title or artist contains Asian text.
+ */
 function trackHasAsianText(track) {
     if (!track) return false;
     const title = track.title || '';
@@ -51,6 +64,13 @@ function trackHasAsianText(track) {
     return containsAsianText(title) || containsAsianText(artist);
 }
 
+/**
+ * Removes emoji, symbols, and version tags from a search string to improve
+ * results when querying lyric providers for tracker-sourced tracks.
+ *
+ * @param {string|null|undefined} text - Raw search text to clean.
+ * @returns {string} The sanitized search string.
+ */
 function cleanTrackerSearch(text) {
     if (!text) return '';
     // chud emojis will NOT be tolerated in my precious genius lyrics worker
@@ -68,13 +88,25 @@ function cleanTrackerSearch(text) {
     return cleaned.trim();
 }
 
+/**
+ * Interfaces with the Genius API to search for songs, fetch lyric annotations
+ * (referents), and cache results per track.
+ */
 class GeniusManager {
+    /**
+     * Creates a new GeniusManager with an empty result cache.
+     */
     constructor() {
         this.cache = new Map();
         this.loading = false;
     }
 
     // idgaf anymore im js hardcoding this lmaooo
+    /**
+     * Returns the Genius API access token used for API requests.
+     *
+     * @returns {string} The Genius API bearer token.
+     */
     getToken() {
         const hostname = window.location.hostname;
         if (hostname.endsWith('monochrome.tf') || hostname === 'monochrome.tf') {
@@ -83,6 +115,16 @@ class GeniusManager {
         return 'QmS9OvsS-7ifRBKx_ochIPQU7oejIS9Eo_z5iWHmCPyhwLVQID3pYTHJmJTa6z8z';
     }
 
+    /**
+     * Searches Genius for a song matching the given title and artist, returning
+     * the best matching result object or `null` if nothing is found.
+     *
+     * @async
+     * @param {string} title - The track title to search for.
+     * @param {string} artist - The primary artist name.
+     * @returns {Promise<object|null>} The Genius song result, or `null`.
+     * @throws {Error} If the search request fails.
+     */
     async searchTrack(title, artist) {
         const cleanTitle = title.split('(')[0].split('-')[0].trim();
         const query = encodeURIComponent(`${cleanTitle} ${artist}`);
@@ -107,6 +149,14 @@ class GeniusManager {
         return hit ? hit.result : data.response.hits[0].result;
     }
 
+    /**
+     * Fetches all Genius referents (annotated lyric fragments) for a given song.
+     *
+     * @async
+     * @param {number|string} songId - The Genius song ID.
+     * @returns {Promise<object[]>} Array of referent objects containing fragment text and annotations.
+     * @throws {Error} If the referents request fails.
+     */
     async getReferents(songId) {
         const token = this.getToken();
         const url = `https://api.genius.com/referents?song_id=${songId}&text_format=plain&per_page=50&access_token=${token}`;
@@ -118,6 +168,16 @@ class GeniusManager {
         return data.response.referents;
     }
 
+    /**
+     * Retrieves Genius song data and referents for a track, using the in-memory
+     * cache to avoid redundant API calls.
+     *
+     * @async
+     * @param {object} track - The track to look up. Must have `id`, `title`, and `artists`/`artist`.
+     * @returns {Promise<{song: object, referents: object[]}|null>} Combined song/referents data,
+     *   or `null` if the track was not found on Genius.
+     * @throws {Error} If either the search or referents request fails.
+     */
     async getDataForTrack(track) {
         if (this.cache.has(track.id)) return this.cache.get(track.id);
 
@@ -144,6 +204,14 @@ class GeniusManager {
         }
     }
 
+    /**
+     * Finds all Genius referents whose annotated fragment overlaps with the
+     * given lyric line using fuzzy word-set matching.
+     *
+     * @param {string} lineText - The lyric line text to match against.
+     * @param {object[]|null|undefined} referents - The array of Genius referents to search.
+     * @returns {object[]} Referents whose fragment matches the line.
+     */
     findAnnotations(lineText, referents) {
         if (!referents || !lineText) return [];
 
@@ -176,9 +244,22 @@ class GeniusManager {
     }
 }
 
+/**
+ * Manages lyrics display, synchronisation, Romaji conversion, and Genius
+ * annotation overlays for the currently playing track.
+ *
+ * Use the static {@link LyricsManager.initialize} factory to create the singleton
+ * instance, and {@link LyricsManager.instance} to access it afterwards.
+ */
 export class LyricsManager {
     static #instance = null;
 
+    /**
+     * Returns the singleton LyricsManager instance.
+     *
+     * @returns {LyricsManager} The active singleton instance.
+     * @throws {Error} If {@link LyricsManager.initialize} has not been called yet.
+     */
     static get instance() {
         if (!LyricsManager.#instance) {
             throw new Error('LyricsManager is not initialized. Call LyricsManager.initialize() first.');
@@ -186,7 +267,12 @@ export class LyricsManager {
         return LyricsManager.#instance;
     }
 
-    /** @private */
+    /**
+     * Creates a new LyricsManager. Use {@link LyricsManager.initialize} instead
+     * of calling this constructor directly.
+     *
+     * @param {object} api - The music API instance used to resolve track metadata.
+     */
     constructor(api) {
         this.api = api;
         this.currentLyrics = null;
@@ -210,6 +296,14 @@ export class LyricsManager {
         this.timingOffset = 0; // Offset in milliseconds (positive = delay lyrics, negative = advance lyrics)
     }
 
+    /**
+     * Creates and stores the singleton LyricsManager instance.
+     *
+     * @async
+     * @param {object} api - The music API instance to pass to the constructor.
+     * @returns {Promise<LyricsManager>} The newly created singleton instance.
+     * @throws {Error} If a singleton instance already exists.
+     */
     static async initialize(api) {
         if (LyricsManager.#instance) {
             throw new Error('LyricsManager is already initialized');
@@ -218,6 +312,13 @@ export class LyricsManager {
     }
 
     // Get timing offset for current track
+    /**
+     * Retrieves the persisted timing offset (in milliseconds) for the given track.
+     * A positive value delays lyrics; a negative value advances them.
+     *
+     * @param {string|number} trackId - The track identifier.
+     * @returns {number} The saved offset in milliseconds, or `0` if none is stored.
+     */
     getTimingOffset(trackId) {
         try {
             const key = `lyrics-offset-${trackId}`;
@@ -229,6 +330,12 @@ export class LyricsManager {
     }
 
     // Set timing offset for current track
+    /**
+     * Persists a timing offset for the given track to localStorage.
+     *
+     * @param {string|number} trackId - The track identifier.
+     * @param {number} offsetMs - The offset in milliseconds to save.
+     */
     setTimingOffset(trackId, offsetMs) {
         try {
             const key = `lyrics-offset-${trackId}`;
@@ -239,11 +346,23 @@ export class LyricsManager {
     }
 
     // Reset timing offset for current track
+    /**
+     * Resets the timing offset for the given track to zero.
+     *
+     * @param {string|number} trackId - The track identifier whose offset to clear.
+     */
     resetTimingOffset(trackId) {
         this.setTimingOffset(trackId, 0);
     }
 
     // Get formatted offset display string
+    /**
+     * Formats an offset value in milliseconds as a human-readable string
+     * (e.g. `'+1.5s'` or `'-0.5s'`).
+     *
+     * @param {number} offsetMs - The offset in milliseconds.
+     * @returns {string} The formatted offset string including sign and unit.
+     */
     getOffsetDisplayString(offsetMs) {
         const sign = offsetMs >= 0 ? '+' : '';
         const seconds = Math.abs(offsetMs) / 1000;
@@ -251,6 +370,14 @@ export class LyricsManager {
     }
 
     // Load Kuroshiro from CDN (npm package uses Node.js path which doesn't work in browser)
+    /**
+     * Lazily loads the Kuroshiro Japanese-to-Romaji converter and its Kuromoji
+     * analyzer from CDN, patching XHR and fetch to redirect dictionary requests.
+     * Subsequent calls return immediately if already loaded.
+     *
+     * @async
+     * @returns {Promise<boolean>} `true` if Kuroshiro is ready, `false` on failure.
+     */
     async loadKuroshiro() {
         if (this.kuroshiroLoaded) return true;
         if (this.kuroshiroLoading) {
@@ -291,7 +418,7 @@ export class LyricsManager {
             if (!window._originalFetch) {
                 window._originalFetch = window.fetch;
                 window.fetch = async (url, options) => {
-                    const urlStr = url instanceof URL ? url.toString() : url.url;
+                    const urlStr = url instanceof Request ? url.url : String(url);
                     if (urlStr.includes('/dict/') && urlStr.includes('.dat.gz')) {
                         const filename = urlStr.split('/').pop();
                         const cdnUrl = `https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/${filename}`;
@@ -340,6 +467,14 @@ export class LyricsManager {
     }
 
     // Helper to load external scripts
+    /**
+     * Dynamically inserts a `<script>` tag for the given URL and resolves when
+     * the script has loaded. Skips insertion if the script is already present.
+     *
+     * @param {string} src - The URL of the script to load.
+     * @returns {Promise<void>} Resolves on successful load.
+     * @throws {Error} If the script fails to load.
+     */
     loadScript(src) {
         return new Promise((resolve, reject) => {
             // Check if script already exists
@@ -349,13 +484,22 @@ export class LyricsManager {
             }
             const script = document.createElement('script');
             script.src = src;
-            script.onload = resolve;
+            script.onload = /** @type {(this: GlobalEventHandlers, ev: Event) => void} */ (
+                /** @type {unknown} */ (resolve)
+            );
             script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
             document.head.appendChild(script);
         });
     }
 
     // Check if text contains Japanese characters
+    /**
+     * Tests whether the given text contains any Japanese characters (Hiragana,
+     * Katakana, or Kanji).
+     *
+     * @param {string|null|undefined} text - The text to test.
+     * @returns {boolean} `true` if Japanese characters are present.
+     */
     containsJapanese(text) {
         if (!text) return false;
         // Match any Japanese character (Hiragana, Katakana, Kanji)
@@ -363,6 +507,15 @@ export class LyricsManager {
     }
 
     // Convert Japanese text to Romaji (including Kanji) with caching
+    /**
+     * Converts Japanese text (including Kanji) to Hepburn Romaji using Kuroshiro,
+     * with results cached per unique input string. Non-Asian text is returned as-is.
+     *
+     * @async
+     * @param {string} text - The text to convert.
+     * @returns {Promise<string>} The converted Romaji text, or the original if
+     *   conversion is unavailable or not needed.
+     */
     async convertToRomaji(text) {
         if (!text) return text;
 
@@ -407,6 +560,12 @@ export class LyricsManager {
     }
 
     // Set Romaji mode and save preference
+    /**
+     * Enables or disables Romaji conversion mode and persists the preference
+     * to localStorage.
+     *
+     * @param {boolean} enabled - `true` to enable Romaji mode, `false` to disable.
+     */
     setRomajiMode(enabled) {
         this.isRomajiMode = enabled;
         try {
@@ -417,6 +576,11 @@ export class LyricsManager {
     }
 
     // Get saved Romaji mode preference
+    /**
+     * Reads the persisted Romaji mode preference from localStorage.
+     *
+     * @returns {boolean} `true` if Romaji mode was previously enabled.
+     */
     getRomajiMode() {
         try {
             return localStorage.getItem('lyricsRomajiMode') === 'true';
@@ -425,6 +589,13 @@ export class LyricsManager {
         }
     }
 
+    /**
+     * Waits for the `am-lyrics` custom element to be defined and marks the
+     * component as loaded. Safe to call multiple times.
+     *
+     * @async
+     * @returns {Promise<void>}
+     */
     async ensureComponentLoaded() {
         if (this.componentLoaded) return;
 
@@ -434,6 +605,15 @@ export class LyricsManager {
         }
     }
 
+    /**
+     * Fetches synced lyrics for the given track from LRCLIB and caches the result.
+     * Returns `null` when no synced lyrics are available or the fetch fails.
+     *
+     * @async
+     * @param {string|number} trackId - The unique track identifier used as a cache key.
+     * @param {object|null} [track=null] - The track object containing metadata for the query.
+     * @returns {Promise<{subtitles: string, lyricsProvider: string}|null>} Lyrics data or `null`.
+     */
     async fetchLyrics(trackId, track = null) {
         if (track) {
             if (this.lyricsCache.has(trackId)) {
@@ -484,6 +664,12 @@ export class LyricsManager {
         return null;
     }
 
+    /**
+     * Parses an LRC-format synced lyrics string into an array of timed lines.
+     *
+     * @param {string|null|undefined} subtitles - The raw LRC subtitle text.
+     * @returns {Array<{time: number, text: string}>} Parsed lines with timestamps in seconds.
+     */
     parseSyncedLyrics(subtitles) {
         if (!subtitles) return [];
         const lines = subtitles.split('\n').filter((line) => line.trim());
@@ -500,6 +686,14 @@ export class LyricsManager {
             .filter(Boolean);
     }
 
+    /**
+     * Builds a full LRC file string from lyrics data and track metadata,
+     * including standard LRC header tags.
+     *
+     * @param {{subtitles: string, lyricsProvider: string}|null} lyricsData - The lyrics data object.
+     * @param {object} track - The track object used for header metadata.
+     * @returns {string|null} The formatted LRC content, or `null` if no lyrics are available.
+     */
     generateLRCContent(lyricsData, track) {
         if (!lyricsData || !lyricsData.subtitles) return null;
 
@@ -516,6 +710,14 @@ export class LyricsManager {
         return lrc;
     }
 
+    /**
+     * Creates a downloadable `File` object containing the LRC lyrics for the track.
+     * Alerts the user and returns `undefined` if no synced lyrics are available.
+     *
+     * @param {{subtitles: string, lyricsProvider: string}|null} lyricsData - The lyrics data object.
+     * @param {object} track - The track object used to generate the filename.
+     * @returns {File|undefined} A `File` with `.lrc` extension, or `undefined`.
+     */
     getLRC(lyricsData, track) {
         const lrcContent = this.generateLRCContent(lyricsData, track);
         if (!lrcContent) {
@@ -528,6 +730,12 @@ export class LyricsManager {
         });
     }
 
+    /**
+     * Triggers a browser download of the LRC lyrics file for the given track.
+     *
+     * @param {{subtitles: string, lyricsProvider: string}|null} lyricsData - The lyrics data object.
+     * @param {object} track - The track object used to generate the filename.
+     */
     downloadLRC(lyricsData, track) {
         const blob = this.getLRC(lyricsData, track);
         const url = URL.createObjectURL(blob);
@@ -540,6 +748,13 @@ export class LyricsManager {
         URL.revokeObjectURL(url);
     }
 
+    /**
+     * Returns the index of the synced lyric line that corresponds to the given
+     * playback time. Returns `-1` if no line has been reached yet.
+     *
+     * @param {number} currentTime - The current playback position in seconds.
+     * @returns {number} Zero-based index of the active lyric line, or `-1`.
+     */
     getCurrentLine(currentTime) {
         if (!this.syncedLyrics || this.syncedLyrics.length === 0) return -1;
         let currentIndex = -1;
@@ -554,6 +769,15 @@ export class LyricsManager {
     }
 
     // Setup MutationObserver to convert lyrics in am-lyrics component
+    /**
+     * Attaches a MutationObserver to the `am-lyrics` element (or its shadow root)
+     * that automatically re-applies Romaji conversion and Genius annotations
+     * whenever the lyrics content changes.
+     *
+     * @async
+     * @param {Element|null} amLyricsElement - The `<am-lyrics>` custom element to observe.
+     * @returns {Promise<void>}
+     */
     async setupLyricsObserver(amLyricsElement) {
         this.stopLyricsObserver();
 
@@ -569,7 +793,10 @@ export class LyricsManager {
                     let relevant = false;
                     if (mutation.addedNodes.length > 0) {
                         for (const node of mutation.addedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('genius-indicator'))
+                            if (
+                                node.nodeType === Node.ELEMENT_NODE &&
+                                /** @type {Element} */ (node).classList.contains('genius-indicator')
+                            )
                                 continue;
                             relevant = true;
                             break;
@@ -577,7 +804,10 @@ export class LyricsManager {
                     }
                     if (!relevant && mutation.removedNodes.length > 0) {
                         for (const node of mutation.removedNodes) {
-                            if (node.nodeType === Node.ELEMENT_NODE && node.classList.contains('genius-indicator'))
+                            if (
+                                node.nodeType === Node.ELEMENT_NODE &&
+                                /** @type {Element} */ (node).classList.contains('genius-indicator')
+                            )
                                 continue;
                             relevant = true;
                             break;
@@ -626,6 +856,15 @@ export class LyricsManager {
     }
 
     // Convert lyrics content to Romaji
+    /**
+     * Traverses all text nodes inside the `am-lyrics` element (or its shadow root)
+     * and replaces Japanese text with its Romaji equivalent. Has no effect when
+     * Romaji mode is disabled.
+     *
+     * @async
+     * @param {Element|null} amLyricsElement - The `<am-lyrics>` element whose content to convert.
+     * @returns {Promise<void>}
+     */
     async convertLyricsContent(amLyricsElement) {
         if (!amLyricsElement || !this.isRomajiMode) {
             return;
@@ -645,7 +884,7 @@ export class LyricsManager {
 
         // Find all text nodes in the component
         const textNodes = [];
-        const walker = document.createTreeWalker(rootToTraverse, NodeFilter.SHOW_TEXT, null, false);
+        const walker = document.createTreeWalker(rootToTraverse, NodeFilter.SHOW_TEXT, null);
 
         let node;
         while ((node = walker.nextNode())) {
@@ -700,6 +939,10 @@ export class LyricsManager {
     }
 
     // Stop the observer
+    /**
+     * Disconnects the active MutationObserver and cancels any debounced
+     * conversion timeout.
+     */
     stopLyricsObserver() {
         if (this.romajiObserver) {
             this.romajiObserver.disconnect();
@@ -712,6 +955,14 @@ export class LyricsManager {
     }
 
     // Toggle Romaji mode
+    /**
+     * Toggles Romaji conversion mode on or off, persisting the new state and
+     * immediately converting/restoring the current lyrics display.
+     *
+     * @async
+     * @param {Element|null} amLyricsElement - The `<am-lyrics>` element to update.
+     * @returns {Promise<boolean>} The new Romaji mode state (`true` = enabled).
+     */
     async toggleRomajiMode(amLyricsElement) {
         this.isRomajiMode = !this.isRomajiMode;
         this.setRomajiMode(this.isRomajiMode);
@@ -731,6 +982,15 @@ export class LyricsManager {
         return this.isRomajiMode;
     }
 
+    /**
+     * Highlights lyric lines in the `am-lyrics` element that have matching
+     * Genius annotations, adding indicator icons and multi-line span classes.
+     *
+     * @async
+     * @param {Element|null} amLyricsElement - The `<am-lyrics>` element to annotate.
+     * @param {object[]|null|undefined} referents - Genius referent objects to match against lyrics.
+     * @returns {Promise<void>}
+     */
     async applyGeniusAnnotations(amLyricsElement, referents) {
         if (!amLyricsElement || !referents) return;
 
@@ -742,7 +1002,7 @@ export class LyricsManager {
 
         lineElements.forEach((el) => {
             el.classList.remove('genius-annotated', 'genius-multi-start', 'genius-multi-end', 'genius-multi-mid');
-            delete el.__geniusAnnotations;
+            delete (/** @type {Element & { __geniusAnnotations?: Array<{id: string}> }} */ (el).__geniusAnnotations);
         });
 
         const normalize = (str) =>
@@ -764,7 +1024,7 @@ export class LyricsManager {
                     const line = lineElements[j];
 
                     const lineClone = line.cloneNode(true);
-                    lineClone
+                    /** @type {HTMLElement} */ (lineClone)
                         .querySelectorAll('.time, .timestamp, [class*="time"], .genius-indicator')
                         .forEach((n) => n.remove());
                     const text = normalize(lineClone.textContent || '');
@@ -778,10 +1038,26 @@ export class LyricsManager {
                     if (combinedText.includes(fragment)) {
                         currentLines.forEach((el, idx) => {
                             el.classList.add('genius-annotated');
-                            if (!el.__geniusAnnotations) el.__geniusAnnotations = [];
+                            if (
+                                !(
+                                    /** @type {Element & { __geniusAnnotations?: Array<{id: string}> }} */ (el)
+                                        .__geniusAnnotations
+                                )
+                            )
+                                /** @type {Element & { __geniusAnnotations?: Array<{id: string}> }} */ (
+                                    el
+                                ).__geniusAnnotations = [];
 
-                            if (!el.__geniusAnnotations.some((a) => a.id === ref.id)) {
-                                el.__geniusAnnotations.push(ref);
+                            if (
+                                !(
+                                    /** @type {Element & { __geniusAnnotations?: Array<{id: string}> }} */ (
+                                        el
+                                    ).__geniusAnnotations.some((a) => a.id === ref.id)
+                                )
+                            ) {
+                                /** @type {Element & { __geniusAnnotations?: Array<{id: string}> }} */ (
+                                    el
+                                ).__geniusAnnotations.push(ref);
                             }
 
                             if (currentLines.length > 1) {
@@ -809,6 +1085,17 @@ export class LyricsManager {
     }
 }
 
+/**
+ * Opens the lyrics side panel for the given track, rendering playback controls,
+ * timing adjustments, Romaji toggle, and Genius annotation toggles.
+ *
+ * @param {object} track - The track to display lyrics for.
+ * @param {HTMLMediaElement} audioPlayer - The active audio element for sync.
+ * @param {LyricsManager|null} lyricsManager - An existing LyricsManager instance, or
+ *   `null` to create a temporary one.
+ * @param {boolean} [forceOpen=false] - If `true`, reopens the panel even if it is
+ *   already showing lyrics for the same track.
+ */
 export function openLyricsPanel(track, audioPlayer, lyricsManager, forceOpen = false) {
     const manager = lyricsManager || new LyricsManager();
 
@@ -921,7 +1208,7 @@ export function openLyricsPanel(track, audioPlayer, lyricsManager, forceOpen = f
                         manager.currentGeniusData = manager.geniusManager.cache.get(track.id);
                         const amLyrics = sidePanelManager.panel.querySelector('am-lyrics');
                         if (amLyrics)
-                            manager.applyGeniusAnnotations(
+                            void manager.applyGeniusAnnotations(
                                 amLyrics,
                                 manager.geniusManager.cache.get(track.id)?.referents
                             );
@@ -945,7 +1232,7 @@ export function openLyricsPanel(track, audioPlayer, lyricsManager, forceOpen = f
                                 'genius-multi-end',
                                 'genius-multi-mid'
                             );
-                            delete el.__geniusAnnotations;
+                            delete (/** @type {Element & { __geniusAnnotations?: object }} */ (el).__geniusAnnotations);
                         });
                     }
                     const modal = document.querySelector('.genius-annotation-modal');
@@ -958,21 +1245,36 @@ export function openLyricsPanel(track, audioPlayer, lyricsManager, forceOpen = f
     const renderContent = async (container) => {
         clearLyricsPanelSync(audioPlayer, sidePanelManager.panel);
         await renderLyricsComponent(container, track, audioPlayer, manager);
-        if (container.lyricsCleanup) {
-            sidePanelManager.panel.lyricsCleanup = container.lyricsCleanup;
-            sidePanelManager.panel.lyricsManager = container.lyricsManager;
+        /** @type {HTMLElement & { lyricsCleanup?: Function; lyricsManager?: object }} */
+        const containerExt = container;
+        if (containerExt.lyricsCleanup) {
+            /** @type {HTMLElement & { lyricsCleanup?: Function; lyricsManager?: object }} */ (
+                sidePanelManager.panel
+            ).lyricsCleanup = containerExt.lyricsCleanup;
+            /** @type {HTMLElement & { lyricsCleanup?: Function; lyricsManager?: object }} */ (
+                sidePanelManager.panel
+            ).lyricsManager = containerExt.lyricsManager;
         }
     };
 
     sidePanelManager.open('lyrics', 'Lyrics', renderControls, renderContent, forceOpen);
 }
 
+/**
+ * Returns the appropriate lyrics highlight colour for the current theme.
+ *
+ * @returns {string} `'#000'` for light themes, `'#fff'` for dark themes.
+ */
 function getLyricsHighlightColor() {
     // Check if the current theme is light
     const isLight = getComputedStyle(document.documentElement).colorScheme === 'light';
     return isLight ? '#000' : '#fff';
 }
 
+/**
+ * Updates the `highlight-color` attribute on all `<am-lyrics>` elements in the
+ * document to match the current theme.
+ */
 function updateLyricsTheme() {
     const highlightColor = getLyricsHighlightColor();
     document.querySelectorAll('am-lyrics').forEach((el) => {
@@ -1066,6 +1368,18 @@ function applyFullscreenLyricsShadowTweaks(amLyrics, container) {
     requestAnimationFrame(tryInject);
 }
 
+/**
+ * Creates and configures an `<am-lyrics>` element inside the given container,
+ * loads lyrics in the background, sets up synchronisation, and applies any
+ * active Romaji or Genius annotation modes.
+ *
+ * @async
+ * @param {HTMLElement} container - The DOM element to render the lyrics component into.
+ * @param {object} track - The track whose lyrics should be displayed.
+ * @param {HTMLMediaElement} audioPlayer - The audio element used for time synchronisation.
+ * @param {LyricsManager} lyricsManager - The LyricsManager instance.
+ * @returns {Promise<Element|null>} The created `<am-lyrics>` element, or `null` on failure.
+ */
 async function renderLyricsComponent(container, track, audioPlayer, lyricsManager) {
     container.innerHTML = '<div class="lyrics-loading">Loading lyrics...</div>';
 
@@ -1096,7 +1410,7 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
         amLyrics.setAttribute('song-title', queryTitle);
         amLyrics.setAttribute('song-artist', queryArtist);
         if (album) amLyrics.setAttribute('song-album', album);
-        if (durationMs) amLyrics.setAttribute('song-duration', durationMs);
+        if (durationMs) amLyrics.setAttribute('song-duration', String(durationMs));
         amLyrics.setAttribute('query', `${queryTitle} ${queryArtist}`.trim());
         if (isrc) amLyrics.setAttribute('isrc', isrc);
 
@@ -1110,7 +1424,7 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
         container.appendChild(amLyrics);
         applyFullscreenLyricsShadowTweaks(amLyrics, container);
 
-        lyricsManager.setupLyricsObserver(amLyrics);
+        void lyricsManager.setupLyricsObserver(amLyrics);
 
         // If Romaji mode is enabled and track has Asian text, ensure Kuroshiro is ready
         if (lyricsManager.isRomajiMode && trackHasAsianText(track) && !lyricsManager.kuroshiroLoaded) {
@@ -1125,7 +1439,7 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
                         const data = await lyricsManager.geniusManager.getDataForTrack(track);
                         if (data) {
                             lyricsManager.currentGeniusData = data;
-                            lyricsManager.applyGeniusAnnotations(amLyrics, data.referents);
+                            void lyricsManager.applyGeniusAnnotations(amLyrics, data.referents);
                         }
                     } catch (e) {
                         console.warn('Genius auto-load failed', e);
@@ -1174,14 +1488,16 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
         }
 
         if (lyricsManager.isGeniusMode && lyricsManager.currentGeniusData) {
-            lyricsManager.applyGeniusAnnotations(amLyrics, lyricsManager.currentGeniusData.referents);
+            void lyricsManager.applyGeniusAnnotations(amLyrics, lyricsManager.currentGeniusData.referents);
         }
 
         const cleanup = setupSync(track, audioPlayer, amLyrics, lyricsManager);
 
         // Attach cleanup to container for easy access
-        container.lyricsCleanup = cleanup;
-        container.lyricsManager = lyricsManager;
+        /** @type {HTMLElement & { lyricsCleanup?: Function; lyricsManager?: object }} */ (container).lyricsCleanup =
+            cleanup;
+        /** @type {HTMLElement & { lyricsCleanup?: Function; lyricsManager?: object }} */ (container).lyricsManager =
+            lyricsManager;
 
         return amLyrics;
     } catch (error) {
@@ -1191,6 +1507,18 @@ async function renderLyricsComponent(container, track, audioPlayer, lyricsManage
     }
 }
 
+/**
+ * Wires up `requestAnimationFrame`-driven time synchronisation between an audio
+ * element and an `<am-lyrics>` component, applying the active timing offset.
+ * Returns a cleanup function that removes all event listeners and cancels the
+ * animation loop.
+ *
+ * @param {object} track - The track being played (used to look up timing offset and lyrics cache).
+ * @param {HTMLMediaElement} audioPlayer - The audio element providing playback time.
+ * @param {any} amLyrics - The `<am-lyrics>` element to keep in sync.
+ * @param {LyricsManager} lyricsManager - The LyricsManager instance.
+ * @returns {() => void} A cleanup function to remove all listeners and stop the loop.
+ */
 function setupSync(track, audioPlayer, amLyrics, lyricsManager) {
     let baseTimeMs = 0;
     let lastTimestamp = performance.now();
@@ -1235,7 +1563,9 @@ function setupSync(track, audioPlayer, amLyrics, lyricsManager) {
 
     const onLineClick = (e) => {
         if (e.detail && e.detail.timestamp !== undefined) {
-            const manager = lyricsManager || sidePanelManager.panel.lyricsManager;
+            const manager =
+                lyricsManager ||
+                /** @type {HTMLElement & { lyricsManager?: object }} */ (sidePanelManager.panel).lyricsManager;
             if (manager && manager.isGeniusMode) {
                 const timestampSeconds = e.detail.timestamp / 1000;
 
@@ -1257,7 +1587,7 @@ function setupSync(track, audioPlayer, amLyrics, lyricsManager) {
             }
 
             audioPlayer.currentTime = e.detail.timestamp / 1000;
-            audioPlayer.play();
+            void audioPlayer.play();
         }
     };
 
@@ -1283,6 +1613,13 @@ function setupSync(track, audioPlayer, amLyrics, lyricsManager) {
     };
 }
 
+/**
+ * Displays a floating modal with Genius annotations for the given lyric line.
+ * Replaces any existing annotation modal.
+ *
+ * @param {object[]} annotations - Genius referent objects containing annotation text.
+ * @param {string} lineText - The lyric line whose annotations are being shown.
+ */
 function showGeniusAnnotations(annotations, lineText) {
     const existing = document.querySelector('.genius-annotation-modal');
     if (existing) existing.remove();
@@ -1328,10 +1665,28 @@ function showGeniusAnnotations(annotations, lineText) {
     });
 }
 
+/**
+ * Renders lyrics for a track directly into the provided container element,
+ * intended for use in the fullscreen player view.
+ *
+ * @async
+ * @param {object} track - The track whose lyrics should be displayed.
+ * @param {HTMLMediaElement} audioPlayer - The audio element used for synchronisation.
+ * @param {LyricsManager} lyricsManager - The LyricsManager instance.
+ * @param {HTMLElement} container - The container element to render into.
+ * @returns {Promise<Element|null>} The created `<am-lyrics>` element, or `null` on failure.
+ */
 export async function renderLyricsInFullscreen(track, audioPlayer, lyricsManager, container) {
     return renderLyricsComponent(container, track, audioPlayer, lyricsManager);
 }
 
+/**
+ * Stops the lyrics synchronisation loop and observer for a fullscreen lyrics
+ * container, preventing stale callbacks after the panel is closed.
+ *
+ * @param {HTMLElement & { lyricsCleanup?: Function, lyricsManager?: LyricsManager }} container
+ *   The fullscreen container element with attached cleanup references.
+ */
 export function clearFullscreenLyricsSync(container) {
     if (container && container.lyricsCleanup) {
         container.lyricsCleanup();
@@ -1342,6 +1697,14 @@ export function clearFullscreenLyricsSync(container) {
     }
 }
 
+/**
+ * Stops the lyrics synchronisation loop and observer attached to the side panel,
+ * preventing stale callbacks after the panel is closed.
+ *
+ * @param {HTMLMediaElement} _audioPlayer - Unused; kept for API consistency.
+ * @param {HTMLElement & { lyricsCleanup?: Function, lyricsManager?: LyricsManager }} panel
+ *   The side panel element with attached cleanup references.
+ */
 export function clearLyricsPanelSync(_audioPlayer, panel) {
     if (panel && panel.lyricsCleanup) {
         panel.lyricsCleanup();
