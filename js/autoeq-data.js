@@ -1,3 +1,4 @@
+// @ts-check
 // js/autoeq-data.js
 // Target Curves & Data Parser - Ported from Seap Engine
 // Contains target frequency response curves and raw data parser
@@ -4316,6 +4317,7 @@ function parseRawData(raw) {
     const firstLine = lines[0].trim();
 
     // Determine separator
+    /** @type {RegExp | string} */
     let delimiter = /\s+/;
     if (firstLine.indexOf(';') > -1) delimiter = ';';
     else if (firstLine.indexOf(',') > -1) delimiter = ',';
@@ -4370,6 +4372,11 @@ function parseRawData(raw) {
 }
 
 // --- PARSED TARGET CURVES ---
+/**
+ * Pre-parsed headphone target curves for AutoEQ processing.
+ * Each entry contains an `id`, a display `label`, and a `data` array of `{freq, gain}` points.
+ * @type {Array<{id: string, label: string, data: Array<{freq: number, gain: number}>}>}
+ */
 const TARGETS = [
     { id: 'harman_oe_2018', label: 'Harman Over-Ear 2018', data: parseRawData(RAW_HARMAN_OE_2018) },
     { id: 'harman_ie_2019', label: 'Harman In-Ear 2019', data: parseRawData(RAW_HARMAN_IE_2019) },
@@ -4385,6 +4392,11 @@ const TARGETS = [
     { id: 'flat', label: 'Flat (Calibration)', data: parseRawData(RAW_FLAT_LINE) },
 ];
 
+/**
+ * Pre-parsed speaker/room target curves for AutoEQ processing.
+ * Each entry contains an `id`, a display `label`, and a `data` array of `{freq, gain}` points.
+ * @type {Array<{id: string, label: string, data: Array<{freq: number, gain: number}>}>}
+ */
 const SPEAKER_TARGETS = [
     { id: 'harman_room', label: 'Harman In-Room (2013)', data: parseRawData(RAW_HARMAN_SPEAKER) },
     { id: 'seap_bass', label: 'SEAP Bass (Room)', data: parseRawData(RAW_SEAP_BASS) },

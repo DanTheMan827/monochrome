@@ -1,3 +1,4 @@
+// @ts-check
 import { syncManager } from './accounts/pocketbase.js';
 import { authManager } from './accounts/auth.js';
 import { navigate } from './router.js';
@@ -32,8 +33,17 @@ const GENERIC_FONT_FAMILIES = [
     'gill sans',
 ];
 
+/**
+ * Manages the community theme store UI, including browsing, uploading,
+ * editing, deleting, previewing, and applying community themes.
+ */
 export class ThemeStore {
     static EXPECTED_USER_ID_LENGTH = 15;
+
+    /**
+     * Creates a new ThemeStore instance, initialises DOM references,
+     * and sets up all event listeners.
+     */
     constructor() {
         this.pb = syncManager.pb;
         this.modal = document.getElementById('theme-store-modal');
@@ -47,6 +57,10 @@ export class ThemeStore {
         this.init();
     }
 
+    /**
+     * Sets up all event listeners for the theme store modal, tabs, search
+     * input, upload form, auth state changes, and editor tools.
+     */
     init() {
         document.getElementById('open-theme-store-btn')?.addEventListener('click', async () => {
             this.modal.classList.add('active');
@@ -59,13 +73,14 @@ export class ThemeStore {
 
         const tabs = this.modal?.querySelectorAll('.search-tab');
         tabs?.forEach((tab) => {
+            const htmlTab = /** @type {HTMLElement} */ (tab);
             tab.addEventListener('click', async () => {
                 tabs.forEach((t) => t.classList.remove('active'));
                 this.modal.querySelectorAll('.search-tab-content').forEach((c) => c.classList.remove('active'));
                 tab.classList.add('active');
-                const contentId = tab.dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
+                const contentId = htmlTab.dataset.tab === 'browse' ? 'theme-store-browse' : 'theme-store-upload';
                 document.getElementById(contentId)?.classList.add('active');
-                if (tab.dataset.tab === 'upload') {
+                if (htmlTab.dataset.tab === 'upload') {
                     await this.checkAuth();
                 } else {
                     this.resetEditState();
@@ -76,7 +91,7 @@ export class ThemeStore {
         let debounceTimer;
         this.searchInput?.addEventListener('input', (e) => {
             clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => this.loadThemes(e.target.value), 300);
+            debounceTimer = setTimeout(() => this.loadThemes(/** @type {HTMLInputElement} */ (e.target).value), 300);
         });
 
         this.uploadForm?.addEventListener('submit', (e) => this.handleUpload(e));
@@ -107,6 +122,10 @@ export class ThemeStore {
         this.applySavedTheme();
     }
 
+    /**
+     * Reads any previously saved custom theme from localStorage and applies
+     * it to the page on startup.
+     */
     applySavedTheme() {
         const theme = localStorage.getItem('monochrome-theme');
         const css = localStorage.getItem('custom_theme_css');
@@ -134,6 +153,12 @@ export class ThemeStore {
         }
     }
 
+    /**
+     * Loads and renders theme cards from the community database.
+     * @async
+     * @param {string} [query=''] - Optional search query to filter themes by name or description.
+     * @returns {Promise<void>}
+     */
     async loadThemes(query = '') {
         if (!this.grid) return;
         this.grid.innerHTML = '';
@@ -170,6 +195,12 @@ export class ThemeStore {
         }
     }
 
+    /**
+     * Creates a DOM card element for a single theme.
+     * @param {Object} theme - The theme record from the database.
+     * @param {string|null} currentUserId - The PocketBase ID of the currently authenticated user, or null if not logged in.
+     * @returns {HTMLDivElement} The constructed theme card element.
+     */
     createThemeCard(theme, currentUserId) {
         const div = document.createElement('div');
         div.className = 'card theme-card';
@@ -232,12 +263,13 @@ export class ThemeStore {
         `;
 
         div.addEventListener('click', async (e) => {
-            if (e.target.closest('.delete-theme-btn')) {
+            const target = /** @type {Element} */ (e.target);
+            if (target.closest('.delete-theme-btn')) {
                 e.stopPropagation();
                 await this.deleteTheme(theme.id);
                 return;
             }
-            if (e.target.closest('.edit-theme-btn')) {
+            if (target.closest('.edit-theme-btn')) {
                 e.stopPropagation();
                 this.startEditTheme(theme);
                 return;
@@ -257,6 +289,12 @@ export class ThemeStore {
         return div;
     }
 
+    /**
+     * Prompts the user for confirmation and deletes the specified theme.
+     * @async
+     * @param {string} themeId - The ID of the theme to delete.
+     * @returns {Promise<void>}
+     */
     async deleteTheme(themeId) {
         if (!confirm('Are you sure you want to delete this theme?')) return;
 
@@ -273,10 +311,15 @@ export class ThemeStore {
         }
     }
 
+    /**
+     * Switches the modal to the theme details view for the given theme,
+     * rendering a full preview and metadata.
+     * @param {Object} theme - The theme record to display.
+     */
     openThemeDetails(theme) {
         const detailsView = document.getElementById('theme-store-details');
         const browseView = document.getElementById('theme-store-browse');
-        const tabs = this.modal.querySelector('.search-tabs');
+        const tabs = /** @type {HTMLElement | null} */ (this.modal.querySelector('.search-tabs'));
 
         document.getElementById('theme-details-name').textContent = theme.name;
 
@@ -349,10 +392,13 @@ export class ThemeStore {
         detailsView.style.display = 'flex';
     }
 
+    /**
+     * Closes the theme details view and returns the modal to the browse view.
+     */
     closeThemeDetails() {
         const detailsView = document.getElementById('theme-store-details');
         const browseView = document.getElementById('theme-store-browse');
-        const tabs = this.modal.querySelector('.search-tabs');
+        const tabs = /** @type {HTMLElement | null} */ (this.modal.querySelector('.search-tabs'));
 
         detailsView.style.display = 'none';
         browseView.style.display = 'block';
@@ -361,6 +407,12 @@ export class ThemeStore {
         document.getElementById('theme-details-preview-container').innerHTML = '';
     }
 
+    /**
+     * Extracts a subset of CSS custom property declarations from a theme's CSS
+     * for use as inline preview styles on theme cards.
+     * @param {string} css - The full CSS string of a theme.
+     * @returns {string} An inline style string containing the extracted CSS variable declarations.
+     */
     extractPreviewStyles(css) {
         const vars = ['--background', '--foreground', '--primary', '--card', '--border', '--muted-foreground'];
         let style = '';
@@ -374,6 +426,11 @@ export class ThemeStore {
         return style;
     }
 
+    /**
+     * Applies a theme to the page by injecting its CSS, loading any required
+     * fonts, and persisting the selection to localStorage.
+     * @param {Object|string} theme - A theme record object with a `css` property, or a raw CSS string.
+     */
     applyTheme(theme) {
         let css = theme.css;
         if (!css && typeof theme === 'string') {
@@ -410,7 +467,7 @@ export class ThemeStore {
 
             if (!isPresetOrGeneric) {
                 const FONT_LINK_ID = 'monochrome-dynamic-font';
-                let link = document.getElementById(FONT_LINK_ID);
+                let link = /** @type {HTMLLinkElement | null} */ (document.getElementById(FONT_LINK_ID));
 
                 if (urlMatch && urlMatch[1]) {
                     const customUrl = urlMatch[1].trim().replace(/['"]/g, '');
@@ -482,6 +539,12 @@ export class ThemeStore {
         window.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme: 'custom' } }));
     }
 
+    /**
+     * Checks the current authentication state and shows or hides the upload
+     * form accordingly. Guards against concurrent invocations.
+     * @async
+     * @returns {Promise<void>}
+     */
     async checkAuth() {
         if (this._isCheckingAuth) return;
         this._isCheckingAuth = true;
@@ -515,13 +578,20 @@ export class ThemeStore {
         this._isCheckingAuth = false;
     }
 
+    /**
+     * Handles the theme upload/update form submission, validates the user,
+     * and creates or updates the theme record in the database.
+     * @async
+     * @param {Event} e - The form submit event.
+     * @returns {Promise<void>}
+     */
     async handleUpload(e) {
         e.preventDefault();
 
-        const name = document.getElementById('theme-upload-name').value;
-        const desc = document.getElementById('theme-upload-desc').value;
-        const css = document.getElementById('theme-upload-css').value;
-        const website = document.getElementById('theme-upload-website').value;
+        const name = /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-name')).value;
+        const desc = /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-desc')).value;
+        const css = /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-css')).value;
+        const website = /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-website')).value;
 
         const fbUser = authManager?.user;
         if (!fbUser) {
@@ -580,7 +650,7 @@ export class ThemeStore {
                 togglePreviewBtn.classList.remove('active');
             }
 
-            this.modal.querySelector('[data-tab="browse"]').click();
+            /** @type {HTMLElement} */ (this.modal.querySelector('[data-tab="browse"]')).click();
             await this.loadThemes();
         } catch (err) {
             console.error('Upload failed:', err);
@@ -603,16 +673,21 @@ export class ThemeStore {
         }
     }
 
+    /**
+     * Populates the upload form with an existing theme's data and switches
+     * the modal to the upload tab for editing.
+     * @param {Object} theme - The theme record to edit.
+     */
     startEditTheme(theme) {
         this.editingThemeId = theme.id;
 
-        const uploadTab = this.modal.querySelector('[data-tab="upload"]');
+        const uploadTab = /** @type {HTMLElement | null} */ (this.modal.querySelector('[data-tab="upload"]'));
         if (uploadTab) uploadTab.click();
 
-        document.getElementById('theme-upload-name').value = theme.name;
-        document.getElementById('theme-upload-desc').value = theme.description || '';
-        document.getElementById('theme-upload-website').value = theme.authorUrl || '';
-        document.getElementById('theme-upload-css').value = theme.css;
+        /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-name')).value = theme.name;
+        /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-desc')).value = theme.description || '';
+        /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-website')).value = theme.authorUrl || '';
+        /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-css')).value = theme.css;
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Update Theme';
@@ -623,9 +698,13 @@ export class ThemeStore {
         this.updatePreview();
     }
 
+    /**
+     * Clears the editing state, resets the upload form, and restores the
+     * submit button label to its default.
+     */
     resetEditState() {
         this.editingThemeId = null;
-        document.getElementById('theme-upload-form')?.reset();
+        /** @type {HTMLFormElement | null} */ (document.getElementById('theme-upload-form'))?.reset();
 
         const submitBtn = document.getElementById('theme-upload-submit-btn');
         if (submitBtn) submitBtn.textContent = 'Upload Theme';
@@ -636,14 +715,23 @@ export class ThemeStore {
         this.updatePreview();
     }
 
+    /**
+     * Escapes a string so it is safe to insert into HTML.
+     * @param {string} str - The raw string to escape.
+     * @returns {string} The HTML-escaped string.
+     */
     escapeHtml(str) {
         const div = document.createElement('div');
         div.textContent = str;
         return div.innerHTML;
     }
 
+    /**
+     * Wires up all theme editor tool controls: colour pickers, style
+     * selectors, the CSS template inserter, and the live preview toggle.
+     */
     setupEditorTools() {
-        const cssInput = document.getElementById('theme-upload-css');
+        const cssInput = /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-css'));
         const insertTemplateBtn = document.getElementById('te-insert-template');
         const togglePreviewBtn = document.getElementById('te-toggle-preview');
         const previewWindow = document.getElementById('theme-preview-window');
@@ -661,7 +749,7 @@ export class ThemeStore {
 
         Object.entries(colorMap).forEach(([id, variable]) => {
             document.getElementById(id)?.addEventListener('input', (e) => {
-                this.updateCssVariable(cssInput, variable, e.target.value);
+                this.updateCssVariable(cssInput, variable, /** @type {HTMLInputElement} */ (e.target).value);
                 this.updatePreview();
             });
         });
@@ -673,16 +761,17 @@ export class ThemeStore {
 
         Object.entries(styleMap).forEach(([id, variable]) => {
             document.getElementById(id)?.addEventListener('change', (e) => {
-                if (e.target.value) {
-                    this.updateCssVariable(cssInput, variable, e.target.value);
+                const inputEl = /** @type {HTMLInputElement} */ (e.target);
+                if (inputEl.value) {
+                    this.updateCssVariable(cssInput, variable, inputEl.value);
                     this.updatePreview();
-                    e.target.value = '';
+                    inputEl.value = '';
                 }
             });
         });
 
         document.getElementById('te-font-custom')?.addEventListener('input', (e) => {
-            this.updateCssVariable(cssInput, '--font-family', e.target.value);
+            this.updateCssVariable(cssInput, '--font-family', /** @type {HTMLInputElement} */ (e.target).value);
             this.updatePreview();
         });
 
@@ -736,6 +825,13 @@ export class ThemeStore {
         cssInput?.addEventListener('input', () => this.updatePreview());
     }
 
+    /**
+     * Updates or inserts a CSS custom property declaration in the textarea's
+     * current value.
+     * @param {HTMLInputElement} textarea - The textarea element containing the CSS.
+     * @param {string} variable - The CSS custom property name (e.g. `--background`).
+     * @param {string} value - The new value for the CSS custom property.
+     */
     updateCssVariable(textarea, variable, value) {
         let css = textarea.value;
         const regex = new RegExp(`${variable}:\\s*[^;\\}]+(?:;|(?=\\}))`, 'g');
@@ -753,6 +849,10 @@ export class ThemeStore {
         textarea.value = css;
     }
 
+    /**
+     * Initialises the live preview shadow DOM if it has not been created yet,
+     * attaching the global stylesheet and a sample component layout.
+     */
     initPreviewWindow() {
         const container = document.getElementById('theme-preview-window');
         if (!this.previewShadow) {
@@ -789,9 +889,13 @@ export class ThemeStore {
         }
     }
 
+    /**
+     * Re-renders the live preview window with the current CSS from the upload
+     * textarea, scoping `:root` selectors to `:host` for the shadow DOM.
+     */
     updatePreview() {
         if (!this.previewShadow || !this.previewStyleTag) return;
-        const css = document.getElementById('theme-upload-css').value;
+        const css = /** @type {HTMLInputElement} */ (document.getElementById('theme-upload-css')).value;
         const scopedCss = css.replace(/:root/g, ':host');
         this.previewStyleTag.textContent = scopedCss;
     }

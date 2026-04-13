@@ -1,3 +1,4 @@
+// @ts-check
 // js/audio-context.js
 // Shared Audio Context Manager - handles EQ and provides context for visualizer
 // Supports 3-32 parametric EQ bands
@@ -6,7 +7,13 @@ import { isIos } from './platform-detection.js';
 import { equalizerSettings, monoAudioSettings, binauralDspSettings } from './storage.js';
 import { BinauralDSP } from './binaural-dsp.js';
 
-// Generate frequency array for given number of bands using logarithmic spacing
+/**
+ * Generate a frequency array for a given number of bands using logarithmic spacing.
+ * @param {number} bandCount - Number of frequency bands
+ * @param {number} [minFreq=20] - Minimum frequency in Hz
+ * @param {number} [maxFreq=20000] - Maximum frequency in Hz
+ * @returns {number[]} Array of rounded frequencies in Hz
+ */
 function generateFrequencies(bandCount, minFreq = 20, maxFreq = 20000) {
     const frequencies = [];
     const safeMin = Math.max(10, minFreq);
@@ -28,7 +35,11 @@ function generateFrequencies(bandCount, minFreq = 20, maxFreq = 20000) {
     return frequencies;
 }
 
-// Generate frequency labels for display
+/**
+ * Generate human-readable frequency labels for display.
+ * @param {number[]} frequencies - Array of frequencies in Hz
+ * @returns {string[]} Array of formatted frequency label strings
+ */
 function generateFrequencyLabels(frequencies) {
     return frequencies.map((freq) => {
         if (freq < 1000) {
@@ -61,7 +72,12 @@ const EQ_PRESETS_16 = {
     podcast: { name: 'Podcast / Speech', gains: [-3, -2, -1, 0, 1, 2, 3, 4, 4, 3, 2, 1, 0, -1, -2, -3] },
 };
 
-// Interpolate 16-band preset to target band count
+/**
+ * Interpolate a 16-band preset's gain values to a target band count.
+ * @param {number[]} preset16 - Array of 16 gain values in dB
+ * @param {number} targetBands - Target number of bands
+ * @returns {number[]} Interpolated array of gain values in dB
+ */
 function interpolatePreset(preset16, targetBands) {
     if (targetBands === 16) return [...preset16];
 
@@ -80,9 +96,13 @@ function interpolatePreset(preset16, targetBands) {
     return result;
 }
 
-// Get presets for given band count
+/**
+ * Get all EQ presets adapted to a given band count.
+ * @param {number} bandCount - Number of EQ bands
+ * @returns {Object.<string, {name: string, gains: number[]}>} Map of preset keys to preset objects
+ */
 function getPresetsForBandCount(bandCount) {
-    const presets = {};
+    const presets = /** @type {Record<string, any>} */ ({});
     for (const [key, preset] of Object.entries(EQ_PRESETS_16)) {
         presets[key] = {
             name: preset.name,
@@ -95,7 +115,14 @@ function getPresetsForBandCount(bandCount) {
 // Default export for backwards compatibility (16 bands)
 const EQ_PRESETS = EQ_PRESETS_16;
 
+/**
+ * Manages a shared Web Audio API context, providing parametric EQ filtering,
+ * mono audio mixing, volume control, and audio graph connectivity for visualizers.
+ */
 class AudioContextManager {
+    /**
+     * Create a new AudioContextManager and load saved EQ settings from storage.
+     */
     constructor() {
         this.audioContext = null;
         this.source = null;
@@ -163,12 +190,13 @@ class AudioContextManager {
     }
 
     /**
-     * Update band count and reinitialize EQ
+     * Update band count and reinitialize EQ.
+     * @param {number} count - New band count (clamped to MIN_BANDS..MAX_BANDS)
      */
     setBandCount(count) {
         const newCount = Math.max(
             equalizerSettings.MIN_BANDS,
-            Math.min(equalizerSettings.MAX_BANDS, parseInt(count, 10) || 16)
+            Math.min(equalizerSettings.MAX_BANDS, parseInt(String(count), 10) || 16)
         );
 
         if (newCount === this.bandCount) return;
@@ -203,11 +231,14 @@ class AudioContextManager {
     }
 
     /**
-     * Update frequency range and reinitialize EQ
+     * Update frequency range and reinitialize EQ.
+     * @param {number} minFreq - Minimum frequency in Hz
+     * @param {number} maxFreq - Maximum frequency in Hz
+     * @returns {boolean} True if the range was updated, false if the range is invalid
      */
     setFreqRange(minFreq, maxFreq) {
-        const newMin = Math.max(10, Math.min(96000, parseInt(minFreq, 10) || 20));
-        const newMax = Math.max(10, Math.min(96000, parseInt(maxFreq, 10) || 20000));
+        const newMin = Math.max(10, Math.min(96000, parseInt(String(minFreq), 10) || 20));
+        const newMax = Math.max(10, Math.min(96000, parseInt(String(maxFreq), 10) || 20000));
 
         if (newMin >= newMax) {
             console.warn('[AudioContext] Invalid frequency range: min must be less than max');
@@ -428,7 +459,9 @@ class AudioContextManager {
     }
 
     /**
-     * Calculate Q factor for each band
+     * Calculate Q factor for a given band index.
+     * @param {number} _index - Band index (reserved for future per-band Q overrides)
+     * @returns {number} Calculated Q factor
      */
     _calculateQ(_index) {
         // Scale Q based on band count for consistent sound
@@ -466,8 +499,9 @@ class AudioContextManager {
     }
 
     /**
-     * Initialize the audio context and connect to the audio element
-     * This should be called when audio starts playing
+     * Initialize the audio context and connect to the audio element.
+     * This should be called when audio starts playing.
+     * @param {HTMLMediaElement} audioElement - The audio element to connect
      */
     init(audioElement) {
         if (this.isInitialized) return;
@@ -551,6 +585,10 @@ class AudioContextManager {
         }
     }
 
+    /**
+     * Switch the managed audio source to a different audio element, reconnecting the graph.
+     * @param {HTMLMediaElement} audioElement - The new audio element to use as the source
+     */
     changeSource(audioElement) {
         if (!this.audioContext) {
             this.init(audioElement);
@@ -764,7 +802,8 @@ class AudioContextManager {
     }
 
     /**
-     * Resume audio context (required after user interaction)
+     * Resume audio context (required after user interaction).
+     * @async
      * @returns {Promise<boolean>} - Returns true if context is running
      */
     async resume() {
@@ -790,28 +829,32 @@ class AudioContextManager {
     }
 
     /**
-     * Get the analyser node for the visualizer
+     * Get the analyser node for the visualizer.
+     * @returns {AnalyserNode|null} The Web Audio analyser node
      */
     getAnalyser() {
         return this.analyser;
     }
 
     /**
-     * Get the audio context
+     * Get the audio context.
+     * @returns {AudioContext|null} The Web Audio context
      */
     getAudioContext() {
         return this.audioContext;
     }
 
     /**
-     * Get the source node for visualizers
+     * Get the source node for visualizers.
+     * @returns {MediaElementAudioSourceNode|null} The current media element source node
      */
     getSourceNode() {
         return this.source;
     }
 
     /**
-     * Check if initialized and active
+     * Check if the audio context is initialized and active.
+     * @returns {boolean} True if initialized and context is non-null
      */
     isReady() {
         return this.isInitialized && this.audioContext !== null;
@@ -830,7 +873,9 @@ class AudioContextManager {
     }
 
     /**
-     * Toggle EQ on/off
+     * Toggle EQ on/off.
+     * @param {boolean} enabled - Whether to enable the equalizer
+     * @returns {boolean} The new EQ enabled state
      */
     toggleEQ(enabled) {
         this.isEQEnabled = enabled;
@@ -844,14 +889,17 @@ class AudioContextManager {
     }
 
     /**
-     * Check if EQ is active
+     * Check if EQ is active.
+     * @returns {boolean} True if the context is initialized and EQ is enabled
      */
     isEQActive() {
         return this.isInitialized && this.isEQEnabled;
     }
 
     /**
-     * Toggle mono audio on/off
+     * Toggle mono audio on/off.
+     * @param {boolean} enabled - Whether to enable mono audio mixing
+     * @returns {boolean} The new mono audio enabled state
      */
     toggleMonoAudio(enabled) {
         this.isMonoAudioEnabled = enabled;
@@ -865,7 +913,8 @@ class AudioContextManager {
     }
 
     /**
-     * Check if mono audio is active
+     * Check if mono audio is active.
+     * @returns {boolean} True if the context is initialized and mono audio is enabled
      */
     isMonoAudioActive() {
         return this.isInitialized && this.isMonoAudioEnabled;
@@ -992,14 +1041,19 @@ class AudioContextManager {
     }
 
     /**
-     * Get current gain range
+     * Get current gain range allowed by the equalizer settings.
+     * @returns {{min: number, max: number}} The gain range in dB
      */
     getRange() {
         return equalizerSettings.getRange();
     }
 
     /**
-     * Calculate biquad filter magnitude response in dB at a given frequency
+     * Calculate the biquad filter magnitude response in dB at a given frequency.
+     * @param {number} f - Frequency at which to evaluate the response, in Hz
+     * @param {{enabled: boolean, type: string, freq: number, gain: number, q: number}} band - Band descriptor
+     * @param {number} sr - Sample rate in Hz
+     * @returns {number} Magnitude response in dB at frequency f
      */
     _biquadResponseDb(f, band, sr) {
         if (!band.enabled || !band.type) return 0;
@@ -1050,7 +1104,9 @@ class AudioContextManager {
     }
 
     /**
-     * Clamp gain to valid range
+     * Clamp a gain value to the valid range defined by equalizer settings.
+     * @param {number} gainDb - Gain value in dB to clamp
+     * @returns {number} Clamped gain value in dB
      */
     _clampGain(gainDb) {
         const range = this.getRange();
@@ -1058,7 +1114,9 @@ class AudioContextManager {
     }
 
     /**
-     * Set gain for a specific band
+     * Set gain for a specific band.
+     * @param {number} bandIndex - Zero-based index of the band to update
+     * @param {number} gainDb - Gain value in dB
      */
     setBandGain(bandIndex, gainDb) {
         if (bandIndex < 0 || bandIndex >= this.bandCount) return;
@@ -1075,7 +1133,8 @@ class AudioContextManager {
     }
 
     /**
-     * Set all band gains at once
+     * Set all band gains at once, interpolating if the array length differs from the current band count.
+     * @param {number[]} gains - Array of gain values in dB
      */
     setAllGains(gains) {
         if (!Array.isArray(gains)) return;
@@ -1101,7 +1160,8 @@ class AudioContextManager {
     }
 
     /**
-     * Apply a preset
+     * Apply a named EQ preset, setting all band gains accordingly.
+     * @param {string} presetKey - Key of the preset to apply (e.g. 'flat', 'bass_boost')
      */
     applyPreset(presetKey) {
         const presets = getPresetsForBandCount(this.bandCount);
@@ -1121,14 +1181,16 @@ class AudioContextManager {
     }
 
     /**
-     * Get current gains
+     * Get a copy of the current band gain values.
+     * @returns {number[]} Copy of the current gain values in dB
      */
     getGains() {
         return [...this.currentGains];
     }
 
     /**
-     * Get current band count
+     * Get the current number of EQ bands.
+     * @returns {number} The current band count
      */
     getBandCount() {
         return this.bandCount;
@@ -1158,7 +1220,7 @@ class AudioContextManager {
      * @param {number} db - Preamp value in dB (-20 to +20)
      */
     setPreamp(db) {
-        const clampedDb = Math.max(-20, Math.min(20, parseFloat(db) || 0));
+        const clampedDb = Math.max(-20, Math.min(20, parseFloat(String(db)) || 0));
         this.preamp = clampedDb;
         equalizerSettings.setPreamp(clampedDb);
 
@@ -1179,9 +1241,10 @@ class AudioContextManager {
     }
 
     /**
-     * Apply AutoEQ-generated bands to the equalizer
-     * Unlike regular presets, AutoEQ bands have specific frequencies, gains, and Q values
-     * @param {Array<{id: number, type: string, freq: number, gain: number, q: number, enabled: boolean}>} bands
+     * Apply AutoEQ-generated bands to the equalizer.
+     * Unlike regular presets, AutoEQ bands have specific frequencies, gains, and Q values.
+     * @param {Array<{id: number, type: string, freq: number, gain: number, q: number, enabled: boolean}>} bands - AutoEQ band descriptors
+     * @param {boolean} [skipPreamp=false] - When true, preserves the existing preamp value instead of recalculating it
      * @returns {string} Exported text representation of the applied EQ
      */
     applyAutoEQBands(bands, skipPreamp = false) {
@@ -1220,7 +1283,7 @@ class AudioContextManager {
         const newTypes = slicedBands.map((b) => b.type || 'peaking');
         const newQs = slicedBands.map((b) => b.q);
         const newGains = slicedBands.map((b) => this._clampGain(b.gain));
-        const newChannels = slicedBands.map((b) => b.channel || 'stereo');
+        const newChannels = slicedBands.map((b) => /** @type {any} */ (b).channel || 'stereo');
         while (newFrequencies.length < count) {
             const lastFreq = newFrequencies[newFrequencies.length - 1] || 1000;
             newFrequencies.push(Math.round(Math.min(lastFreq * 2, maxFreq)));

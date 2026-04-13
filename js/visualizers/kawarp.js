@@ -1,3 +1,4 @@
+// @ts-check
 // js/visualizers/kawarp.js
 
 const KAWARP_DEFAULTS = {
@@ -20,7 +21,15 @@ const SCALE_THRESHOLD = 0.001;
 const ANALYSIS_INTERVAL = 100;
 const CACHE_BUST_PARAM = 'not-from-cache-please';
 
+/**
+ * Visualizer preset that renders the Kawarp WebGL shader effect using the album cover art.
+ * Integrates beat detection to boost animation speed and scale on loud transients.
+ * Implements the visualizer preset interface expected by the visualizer manager.
+ */
 export class KawarpPreset {
+    /**
+     * Creates a new KawarpPreset instance and sets up audio event handler callbacks.
+     */
     constructor() {
         this.name = 'Kawarp';
         this.contextType = 'webgl';
@@ -44,6 +53,15 @@ export class KawarpPreset {
         };
     }
 
+    /**
+     * Lazily initialises the Kawarp engine on the given canvas.
+     * Re-initialises when called with a different canvas element.
+     * @async
+     * @param {HTMLCanvasElement} canvas - Target canvas for WebGL rendering
+     * @param {AudioContext} _audioContext - Shared audio context (unused; Kawarp manages its own)
+     * @param {AudioNode} _sourceNode - Source audio node (unused; Kawarp manages its own)
+     * @returns {Promise<void>}
+     */
     async lazyInit(canvas, _audioContext, _sourceNode) {
         if (this.isInitialized) {
             if (canvas !== this.canvas) {
@@ -69,9 +87,9 @@ export class KawarpPreset {
             this._observeCoverArt();
 
             const coverEl = document.querySelector('.now-playing-bar .cover');
-            if (coverEl?.tagName === 'IMG' && coverEl.src) {
-                this._lastCoverUrl = coverEl.src;
-                this._loadCover(coverEl.src);
+            if (coverEl?.tagName === 'IMG' && /** @type {HTMLImageElement} */ (coverEl).src) {
+                this._lastCoverUrl = /** @type {HTMLImageElement} */ (coverEl).src;
+                this._loadCover(/** @type {HTMLImageElement} */ (coverEl).src);
             }
 
             this.kawarp.start();
@@ -81,22 +99,35 @@ export class KawarpPreset {
         }
     }
 
+    /**
+     * No-op implementation of the visualizer audio-connection hook.
+     * Kawarp manages its own audio context.
+     * @returns {void}
+     */
     connectAudio() {}
 
+    /**
+     * Starts the Kawarp animation if the audio element is currently playing.
+     * @returns {void}
+     */
     _ensureStarted() {
         if (!this.kawarp) return;
-        if (this.kawarp.isPlaying) return;
-        if (this.audioElement?.paused) return;
+        if (/** @type {{ isPlaying: boolean }} */ (/** @type {unknown} */ (this.kawarp)).isPlaying) return;
+        if (/** @type {HTMLMediaElement} */ (/** @type {unknown} */ (this.audioElement))?.paused) return;
         this.kawarp.start();
     }
 
+    /**
+     * Attaches a MutationObserver to the now-playing bar to detect cover art changes.
+     * @returns {void}
+     */
     _observeCoverArt() {
         const container = document.querySelector('.now-playing-bar');
         if (!container) return;
 
         this._coverObserver = new MutationObserver(() => {
             const el = document.querySelector('.now-playing-bar .cover');
-            const src = el?.tagName === 'IMG' ? el.src : null;
+            const src = el?.tagName === 'IMG' ? /** @type {HTMLImageElement} */ (el).src : null;
             if (!src || src === this._lastCoverUrl) return;
             this._lastCoverUrl = src;
             if (this.kawarp && this.isInitialized) {
@@ -112,6 +143,12 @@ export class KawarpPreset {
         });
     }
 
+    /**
+     * Loads a cover art image into the Kawarp engine, appending a cache-bust parameter
+     * to force a fresh CORS request bypassing the browser's cached non-CORS response.
+     * @param {string} url - Absolute URL of the cover image
+     * @returns {void}
+     */
     _loadCover(url) {
         // Cache buster forces a fresh CORS request, bypassing the browser's
         // cached non-CORS response from the <img> tag (same pattern as ui.js)
@@ -121,10 +158,26 @@ export class KawarpPreset {
             .catch((err) => console.warn('[Kawarp] Failed to load cover:', err));
     }
 
+    /**
+     * Notifies the Kawarp engine of a canvas resize.
+     * @param {number} _w - New canvas width in pixels (forwarded to Kawarp which reads it from the element)
+     * @param {number} _h - New canvas height in pixels (forwarded to Kawarp which reads it from the element)
+     * @returns {void}
+     */
     resize(_w, _h) {
         if (this.kawarp) this.kawarp.resize();
     }
 
+    /**
+     * Per-frame draw callback invoked by the visualizer manager.
+     * Performs throttled beat detection and smoothly lerps the canvas scale.
+     * @param {CanvasRenderingContext2D | null} _ctx - 2D context (unused; Kawarp renders via WebGL)
+     * @param {HTMLCanvasElement} canvas - The canvas element being rendered to
+     * @param {AnalyserNode | null} analyser - Web Audio analyser node for beat detection
+     * @param {Uint8Array | null} _dataArray - Pre-allocated frequency data array (unused)
+     * @param {{ mode: string }} stats - Visualizer stats; `mode` may be `'blended'`
+     * @returns {void}
+     */
     draw(_ctx, canvas, analyser, _dataArray, stats) {
         if (!this.kawarp || !this.isInitialized) return;
 
@@ -174,6 +227,10 @@ export class KawarpPreset {
         }
     }
 
+    /**
+     * Stops and disposes the Kawarp engine and clears canvas/state references.
+     * @returns {void}
+     */
     _destroyKawarp() {
         if (this.kawarp) {
             this.kawarp.stop();
@@ -184,6 +241,10 @@ export class KawarpPreset {
         this.isInitialized = false;
     }
 
+    /**
+     * Tears down the preset: disconnects the cover observer, removes audio listeners, and destroys the engine.
+     * @returns {void}
+     */
     destroy() {
         if (this._coverObserver) {
             this._coverObserver.disconnect();

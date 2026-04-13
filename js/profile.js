@@ -1,3 +1,4 @@
+// @ts-check
 import { syncManager } from './accounts/pocketbase.js';
 import { authManager } from './accounts/auth.js';
 import { navigate } from './router.js';
@@ -6,6 +7,26 @@ import { apiSettings } from './storage.js';
 import { debounce, escapeHtml } from './utils.js';
 import { Player } from './player.js';
 
+/**
+ * @typedef {{
+ *   id: string,
+ *   username?: string,
+ *   display_name?: string,
+ *   avatar_url?: string,
+ *   banner?: string,
+ *   status?: string,
+ *   about?: string,
+ *   website?: string,
+ *   lastfm_username?: string,
+ *   privacy?: { playlists?: string, lastfm?: string },
+ *   user_playlists?: Record<string, object>,
+ *   favorite_albums?: Array<{ id: string, title: string, artist: string, cover: string, description: string }>,
+ *   collectionId: string,
+ *   collectionName: string,
+ *   expand?: Record<string, object>
+ * }} ProfileRecord
+ */
+
 // objects execution february 29th 2027
 
 const profilePage = document.getElementById('page-profile');
@@ -13,30 +34,38 @@ const editProfileModal = document.getElementById('edit-profile-modal');
 const editProfileBtn = document.getElementById('profile-edit-btn');
 const viewMyProfileBtn = document.getElementById('view-my-profile-btn');
 
-const editUsername = document.getElementById('edit-profile-username');
-const editDisplayName = document.getElementById('edit-profile-display-name');
-const editAvatar = document.getElementById('edit-profile-avatar');
-const editBanner = document.getElementById('edit-profile-banner');
-const editStatusSearch = document.getElementById('edit-profile-status-search');
-const editStatusJson = document.getElementById('edit-profile-status-json');
+const editUsername = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-username'));
+const editDisplayName = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-display-name'));
+const editAvatar = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-avatar'));
+const editBanner = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-banner'));
+const editStatusSearch = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-status-search'));
+const editStatusJson = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-status-json'));
 const statusSearchResults = document.getElementById('status-search-results');
 const statusPreview = document.getElementById('status-preview');
 const clearStatusBtn = document.getElementById('clear-status-btn');
 const editFavoriteAlbumsList = document.getElementById('edit-favorite-albums-list');
-const editFavoriteAlbumsSearch = document.getElementById('edit-favorite-albums-search');
+const editFavoriteAlbumsSearch = /** @type {HTMLInputElement | null} */ (
+    document.getElementById('edit-favorite-albums-search')
+);
 const editFavoriteAlbumsResults = document.getElementById('edit-favorite-albums-results');
-const editAbout = document.getElementById('edit-profile-about');
-const editWebsite = document.getElementById('edit-profile-website');
-const editLastfm = document.getElementById('edit-profile-lastfm');
-const privacyPlaylists = document.getElementById('privacy-playlists-toggle');
-const privacyLastfm = document.getElementById('privacy-lastfm-toggle');
-const saveProfileBtn = document.getElementById('edit-profile-save');
+const editAbout = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-about'));
+const editWebsite = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-website'));
+const editLastfm = /** @type {HTMLInputElement | null} */ (document.getElementById('edit-profile-lastfm'));
+const privacyPlaylists = /** @type {HTMLInputElement | null} */ (document.getElementById('privacy-playlists-toggle'));
+const privacyLastfm = /** @type {HTMLInputElement | null} */ (document.getElementById('privacy-lastfm-toggle'));
+const saveProfileBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById('edit-profile-save'));
 const cancelProfileBtn = document.getElementById('edit-profile-cancel');
 const usernameError = document.getElementById('username-error');
 
 let currentFavoriteAlbums = [];
 const api = new MusicAPI(apiSettings);
 
+/**
+ * Uploads an image file to the monochrome image hosting service.
+ * @async
+ * @param {File} file - The image file to upload
+ * @returns {Promise<string>} The URL of the uploaded image
+ */
 async function uploadImage(file) {
     try {
         const fileNameWithoutSpace = file.name.replace(/\s/g, '_');
@@ -61,10 +90,15 @@ async function uploadImage(file) {
     }
 }
 
+/**
+ * Sets up an image upload control that allows switching between file upload and URL input.
+ * @param {string} idPrefix - The ID prefix used to find the related DOM elements
+ * @returns {Function} A reset function that sets the current URL value and updates the UI
+ */
 function setupImageUploadControl(idPrefix) {
-    const urlInput = document.getElementById(idPrefix);
-    const fileInput = document.getElementById(idPrefix + '-file');
-    const uploadBtn = document.getElementById(idPrefix + '-upload-btn');
+    const urlInput = /** @type {HTMLInputElement | null} */ (document.getElementById(idPrefix));
+    const fileInput = /** @type {HTMLInputElement | null} */ (document.getElementById(idPrefix + '-file'));
+    const uploadBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById(idPrefix + '-upload-btn'));
     const toggleBtn = document.getElementById(idPrefix + '-toggle-btn');
     const statusEl = document.getElementById(idPrefix + '-upload-status');
 
@@ -92,7 +126,7 @@ function setupImageUploadControl(idPrefix) {
     uploadBtn.addEventListener('click', () => fileInput.click());
 
     fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
+        const file = /** @type {HTMLInputElement} */ (e.target).files?.[0];
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
@@ -133,12 +167,18 @@ function setupImageUploadControl(idPrefix) {
 const resetAvatarControl = setupImageUploadControl('edit-profile-avatar');
 const resetBannerControl = setupImageUploadControl('edit-profile-banner');
 
+/**
+ * Loads and renders a user profile page by username.
+ * @async
+ * @param {string} username - The username of the profile to load
+ * @returns {Promise<void>}
+ */
 export async function loadProfile(username) {
     document.querySelectorAll('.page').forEach((p) => p.classList.remove('active'));
     profilePage.classList.add('active');
 
     document.getElementById('profile-banner').style.backgroundImage = '';
-    document.getElementById('profile-avatar').src = '/assets/appicon.png';
+    /** @type {HTMLImageElement} */ (document.getElementById('profile-avatar')).src = '/assets/appicon.png';
     document.getElementById('profile-display-name').textContent = 'Loading...';
     document.getElementById('profile-username').textContent = '@' + username;
     document.getElementById('profile-status').style.display = 'none';
@@ -173,7 +213,7 @@ export async function loadProfile(username) {
 
     editProfileBtn.style.display = 'none';
 
-    const profile = await syncManager.getProfile(username);
+    const profile = /** @type {ProfileRecord | null} */ (await syncManager.getProfile(username));
 
     if (!profile) {
         document.getElementById('profile-display-name').textContent = 'User not found';
@@ -182,7 +222,8 @@ export async function loadProfile(username) {
 
     document.getElementById('profile-display-name').textContent = profile.display_name || username;
     if (profile.banner) document.getElementById('profile-banner').style.backgroundImage = `url('${profile.banner}')`;
-    if (profile.avatar_url) document.getElementById('profile-avatar').src = profile.avatar_url;
+    if (profile.avatar_url)
+        /** @type {HTMLImageElement} */ (document.getElementById('profile-avatar')).src = profile.avatar_url;
 
     if (profile.status) {
         const statusEl = document.getElementById('profile-status');
@@ -224,7 +265,7 @@ export async function loadProfile(username) {
     }
 
     if (profile.website) {
-        const webEl = document.getElementById('profile-website');
+        const webEl = /** @type {HTMLAnchorElement | null} */ (document.getElementById('profile-website'));
         webEl.href = profile.website;
         webEl.style.display = 'inline-block';
     }
@@ -258,7 +299,7 @@ export async function loadProfile(username) {
     }
 
     if (profile.lastfm_username && profile.privacy?.lastfm !== 'private') {
-        const lfmEl = document.getElementById('profile-lastfm');
+        const lfmEl = /** @type {HTMLAnchorElement | null} */ (document.getElementById('profile-lastfm'));
         lfmEl.href = `https://last.fm/user/${profile.lastfm_username}`;
         lfmEl.style.display = 'inline-block';
     }
@@ -304,8 +345,9 @@ export async function loadProfile(username) {
                         .join('');
 
                     recentContainer.querySelectorAll('.track-item').forEach((item) => {
-                        item.addEventListener('click', () => handleTrackClick(item.dataset.title, item.dataset.artist));
-                        item.addEventListener('contextmenu', (e) => {
+                        const el = /** @type {HTMLElement} */ (item);
+                        el.addEventListener('click', () => handleTrackClick(el.dataset.title, el.dataset.artist));
+                        el.addEventListener('contextmenu', (e) => {
                             e.preventDefault();
                             return false;
                         });
@@ -353,8 +395,9 @@ export async function loadProfile(username) {
                         .join('');
 
                     topArtistsContainer.querySelectorAll('.card').forEach((card) => {
-                        card.addEventListener('click', () => handleArtistClick(card.dataset.name));
-                        card.addEventListener('contextmenu', (e) => {
+                        const el = /** @type {HTMLElement} */ (card);
+                        el.addEventListener('click', () => handleArtistClick(el.dataset.name));
+                        el.addEventListener('contextmenu', (e) => {
                             e.preventDefault();
                             return false;
                         });
@@ -404,8 +447,9 @@ export async function loadProfile(username) {
                         .join('');
 
                     topAlbumsContainer.querySelectorAll('.card').forEach((card) => {
-                        card.addEventListener('click', () => handleAlbumClick(card.dataset.name, card.dataset.artist));
-                        card.addEventListener('contextmenu', (e) => {
+                        const el = /** @type {HTMLElement} */ (card);
+                        el.addEventListener('click', () => handleAlbumClick(el.dataset.name, el.dataset.artist));
+                        el.addEventListener('contextmenu', (e) => {
                             e.preventDefault();
                             return false;
                         });
@@ -456,8 +500,9 @@ export async function loadProfile(username) {
                         .join('');
 
                     topTracksContainer.querySelectorAll('.track-item').forEach((item) => {
-                        item.addEventListener('click', () => handleTrackClick(item.dataset.title, item.dataset.artist));
-                        item.addEventListener('contextmenu', (e) => {
+                        const el = /** @type {HTMLElement} */ (item);
+                        el.addEventListener('click', () => handleTrackClick(el.dataset.title, el.dataset.artist));
+                        el.addEventListener('contextmenu', (e) => {
                             e.preventDefault();
                             return false;
                         });
@@ -511,10 +556,15 @@ export async function loadProfile(username) {
     }
 }
 
+/**
+ * Opens the edit profile modal and populates it with the current user's profile data.
+ * @async
+ * @returns {Promise<void>}
+ */
 export async function openEditProfile() {
     await syncManager.getUserData().then((data) => {
         if (!data || !data.profile) return;
-        const p = data.profile;
+        const p = /** @type {ProfileRecord} */ (data.profile);
 
         editUsername.value = p.username || '';
         editDisplayName.value = p.display_name || '';
@@ -553,6 +603,11 @@ export async function openEditProfile() {
     });
 }
 
+/**
+ * Validates and saves the current user's profile data from the edit modal.
+ * @async
+ * @returns {Promise<void>}
+ */
 async function saveProfile() {
     const newUsername = editUsername.value.trim();
     if (!newUsername) {
@@ -625,14 +680,23 @@ authManager.onAuthStateChanged((user) => {
     viewMyProfileBtn.style.display = user ? 'inline-block' : 'none';
 });
 
+/**
+ * Displays a status preview with image, title, and subtitle.
+ * @param {{ image: string, title: string, subtitle: string }} data - The status data to preview
+ * @returns {void}
+ */
 function showStatusPreview(data) {
-    document.getElementById('status-preview-img').src = data.image;
+    /** @type {HTMLImageElement} */ (document.getElementById('status-preview-img')).src = data.image;
     document.getElementById('status-preview-title').textContent = data.title;
     document.getElementById('status-preview-subtitle').textContent = data.subtitle;
     statusPreview.style.display = 'flex';
     editStatusSearch.style.display = 'none';
 }
 
+/**
+ * Hides the status preview and shows the search input again.
+ * @returns {void}
+ */
 function hideStatusPreview() {
     statusPreview.style.display = 'none';
     editStatusSearch.style.display = 'block';
@@ -653,8 +717,8 @@ const performStatusSearch = debounce(async (query) => {
 
     try {
         const [tracks, albums] = await Promise.all([
-            api.searchTracks(query, { limit: 3 }),
-            api.searchAlbums(query, { limit: 3 }),
+            api.searchTracks(/** @type {string} */ (query), { limit: 3 }),
+            api.searchAlbums(/** @type {string} */ (query), { limit: 3 }),
         ]);
 
         statusSearchResults.innerHTML = '';
@@ -701,13 +765,19 @@ const performStatusSearch = debounce(async (query) => {
     }
 }, 300);
 
-editStatusSearch.addEventListener('input', (e) => performStatusSearch(e.target.value.trim()));
+editStatusSearch.addEventListener('input', (e) =>
+    performStatusSearch(/** @type {HTMLInputElement} */ (e.target).value.trim())
+);
 document.addEventListener('click', (e) => {
-    if (!e.target.closest('.status-picker-container')) {
+    if (!(/** @type {Element} */ (e.target).closest('.status-picker-container'))) {
         statusSearchResults.style.display = 'none';
     }
 });
 
+/**
+ * Renders the favorite albums list in the edit profile modal.
+ * @returns {void}
+ */
 function renderEditFavoriteAlbums() {
     editFavoriteAlbumsList.innerHTML = currentFavoriteAlbums
         .map(
@@ -728,17 +798,19 @@ function renderEditFavoriteAlbums() {
         .join('');
 
     editFavoriteAlbumsList.querySelectorAll('.remove-album-btn').forEach((btn) => {
-        btn.onclick = () => {
-            const idx = parseInt(btn.dataset.index);
+        const el = /** @type {HTMLElement} */ (btn);
+        el.onclick = () => {
+            const idx = parseInt(el.dataset.index);
             currentFavoriteAlbums.splice(idx, 1);
             renderEditFavoriteAlbums();
         };
     });
 
     editFavoriteAlbumsList.querySelectorAll('.album-description-input').forEach((input) => {
-        input.oninput = () => {
-            const idx = parseInt(input.dataset.index);
-            currentFavoriteAlbums[idx].description = input.value;
+        const el = /** @type {HTMLInputElement} */ (input);
+        el.oninput = () => {
+            const idx = parseInt(el.dataset.index);
+            currentFavoriteAlbums[idx].description = el.value;
         };
     });
 
@@ -758,7 +830,7 @@ const performFavoriteAlbumSearch = debounce(async (query) => {
     }
 
     try {
-        const results = await api.searchAlbums(query, { limit: 5 });
+        const results = await api.searchAlbums(/** @type {string} */ (query), { limit: 5 });
         editFavoriteAlbumsResults.innerHTML = '';
 
         if (results.items.length === 0) {
@@ -800,8 +872,15 @@ const performFavoriteAlbumSearch = debounce(async (query) => {
     }
 }, 300);
 
-editFavoriteAlbumsSearch.addEventListener('input', (e) => performFavoriteAlbumSearch(e.target.value.trim()));
+editFavoriteAlbumsSearch.addEventListener('input', (e) =>
+    performFavoriteAlbumSearch(/** @type {HTMLInputElement} */ (e.target).value.trim())
+);
 
+/**
+ * Extracts a valid image URL from a Last.fm image array, filtering out placeholder images.
+ * @param {Array<{ size: string, '#text': string }>|null} images - Last.fm image array
+ * @returns {string|null} A valid image URL, or null if none found
+ */
 function getLastFmImage(images) {
     if (!images) return null;
     const imgArray = Array.isArray(images) ? images : [images];
@@ -823,6 +902,12 @@ function getLastFmImage(images) {
     return null;
 }
 
+/**
+ * Handles clicking on a Last.fm artist card by searching and navigating to the artist page.
+ * @async
+ * @param {string} name - The artist name to search for
+ * @returns {Promise<void>}
+ */
 async function handleArtistClick(name) {
     try {
         const results = await api.searchArtists(name, { limit: 1 });
@@ -836,6 +921,13 @@ async function handleArtistClick(name) {
     }
 }
 
+/**
+ * Handles clicking on a Last.fm album card by searching and navigating to the album page.
+ * @async
+ * @param {string} name - The album name to search for
+ * @param {string} artist - The album artist name to include in the search
+ * @returns {Promise<void>}
+ */
 async function handleAlbumClick(name, artist) {
     try {
         const query = `${name} ${artist}`;
@@ -850,6 +942,13 @@ async function handleAlbumClick(name, artist) {
     }
 }
 
+/**
+ * Handles clicking on a Last.fm track item by searching and playing the track.
+ * @async
+ * @param {string} title - The track title to search for
+ * @param {string} artist - The track artist to include in the search
+ * @returns {Promise<void>}
+ */
 async function handleTrackClick(title, artist) {
     try {
         const query = `${title} ${artist}`;
@@ -857,8 +956,8 @@ async function handleTrackClick(title, artist) {
         if (results.items.length > 0) {
             const track = results.items[0];
             if (Player.instance) {
-                Player.instance.setQueue([track], 0);
-                Player.instance.playTrackFromQueue();
+                void Player.instance.setQueue([track], 0);
+                void Player.instance.playTrackFromQueue();
             }
         } else {
             alert('Track not found');
@@ -868,6 +967,14 @@ async function handleTrackClick(title, artist) {
     }
 }
 
+/**
+ * Fetches a fallback cover image for a track and updates the given image element.
+ * @async
+ * @param {string} title - Track title to search for
+ * @param {string} artist - Track artist to search for
+ * @param {string} imgId - The DOM element ID of the image to update
+ * @returns {Promise<void>}
+ */
 async function fetchFallbackCover(title, artist, imgId) {
     try {
         const query = `${title} ${artist}`;
@@ -879,7 +986,7 @@ async function fetchFallbackCover(title, artist, imgId) {
             const found = results.items.find((item) => item.album?.cover);
             if (found) {
                 const newUrl = api.getCoverUrl(found.album.cover);
-                const imgEl = document.getElementById(imgId);
+                const imgEl = /** @type {HTMLImageElement | null} */ (document.getElementById(imgId));
                 if (imgEl) {
                     imgEl.src = newUrl;
                     foundCover = true;
@@ -895,6 +1002,14 @@ async function fetchFallbackCover(title, artist, imgId) {
     }
 }
 
+/**
+ * Fetches a fallback cover image for an album and updates the given image element.
+ * @async
+ * @param {string} title - Album title to search for
+ * @param {string} artist - Album artist to search for
+ * @param {string} imgId - The DOM element ID of the image to update
+ * @returns {Promise<void>}
+ */
 async function fetchFallbackAlbumCover(title, artist, imgId) {
     try {
         const query = `${title} ${artist}`;
@@ -906,7 +1021,7 @@ async function fetchFallbackAlbumCover(title, artist, imgId) {
             const found = results.items.find((item) => item.cover);
             if (found) {
                 const newUrl = api.getCoverUrl(found.cover);
-                const imgEl = document.getElementById(imgId);
+                const imgEl = /** @type {HTMLImageElement | null} */ (document.getElementById(imgId));
                 if (imgEl) {
                     imgEl.src = newUrl;
                     foundCover = true;
@@ -922,6 +1037,13 @@ async function fetchFallbackAlbumCover(title, artist, imgId) {
     }
 }
 
+/**
+ * Fetches a fallback artist image and updates the given image element.
+ * @async
+ * @param {string} artistName - The artist name to search for
+ * @param {string} imgId - The DOM element ID of the image to update
+ * @returns {Promise<void>}
+ */
 async function fetchFallbackArtistImage(artistName, imgId) {
     try {
         await new Promise((r) => setTimeout(r, 100));
@@ -930,7 +1052,7 @@ async function fetchFallbackArtistImage(artistName, imgId) {
             const found = results.items.find((item) => item.picture);
             if (found) {
                 const newUrl = api.getArtistPictureUrl(found.picture);
-                const imgEl = document.getElementById(imgId);
+                const imgEl = /** @type {HTMLImageElement | null} */ (document.getElementById(imgId));
                 if (imgEl) imgEl.src = newUrl;
             }
         }
@@ -939,6 +1061,12 @@ async function fetchFallbackArtistImage(artistName, imgId) {
     }
 }
 
+/**
+ * Fetches the most recent scrobbles for a Last.fm user.
+ * @async
+ * @param {string} username - The Last.fm username
+ * @returns {Promise<Array>} Array of recent track objects from Last.fm
+ */
 async function fetchLastFmRecentTracks(username) {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=5`;
@@ -954,6 +1082,12 @@ async function fetchLastFmRecentTracks(username) {
     }
 }
 
+/**
+ * Fetches the top artists for a Last.fm user.
+ * @async
+ * @param {string} username - The Last.fm username
+ * @returns {Promise<Array>} Array of top artist objects from Last.fm
+ */
 async function fetchLastFmTopArtists(username) {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopartists&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=6`;
@@ -967,6 +1101,12 @@ async function fetchLastFmTopArtists(username) {
     }
 }
 
+/**
+ * Fetches the top albums for a Last.fm user.
+ * @async
+ * @param {string} username - The Last.fm username
+ * @returns {Promise<Array>} Array of top album objects from Last.fm
+ */
 async function fetchLastFmTopAlbums(username) {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettopalbums&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=6`;
@@ -980,6 +1120,12 @@ async function fetchLastFmTopAlbums(username) {
     }
 }
 
+/**
+ * Fetches the top tracks for a Last.fm user.
+ * @async
+ * @param {string} username - The Last.fm username
+ * @returns {Promise<Array>} Array of top track objects from Last.fm
+ */
 async function fetchLastFmTopTracks(username) {
     const apiKey = '85214f5abbc730e78770f27784b9bdf7';
     const url = `https://ws.audioscrobbler.com/2.0/?method=user.gettoptracks&user=${encodeURIComponent(username)}&api_key=${apiKey}&format=json&limit=5`;

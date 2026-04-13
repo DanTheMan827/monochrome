@@ -1,4 +1,5 @@
-//js/ui-interactions.js
+// @ts-check
+// js/ui-interactions.js
 import {
     formatTime,
     getTrackTitle,
@@ -23,7 +24,14 @@ import {
     SVG_EQUAL,
 } from './icons.js';
 import { hapticSuccess } from './haptics.js';
+import { trackSearchTabChange, trackOpenQueue } from './analytics.js';
 
+/**
+ * Initializes all UI interactions for the application.
+ * @param {object} player - The audio player instance.
+ * @param {object} api - The API client instance used to fetch resources.
+ * @param {object} ui - The UI controller instance for updating interface elements.
+ */
 export function initializeUIInteractions(player, api, ui) {
     const sidebar = document.querySelector('.sidebar');
     const sidebarOverlay = document.getElementById('sidebar-overlay');
@@ -33,35 +41,52 @@ export function initializeUIInteractions(player, api, ui) {
 
     if (libraryPage) {
         libraryPage.addEventListener('dragstart', (e) => {
-            const playlistCard = e.target.closest('.card.user-playlist');
+            const playlistCard = /** @type {Element} */ (e.target).closest('.card.user-playlist');
             if (playlistCard) {
-                e.dataTransfer.setData('text/playlist-id', playlistCard.dataset.userPlaylistId);
+                e.dataTransfer.setData(
+                    'text/playlist-id',
+                    /** @type {HTMLElement} */ (playlistCard).dataset.userPlaylistId
+                );
                 e.dataTransfer.effectAllowed = 'move';
             }
         });
 
+        /**
+         * Handles dragover events on the library page, highlighting folder cards as drop targets.
+         * @param {DragEvent} e - The drag event.
+         */
         const handleDragOver = (e) => {
-            const folderCard = e.target.closest('.card[data-folder-id]');
+            const folderCard = /** @type {HTMLElement} */ (e.target).closest('.card[data-folder-id]');
             if (folderCard && e.dataTransfer.types.includes('text/playlist-id')) {
                 e.preventDefault();
                 folderCard.classList.add('drag-over');
             }
         };
 
+        /**
+         * Handles dragleave events on the library page, removing the drop-target highlight from folder cards.
+         * @param {DragEvent} e - The drag event.
+         */
         const handleDragLeave = (e) => {
-            const folderCard = e.target.closest('.card[data-folder-id]');
+            const folderCard = /** @type {HTMLElement} */ (e.target).closest('.card[data-folder-id]');
             if (folderCard) {
                 folderCard.classList.remove('drag-over');
             }
         };
 
+        /**
+         * Handles drop events on the library page, adding a dragged playlist into the target folder.
+         * @async
+         * @param {DragEvent} e - The drag event.
+         * @returns {Promise<void>}
+         */
         const handleDrop = async (e) => {
             e.preventDefault();
-            const folderCard = e.target.closest('.card[data-folder-id]');
+            const folderCard = /** @type {HTMLElement} */ (e.target).closest('.card[data-folder-id]');
             if (folderCard) {
                 folderCard.classList.remove('drag-over');
                 const playlistId = e.dataTransfer.getData('text/playlist-id');
-                const folderId = folderCard.dataset.folderId;
+                const folderId = /** @type {HTMLElement} */ (folderCard).dataset.folderId;
 
                 if (playlistId && folderId) {
                     const updatedFolder = await db.addPlaylistToFolder(folderId, playlistId);
@@ -97,6 +122,9 @@ export function initializeUIInteractions(player, api, ui) {
         sidebarOverlay.classList.add('is-visible');
     });
 
+    /**
+     * Closes the mobile sidebar and hides the overlay.
+     */
     const closeSidebar = () => {
         sidebar.classList.remove('is-open');
         sidebarOverlay.classList.remove('is-visible');
@@ -111,6 +139,12 @@ export function initializeUIInteractions(player, api, ui) {
     });
 
     // Queue panel
+    /**
+     * Renders the queue action buttons (download, like, add to playlist, clear, close) into the given container.
+     * @async
+     * @param {HTMLElement} container - The DOM element to render controls into.
+     * @returns {Promise<void>}
+     */
     const renderQueueControls = async (container) => {
         const currentQueue = player.getCurrentQueue();
         const showActionBtns = currentQueue.length > 0;
@@ -203,14 +237,15 @@ export function initializeUIInteractions(player, api, ui) {
                 };
 
                 modal.addEventListener('click', async (e) => {
-                    if (e.target.classList.contains('modal-overlay') || e.target.classList.contains('cancel-btn')) {
+                    const target = /** @type {Element} */ (e.target);
+                    if (target.classList.contains('modal-overlay') || target.classList.contains('cancel-btn')) {
                         closeModal();
                         return;
                     }
 
-                    const option = e.target.closest('.modal-option');
+                    const option = target.closest('.modal-option');
                     if (option) {
-                        const playlistId = option.dataset.id;
+                        const playlistId = /** @type {HTMLElement} */ (option).dataset.id;
                         const playlistName = option.textContent;
 
                         try {
@@ -244,6 +279,12 @@ export function initializeUIInteractions(player, api, ui) {
         }
     };
 
+    /**
+     * Generates the HTML string for a single queue track item.
+     * @param {object} track - The track object to render.
+     * @param {number} index - The zero-based position of the track in the queue.
+     * @returns {string} The HTML markup for the queue track item.
+     */
     const renderQueueItemHTML = (track, index) => {
         const isPlaying = index === player.currentQueueIndex;
         const isBlocked = contentBlockingSettings?.shouldHideTrack(track);
@@ -282,15 +323,22 @@ export function initializeUIInteractions(player, api, ui) {
     `;
     };
 
+    /**
+     * Attaches click, context-menu, and drag-and-drop event listeners to the queue list container.
+     * Listeners are only attached once; subsequent calls are no-ops.
+     * @async
+     * @param {HTMLElement & { _queueListenersAttached?: boolean }} container - The queue list container element.
+     * @returns {Promise<void>}
+     */
     const attachQueueListeners = async (container) => {
         if (container._queueListenersAttached) return;
 
         container.addEventListener('click', async (e) => {
-            const item = e.target.closest('.queue-track-item');
+            const item = /** @type {HTMLElement} */ (e.target).closest('.queue-track-item');
             if (!item) return;
 
-            const index = parseInt(item.dataset.queueIndex);
-            const removeBtn = e.target.closest('.queue-remove-btn');
+            const index = parseInt(/** @type {HTMLElement} */ (item).dataset.queueIndex);
+            const removeBtn = /** @type {HTMLElement} */ (e.target).closest('.queue-remove-btn');
             if (removeBtn) {
                 e.stopPropagation();
                 player.removeFromQueue(index);
@@ -298,8 +346,8 @@ export function initializeUIInteractions(player, api, ui) {
                 return;
             }
 
-            const likeBtn = e.target.closest('.queue-like-btn');
-            if (likeBtn && likeBtn.dataset.action === 'toggle-like') {
+            const likeBtn = /** @type {HTMLElement} */ (e.target).closest('.queue-like-btn');
+            if (likeBtn && /** @type {HTMLElement} */ (likeBtn).dataset.action === 'toggle-like') {
                 e.stopPropagation();
                 const track = player.getCurrentQueue()[index];
                 if (track) {
@@ -322,11 +370,11 @@ export function initializeUIInteractions(player, api, ui) {
         });
 
         container.addEventListener('contextmenu', async (e) => {
-            const item = e.target.closest('.queue-track-item');
+            const item = /** @type {HTMLElement} */ (e.target).closest('.queue-track-item');
             if (!item) return;
 
             e.preventDefault();
-            const index = parseInt(item.dataset.queueIndex);
+            const index = parseInt(/** @type {HTMLElement} */ (item).dataset.queueIndex);
             const contextMenu = document.getElementById('context-menu');
             if (contextMenu) {
                 const track = player.getCurrentQueue()[index];
@@ -340,27 +388,27 @@ export function initializeUIInteractions(player, api, ui) {
                     const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]');
                     if (trackMixItem) {
                         const hasMix = track.mixes && track.mixes.TRACK_MIX;
-                        trackMixItem.style.display = hasMix ? 'block' : 'none';
+                        /** @type {HTMLElement} */ (trackMixItem).style.display = hasMix ? 'block' : 'none';
                     }
 
                     positionMenu(contextMenu, e.clientX, e.clientY);
-                    contextMenu._contextTrack = track;
+                    /** @type {HTMLElement & { _contextTrack?: object }} */ (contextMenu)._contextTrack = track;
                 }
             }
         });
 
         container.addEventListener('dragstart', (e) => {
-            const item = e.target.closest('.queue-track-item');
+            const item = /** @type {HTMLElement} */ (e.target).closest('.queue-track-item');
             if (item) {
-                draggedQueueIndex = parseInt(item.dataset.queueIndex);
-                item.style.opacity = '0.5';
+                draggedQueueIndex = parseInt(/** @type {HTMLElement} */ (item).dataset.queueIndex);
+                /** @type {HTMLElement} */ (item).style.opacity = '0.5';
             }
         });
 
         container.addEventListener('dragend', (e) => {
-            const item = e.target.closest('.queue-track-item');
+            const item = /** @type {HTMLElement} */ (e.target).closest('.queue-track-item');
             if (item) {
-                item.style.opacity = '1';
+                /** @type {HTMLElement} */ (item).style.opacity = '1';
             }
         });
 
@@ -370,9 +418,9 @@ export function initializeUIInteractions(player, api, ui) {
 
         container.addEventListener('drop', async (e) => {
             e.preventDefault();
-            const item = e.target.closest('.queue-track-item');
+            const item = /** @type {HTMLElement} */ (e.target).closest('.queue-track-item');
             if (item && draggedQueueIndex !== null) {
-                const index = parseInt(item.dataset.queueIndex);
+                const index = parseInt(/** @type {HTMLElement} */ (item).dataset.queueIndex);
                 if (draggedQueueIndex !== index) {
                     player.moveInQueue(draggedQueueIndex, index);
                     await refreshQueuePanel();
@@ -383,6 +431,13 @@ export function initializeUIInteractions(player, api, ui) {
         container._queueListenersAttached = true;
     };
 
+    /**
+     * Renders the current playback queue into the given container, with virtual scrolling for large queues.
+     * @async
+     * @param {HTMLElement} container - The DOM element to render queue items into.
+     * @param {boolean} [isUpdate=false] - When true, preserves the current virtual-scroll window instead of resetting it.
+     * @returns {Promise<void>}
+     */
     const renderQueueContent = async (container, isUpdate = false) => {
         const currentQueue = player.getCurrentQueue();
 
@@ -455,7 +510,7 @@ export function initializeUIInteractions(player, api, ui) {
         }
 
         container.querySelectorAll('.queue-track-item').forEach(async (item) => {
-            const index = parseInt(item.dataset.queueIndex);
+            const index = parseInt(/** @type {HTMLElement} */ (item).dataset.queueIndex);
             const track = currentQueue[index];
             const likeBtn = item.querySelector('.queue-like-btn');
             if (likeBtn && track) {
@@ -468,10 +523,18 @@ export function initializeUIInteractions(player, api, ui) {
         isQueueRendering = false;
     };
 
+    /**
+     * Refreshes the queue side panel without clearing its current content.
+     * @async
+     * @returns {Promise<void>}
+     */
     const refreshQueuePanel = async () => {
         await sidePanelManager.refresh('queue', renderQueueControls, renderQueueContent, { noClear: true });
     };
 
+    /**
+     * Opens the queue side panel and scrolls the currently playing track into view.
+     */
     const openQueuePanel = () => {
         sidePanelManager.open('queue', 'Queue', renderQueueControls, renderQueueContent);
 
@@ -522,7 +585,7 @@ export function initializeUIInteractions(player, api, ui) {
                     showNotification('Playlist added to folder');
                 } catch (error) {
                     console.error('Failed to add playlist to folder:', error);
-                    showNotification('Failed to add playlist to folder', 'error');
+                    showNotification('Failed to add playlist to folder');
                 }
             }
         });
@@ -530,9 +593,13 @@ export function initializeUIInteractions(player, api, ui) {
 
     // Search and Library tabs
     document.querySelectorAll('.search-tab').forEach((tab) => {
+        const htmlTab = /** @type {HTMLElement} */ (tab);
         tab.addEventListener('click', () => {
             const page = tab.closest('.page');
             if (!page) return;
+
+            // Track tab change
+            trackSearchTabChange(htmlTab.dataset.tab);
 
             page.querySelectorAll('.search-tab').forEach((t) => t.classList.remove('active'));
             page.querySelectorAll('.search-tab-content').forEach((c) => c.classList.remove('active'));
@@ -540,26 +607,27 @@ export function initializeUIInteractions(player, api, ui) {
             tab.classList.add('active');
 
             const prefix = page.id === 'page-library' ? 'library-tab-' : 'search-tab-';
-            const contentId = `${prefix}${tab.dataset.tab}`;
+            const contentId = `${prefix}${htmlTab.dataset.tab}`;
             document.getElementById(contentId)?.classList.add('active');
         });
     });
 
     // Settings tabs
     document.querySelectorAll('.settings-tab').forEach((tab) => {
+        const htmlTab = /** @type {HTMLElement} */ (tab);
         tab.addEventListener('click', () => {
             document.querySelectorAll('.settings-tab').forEach((t) => t.classList.remove('active'));
             document.querySelectorAll('.settings-tab-content').forEach((c) => c.classList.remove('active'));
 
             tab.classList.add('active');
 
-            const contentId = `settings-tab-${tab.dataset.tab}`;
+            const contentId = `settings-tab-${htmlTab.dataset.tab}`;
             document.getElementById(contentId)?.classList.add('active');
 
             // Save active tab
             import('./storage.js')
                 .then(({ settingsUiState }) => {
-                    settingsUiState.setActiveTab(tab.dataset.tab);
+                    settingsUiState.setActiveTab(htmlTab.dataset.tab);
                 })
                 .catch(console.error);
         });
@@ -577,6 +645,10 @@ export function initializeUIInteractions(player, api, ui) {
             document.body.appendChild(tooltipEl);
         }
 
+        /**
+         * Updates the tooltip element's position so it follows the cursor without going off-screen.
+         * @param {MouseEvent} e - The mouse event providing the current cursor coordinates.
+         */
         const updateTooltipPosition = (e) => {
             const x = e.clientX + 15;
             const y = e.clientY + 15;
@@ -612,7 +684,7 @@ export function initializeUIInteractions(player, api, ui) {
         document.body.addEventListener('mouseover', (e) => {
             const selector =
                 '.card-title, .card-subtitle, .track-item-details .title, .track-item-details .artist, .now-playing-bar .title, .now-playing-bar .artist, .now-playing-bar .album, .pinned-item-name';
-            const target = e.target.closest(selector);
+            const target = /** @type {Element} */ (e.target).closest(selector);
 
             if (target) {
                 // Remove native title if present to avoid double tooltip
@@ -651,7 +723,11 @@ export function initializeUIInteractions(player, api, ui) {
         }
 
         const contextMenu = document.getElementById('context-menu');
-        if (contextMenu && contextMenu.style.display === 'block' && !contextMenu.contains(e.target)) {
+        if (
+            contextMenu &&
+            contextMenu.style.display === 'block' &&
+            !contextMenu.contains(/** @type {Node} */ (e.target))
+        ) {
             contextMenu.style.display = 'none';
         }
     });

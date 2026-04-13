@@ -1,3 +1,10 @@
+// @ts-check
+/**
+ * Performs a fuzzy match between two strings by checking if one contains the other (case-insensitive, ignoring non-alphanumeric characters).
+ * @param {string} str1 - First string to compare
+ * @param {string} str2 - Second string to compare
+ * @returns {boolean} True if the strings fuzzy-match each other
+ */
 function isFuzzyMatch(str1, str2) {
     if (!str1 || !str2) return false;
     const s1 = str1.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
@@ -5,6 +12,14 @@ function isFuzzyMatch(str1, str2) {
     return s1.includes(s2) || s2.includes(s1);
 }
 
+/**
+ * Finds the best matching item from a list based on artist and album criteria.
+ * @param {Array} items - List of candidate items
+ * @param {string} targetArtist - Target artist name to match against
+ * @param {string} targetAlbum - Target album name to match against
+ * @param {{ strictArtistMatch?: boolean, strictAlbumMatch?: boolean }} importOptions - Options controlling matching strictness
+ * @returns {object|null} Best matching item, or null if none found
+ */
 function findBestMatch(items, targetArtist, targetAlbum, importOptions) {
     if (!items || items.length === 0) return null;
     if (!importOptions?.strictArtistMatch && !importOptions?.strictAlbumMatch) return items[0];
@@ -30,7 +45,9 @@ function findBestMatch(items, targetArtist, targetAlbum, importOptions) {
 }
 
 /**
- * Helper function to get track artists string
+ * Returns a comma-separated string of artist names for a track.
+ * @param {object} track - Track object with artists or artist properties
+ * @returns {string} Comma-separated artist names
  */
 function getTrackArtists(track) {
     if (track.artists && track.artists.length > 0) {
@@ -63,7 +80,7 @@ export function generateCSV(_playlist, tracks) {
 
 /**
  * Generates XSPF (XML Shareable Playlist Format) export
- * @param {Object} playlist - Playlist metadata
+ * @param {object} playlist - Playlist metadata
  * @param {Array} tracks - Array of track objects
  * @returns {string} XSPF XML content
  */
@@ -98,7 +115,7 @@ export function generateXSPF(playlist, tracks) {
 
 /**
  * Generates generic XML playlist export
- * @param {Object} playlist - Playlist metadata
+ * @param {object} playlist - Playlist metadata
  * @param {Array} tracks - Array of track objects
  * @returns {string} XML content
  */
@@ -132,7 +149,7 @@ export function generateXML(playlist, tracks) {
 /**
  * Parses CSV playlist format
  * @param {string} csvText - CSV content
- * @param {Function} api - API instance for searching tracks
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching tracks
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
@@ -147,6 +164,11 @@ const HEADER_MAPPINGS = {
     duration: ['duration', 'length', 'time'],
 };
 
+/**
+ * Normalizes a CSV header string by lowercasing and collapsing whitespace/underscores.
+ * @param {string} header - Raw header string to normalize
+ * @returns {string} Normalized header string
+ */
 function normalizeHeader(header) {
     if (!header) return '';
     return header
@@ -156,7 +178,13 @@ function normalizeHeader(header) {
         .replace(/[_\s]+/g, ' ');
 }
 
+/**
+ * Maps an array of raw CSV header strings to recognized field indices.
+ * @param {string[]} rawHeaders - Array of raw CSV header strings
+ * @returns {Object<string, number>} Map of field name to column index
+ */
 function mapHeaders(rawHeaders) {
+    /** @type {Record<string, number>} */
     const mapped = {};
     rawHeaders.forEach((header, index) => {
         const normalized = normalizeHeader(header);
@@ -170,6 +198,11 @@ function mapHeaders(rawHeaders) {
     return mapped;
 }
 
+/**
+ * Detects the CSV format type from mapped header fields.
+ * @param {Object<string, number>} mappedHeaders - Map of field name to column index
+ * @returns {{ format: string, hasMultipleTypes: boolean, supportsTracks: boolean, supportsAlbums: boolean, supportsArtists: boolean }} Format detection result
+ */
 function detectCSVFormat(mappedHeaders) {
     const hasType = mappedHeaders.type !== undefined;
     const hasTrack = mappedHeaders.track !== undefined;
@@ -205,6 +238,15 @@ function detectCSVFormat(mappedHeaders) {
     };
 }
 
+/**
+ * Parses a CSV file dynamically, detecting its format and searching for matching tracks, albums, and artists.
+ * @async
+ * @param {string} csvText - Raw CSV content
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching
+ * @param {Function} onProgress - Progress callback receiving `{ current, total, currentItem, type }`
+ * @param {{ strictArtistMatch?: boolean, strictAlbumMatch?: boolean }} [options] - Matching options
+ * @returns {Promise<{ format: string, tracks: Array, albums: Array, artists: Array, missingItems: Array, playlists: Object, stats: Object }>} Parsed results grouped by type
+ */
 export async function parseDynamicCSV(csvText, api, onProgress, options = {}) {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) {
@@ -215,6 +257,7 @@ export async function parseDynamicCSV(csvText, api, onProgress, options = {}) {
             artists: [],
             missingItems: [],
             playlists: {},
+            stats: {},
         };
     }
 
@@ -419,7 +462,7 @@ export async function parseDynamicCSV(csvText, api, onProgress, options = {}) {
  * @param {Object} db - Database instance
  * @param {Function} onProgress - Progress callback
  * @param {Object} options - Import options
- * @returns {Promise<Object} - Results summary
+ * @returns {Promise<Object>} - Results summary
  */
 export async function importToLibrary(csvResult, db, onProgress, options = {}) {
     const { favoriteTracks = true, favoriteAlbums = true, favoriteArtists = true } = options;
@@ -496,6 +539,15 @@ export async function importToLibrary(csvResult, db, onProgress, options = {}) {
     return results;
 }
 
+/**
+ * Parses a simple CSV playlist and searches for matching tracks.
+ * @async
+ * @param {string} csvText - CSV content with track/artist headers
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching tracks
+ * @param {Function} onProgress - Progress callback
+ * @param {{ strictArtistMatch?: boolean, strictAlbumMatch?: boolean }} [importOptions] - Options controlling match strictness
+ * @returns {Promise<{ tracks: Array, missingTracks: Array }>} Found and missing tracks
+ */
 export async function parseCSV(csvText, api, onProgress, importOptions = {}) {
     const lines = csvText.trim().split('\n');
     if (lines.length < 2) return { tracks: [], missingTracks: [] };
@@ -601,7 +653,7 @@ export async function parseCSV(csvText, api, onProgress, importOptions = {}) {
 /**
  * Parses JSPF (JSON Shareable Playlist Format)
  * @param {string} jspfText - JSPF JSON content
- * @param {Function} api - API instance for searching tracks
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching tracks
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
@@ -660,7 +712,7 @@ export async function parseJSPF(jspfText, api, onProgress) {
 /**
  * Parses XSPF (XML Shareable Playlist Format)
  * @param {string} xspfText - XSPF XML content
- * @param {Function} api - API instance for searching tracks
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching tracks
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
@@ -721,7 +773,7 @@ export async function parseXSPF(xspfText, api, onProgress) {
 /**
  * Parses generic XML playlist format
  * @param {string} xmlText - XML content
- * @param {Function} api - API instance for searching tracks
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching tracks
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */
@@ -739,6 +791,7 @@ export async function parseXML(xmlText, api, onProgress) {
     const xmlDoc = parser.parseFromString(xmlText, 'application/xml');
 
     // Try different track element names
+    /** @type {HTMLCollectionOf<Element>} */
     let trackElements = xmlDoc.getElementsByTagName('track');
     if (trackElements.length === 0) {
         trackElements = xmlDoc.getElementsByTagName('song');
@@ -799,7 +852,7 @@ export async function parseXML(xmlText, api, onProgress) {
 /**
  * Parses M3U/M3U8 playlist format
  * @param {string} m3uText - M3U content
- * @param {Function} api - API instance for searching tracks
+ * @param {import("./api.js").LosslessAPI|import("./music-api.js").MusicAPI} api - API instance for searching tracks
  * @param {Function} onProgress - Progress callback
  * @returns {Promise<{tracks: Array, missingTracks: Array}>}
  */

@@ -1,3 +1,4 @@
+// @ts-check
 import { debounce } from './utils.js';
 import { db } from './db.js';
 import Fuse from 'fuse.js';
@@ -92,16 +93,30 @@ const ICONS = {
     radio: SVG_RADIO,
 };
 
+/**
+ * Escapes HTML special characters in a string to prevent XSS.
+ * @param {string} str - The raw string to escape.
+ * @returns {string} The HTML-escaped string.
+ */
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
 
+/**
+ * Command palette UI controller that provides quick-access search for
+ * navigation commands, playback controls, settings, and music search.
+ */
 class CommandPalette {
+    /**
+     * Initialises the CommandPalette, wires up DOM references, builds the
+     * command list, creates the Fuse fuzzy-search index, and attaches event
+     * listeners.
+     */
     constructor() {
         this.overlay = document.getElementById('command-palette-overlay');
-        this.input = document.getElementById('command-palette-input');
+        this.input = /** @type {HTMLInputElement} */ (document.getElementById('command-palette-input'));
         this.resultsContainer = document.getElementById('command-palette-results');
         this.isOpen = false;
         this.selectedIndex = 0;
@@ -124,6 +139,12 @@ class CommandPalette {
         this.init();
     }
 
+    /**
+     * Builds and returns the static list of palette commands covering
+     * navigation, playback, queue, view, theme, audio, library, system, and
+     * account actions.
+     * @returns {Array<Object>} Array of command descriptor objects.
+     */
     buildCommands() {
         return [
             {
@@ -216,7 +237,7 @@ class CommandPalette {
                 keywords: ['play', 'pause', 'toggle', 'resume', 'stop'],
                 shortcut: 'Space',
                 action: () => {
-                    Player.instance.handlePlayPause();
+                    void Player.instance.handlePlayPause();
                 },
             },
             {
@@ -227,7 +248,7 @@ class CommandPalette {
                 keywords: ['next', 'skip', 'forward'],
                 shortcut: 'Shift+\u2192',
                 action: () => {
-                    Player.instance.playNext();
+                    void Player.instance.playNext();
                 },
             },
             {
@@ -307,7 +328,7 @@ class CommandPalette {
                 label: 'Like Current Track',
                 keywords: ['like', 'favorite', 'love', 'heart', 'save'],
                 action: () => {
-                    document.querySelector('.now-playing-bar .like-btn')?.click();
+                    /** @type {HTMLElement | null} */ (document.querySelector('.now-playing-bar .like-btn'))?.click();
                 },
             },
             {
@@ -317,7 +338,9 @@ class CommandPalette {
                 label: 'Download Current Track',
                 keywords: ['download', 'save', 'current'],
                 action: () => {
-                    document.querySelector('.now-playing-bar .download-btn')?.click();
+                    /** @type {HTMLElement | null} */ (
+                        document.querySelector('.now-playing-bar .download-btn')
+                    )?.click();
                 },
             },
 
@@ -339,7 +362,7 @@ class CommandPalette {
                 label: 'Clear Queue',
                 keywords: ['wipe', 'clear', 'empty', 'queue'],
                 action: async () => {
-                    Player.instance.wipeQueue();
+                    void Player.instance.wipeQueue();
                     await this.notify('Queue cleared');
                 },
             },
@@ -368,7 +391,7 @@ class CommandPalette {
                 keywords: ['lyrics', 'words', 'text', 'karaoke'],
                 shortcut: 'L',
                 action: () => {
-                    document.querySelector('.now-playing-bar .cover')?.click();
+                    /** @type {HTMLElement | null} */ (document.querySelector('.now-playing-bar .cover'))?.click();
                 },
             },
             {
@@ -378,7 +401,9 @@ class CommandPalette {
                 label: 'Open Fullscreen View',
                 keywords: ['fullscreen', 'expand', 'immersive', 'cover'],
                 action: () => {
-                    const cover = document.querySelector('.now-playing-bar .cover-art');
+                    const cover = /** @type {HTMLElement | null} */ (
+                        document.querySelector('.now-playing-bar .cover-art')
+                    );
                     if (cover) cover.click();
                 },
             },
@@ -663,7 +688,7 @@ class CommandPalette {
                 label: 'View Profile',
                 keywords: ['profile', 'account', 'user', 'me'],
                 action: () => {
-                    document.querySelector('.user-avatar-btn')?.click();
+                    /** @type {HTMLElement | null} */ (document.querySelector('.user-avatar-btn'))?.click();
                 },
             },
             {
@@ -701,6 +726,10 @@ class CommandPalette {
         ];
     }
 
+    /**
+     * Registers global keyboard listeners (Ctrl/Cmd+K), input event handlers,
+     * overlay click-to-close behaviour, and pre-caches all settings items.
+     */
     init() {
         document.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -719,11 +748,18 @@ class CommandPalette {
         this.cacheAllSettings();
     }
 
+    /**
+     * Toggles the command palette open or closed.
+     */
     toggle() {
         if (this.isOpen) this.close();
         else this.open();
     }
 
+    /**
+     * Opens the command palette, resets state, focuses the input, and shows
+     * the default command set.
+     */
     open() {
         this.isOpen = true;
         this.settingsMode = false;
@@ -734,6 +770,9 @@ class CommandPalette {
         this.showDefaultCommands();
     }
 
+    /**
+     * Closes the command palette and cancels any in-flight music search.
+     */
     close() {
         this.isOpen = false;
         this.settingsMode = false;
@@ -741,6 +780,10 @@ class CommandPalette {
         this.cancelMusicSearch();
     }
 
+    /**
+     * Switches the palette into settings-search mode, updating the placeholder
+     * and rendering filtered settings results.
+     */
     enterSettingsMode() {
         this.settingsMode = true;
         this.input.value = '';
@@ -750,6 +793,10 @@ class CommandPalette {
         this.renderSettingsResults('');
     }
 
+    /**
+     * Handles text input changes, routing to settings search, default commands,
+     * fuzzy command search, or debounced music search as appropriate.
+     */
     handleInput() {
         const query = this.input.value.trim();
         this.selectedIndex = 0;
@@ -769,6 +816,11 @@ class CommandPalette {
         this.debouncedMusicSearch(query);
     }
 
+    /**
+     * Handles keyboard navigation (ArrowUp/Down, Enter, Escape, Backspace)
+     * within the command palette input.
+     * @param {KeyboardEvent} e - The keyboard event fired on the input element.
+     */
     handleKeydown(e) {
         if (e.key === 'ArrowDown') {
             e.preventDefault();
@@ -797,6 +849,9 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Renders the priority subset of commands shown when the input is empty.
+     */
     showDefaultCommands() {
         const groups = this.groupBy(
             this.commands.filter((c) => {
@@ -821,6 +876,11 @@ class CommandPalette {
         this.renderGroups(groups);
     }
 
+    /**
+     * Performs a fuzzy search over the static command list and renders the
+     * matching results grouped by category.
+     * @param {string} query - The search query string.
+     */
     searchCommands(query) {
         const fuseResults = this.fuse.search(query).slice(0, 12);
         const matched = fuseResults.map((r) => r.item);
@@ -834,6 +894,12 @@ class CommandPalette {
         this.renderGroups(groups);
     }
 
+    /**
+     * Searches the music API for tracks, albums, and artists matching the
+     * query, then appends the results to the palette.
+     * @async
+     * @param {string} query - The search query string.
+     */
     async searchMusic(query) {
         if (!query || query.length < 2) return;
 
@@ -854,7 +920,7 @@ class CommandPalette {
 
             if (controller.signal.aborted || !this.isOpen) return;
 
-            const musicGroups = {};
+            const musicGroups = /** @type {Record<string, any[]>} */ ({});
 
             if (tracks?.items?.length) {
                 musicGroups['Tracks'] = tracks.items.map((track) => ({
@@ -865,7 +931,7 @@ class CommandPalette {
                     label: track.title,
                     description: `${track.artist?.name || 'Unknown'} \u2022 ${track.album?.title || ''}`,
                     action: async () => {
-                        Player.instance.setQueue([track], 0);
+                        void Player.instance.setQueue([track], 0);
                         await Player.instance.playTrackFromQueue();
                     },
                 }));
@@ -911,6 +977,10 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Aborts any in-flight music search request and clears the stored
+     * AbortController reference.
+     */
     cancelMusicSearch() {
         if (this.musicSearchAbort) {
             this.musicSearchAbort.abort();
@@ -918,6 +988,10 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Appends a loading spinner element to the results container while a music
+     * search is in progress.
+     */
     showMusicLoading() {
         this.removeMusicLoading();
         const loading = document.createElement('div');
@@ -927,10 +1001,20 @@ class CommandPalette {
         this.resultsContainer.appendChild(loading);
     }
 
+    /**
+     * Removes the music-search loading spinner element from the results
+     * container if present.
+     */
     removeMusicLoading() {
         this.resultsContainer.querySelector('[data-music-loading]')?.remove();
     }
 
+    /**
+     * Appends music search result groups (Tracks, Albums, Artists) to the
+     * existing command results in the palette.
+     * @param {Object.<string, Array<Object>>} musicGroups - Map of group name
+     *   to array of command-style item objects representing music results.
+     */
     appendMusicGroups(musicGroups) {
         this.removeMusicLoading();
         this.resultsContainer.querySelector('.cmdk-empty')?.remove();
@@ -959,8 +1043,15 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Groups an array of objects by a specified property key.
+     * @param {Array<Object>} items - The items to group.
+     * @param {string} key - The property name to group by.
+     * @returns {Object.<string, Array<Object>>} An object mapping each unique
+     *   key value to the array of items sharing that value.
+     */
     groupBy(items, key) {
-        const groups = {};
+        const groups = /** @type {Record<string, any[]>} */ ({});
         for (const item of items) {
             const group = item[key] || 'Other';
             if (!groups[group]) groups[group] = [];
@@ -969,6 +1060,12 @@ class CommandPalette {
         return groups;
     }
 
+    /**
+     * Clears the results container and renders the provided groups of command
+     * items, updating the flat item index for keyboard navigation.
+     * @param {Object.<string, Array<Object>>} groups - Map of group heading to
+     *   array of command item objects.
+     */
     renderGroups(groups) {
         this.resultsContainer.innerHTML = '';
         this.flatItems = [];
@@ -1008,12 +1105,20 @@ class CommandPalette {
         this.updateSelection();
     }
 
+    /**
+     * Creates and returns a DOM element representing a single palette item,
+     * with icon, label, optional description, optional keyboard shortcut, and
+     * click/hover event listeners.
+     * @param {object} item - The command or music item descriptor.
+     * @param {number} index - The flat list index used for selection tracking.
+     * @returns {HTMLElement} The constructed palette item element.
+     */
     createItemElement(item, index) {
         const el = document.createElement('div');
         el.className = 'cmdk-item';
         el.id = `cmdk-item-${index}`;
         el.setAttribute('role', 'option');
-        el.setAttribute('data-index', index);
+        el.setAttribute('data-index', String(index));
         el.setAttribute('aria-selected', index === this.selectedIndex ? 'true' : 'false');
         if (index === this.selectedIndex) el.setAttribute('data-selected', 'true');
 
@@ -1049,6 +1154,11 @@ class CommandPalette {
         return el;
     }
 
+    /**
+     * Synchronises the visual selected state of all palette items with the
+     * current {@link CommandPalette#selectedIndex}, scrolling the active item
+     * into view and updating ARIA attributes.
+     */
     updateSelection() {
         const items = this.resultsContainer.querySelectorAll('.cmdk-item');
         items.forEach((item) => {
@@ -1065,6 +1175,11 @@ class CommandPalette {
         this.input.setAttribute('aria-activedescendant', `cmdk-item-${this.selectedIndex}`);
     }
 
+    /**
+     * Executes the action of the currently selected palette item. Closes the
+     * palette afterwards unless the item has `keepOpen` set to `true`.
+     * @async
+     */
     async executeSelected() {
         const item = this.flatItems[this.selectedIndex];
         if (!item || !item.action) return;
@@ -1086,6 +1201,11 @@ class CommandPalette {
         this.close();
     }
 
+    /**
+     * Renders settings items filtered by the given query string using a
+     * dedicated Fuse index, or all settings when the query is empty.
+     * @param {string} query - The search query string.
+     */
     renderSettingsResults(query) {
         if (this.allSettings.length === 0) this.cacheAllSettings();
 
@@ -1107,6 +1227,11 @@ class CommandPalette {
         this.renderGroups(groups);
     }
 
+    /**
+     * Scans the settings page DOM for all `.setting-item` elements, extracts
+     * their label, description, and parent tab, stores them in
+     * {@link CommandPalette#allSettings}, and rebuilds the settings Fuse index.
+     */
     cacheAllSettings() {
         const settingItems = document.querySelectorAll('#page-settings .setting-item');
         this.allSettings = Array.from(settingItems)
@@ -1138,12 +1263,22 @@ class CommandPalette {
         });
     }
 
+    /**
+     * Navigates to the settings page, activates the appropriate tab, scrolls
+     * the target setting element into view, and briefly highlights it.
+     * @async
+     * @param {object} setting - The setting descriptor.
+     * @param {string} setting.id - DOM element ID of the setting item.
+     * @param {string} setting.tab - Settings tab identifier.
+     */
     async navigateToSetting(setting) {
         navigate('/settings');
 
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        const tabButton = document.querySelector(`.settings-tab[data-tab="${setting.tab}"]`);
+        const tabButton = /** @type {HTMLElement | null} */ (
+            document.querySelector(`.settings-tab[data-tab="${setting.tab}"]`)
+        );
         if (tabButton && !tabButton.classList.contains('active')) {
             tabButton.click();
         }
@@ -1163,17 +1298,28 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Applies the specified theme via the theme manager, updates the active
+     * state of theme option elements, and shows a notification.
+     * @async
+     * @param {string} theme - The theme identifier to apply.
+     */
     async setTheme(theme) {
         const { themeManager } = await import('./storage.js');
         themeManager.setTheme(theme);
         const themeOptions = document.querySelectorAll('.theme-option');
         themeOptions.forEach((opt) => {
-            if (opt.dataset.theme === theme) opt.classList.add('active');
+            if (/** @type {HTMLElement} */ (opt).dataset.theme === theme) opt.classList.add('active');
             else opt.classList.remove('active');
         });
         await this.notify(`Theme set to ${theme}`);
     }
 
+    /**
+     * Toggles the audio visualizer on or off via visualizer settings, closes
+     * the fullscreen cover if open, and shows a notification.
+     * @async
+     */
     async toggleVisualizer() {
         const { visualizerSettings } = await import('./storage.js');
         const current = visualizerSettings.isEnabled();
@@ -1186,6 +1332,12 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Sets the active visualizer preset, updating the live visualizer instance
+     * if one is running, and shows a notification.
+     * @async
+     * @param {string} preset - The visualizer preset identifier.
+     */
     async setVisualizerPreset(preset) {
         const { visualizerSettings } = await import('./storage.js');
         visualizerSettings.setPreset(preset);
@@ -1195,6 +1347,13 @@ class CommandPalette {
         await this.notify(`Visualizer preset: ${preset}`);
     }
 
+    /**
+     * Sets both streaming and download audio quality, persisting the values to
+     * localStorage and updating the relevant UI select elements.
+     * @async
+     * @param {string} quality - The quality level identifier (e.g. `'auto'`,
+     *   `'LOW'`, `'HIGH'`, `'LOSSLESS'`, `'HI_RES_LOSSLESS'`).
+     */
     async setQuality(quality) {
         const qualityNames = {
             auto: 'Auto',
@@ -1214,7 +1373,9 @@ class CommandPalette {
             localStorage.setItem('adaptive-playback-quality', quality);
             if (Player.instance.forceQuality) Player.instance.forceQuality(quality);
 
-            const streamingSelect = document.getElementById('streaming-quality-setting');
+            const streamingSelect = /** @type {HTMLInputElement | null} */ (
+                document.getElementById('streaming-quality-setting')
+            );
             if (streamingSelect) streamingSelect.value = quality;
         }
 
@@ -1222,12 +1383,20 @@ class CommandPalette {
         // Do not pass auto to download quality, resolve it to original fallback
         const dlQuality = quality === 'auto' ? 'HI_RES_LOSSLESS' : quality;
         downloadQualitySettings.setQuality(dlQuality);
-        const downloadSelect = document.getElementById('download-quality-setting');
+        const downloadSelect = /** @type {HTMLInputElement | null} */ (
+            document.getElementById('download-quality-setting')
+        );
         if (downloadSelect) downloadSelect.value = dlQuality;
 
         await this.notify(`Quality set to ${qualityNames[quality] || quality}`);
     }
 
+    /**
+     * Sets a sleep timer on the player for the specified number of minutes and
+     * shows a notification.
+     * @async
+     * @param {number} minutes - Duration in minutes after which playback stops.
+     */
     async setSleepTimer(minutes) {
         if (Player.instance) {
             Player.instance.setSleepTimer(minutes);
@@ -1235,6 +1404,11 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Iterates the current playback queue and likes any tracks that are not
+     * already favourited, then shows a summary notification.
+     * @async
+     */
     async likeAllInQueue() {
         const player = Player.instance;
         const ui = UIRenderer.instance;
@@ -1261,6 +1435,11 @@ class CommandPalette {
         await this.notify(`Liked ${likedCount} new track(s)`);
     }
 
+    /**
+     * Downloads all tracks currently in the playback queue at the user's
+     * configured download quality.
+     * @async
+     */
     async downloadQueue() {
         const player = Player.instance;
         const ui = UIRenderer.instance;
@@ -1277,6 +1456,11 @@ class CommandPalette {
         await downloadTracks(queue, ui.api, downloadQualitySettings.getQuality(), ui.lyricsManager);
     }
 
+    /**
+     * Creates a new playlist with a date-stamped default name, navigates to
+     * the library, and shows a notification.
+     * @async
+     */
     async createPlaylist() {
         const name = `New Playlist ${new Date().toLocaleDateString()}`;
         await db.createPlaylist(name);
@@ -1284,6 +1468,11 @@ class CommandPalette {
         await this.notify('Playlist created');
     }
 
+    /**
+     * Creates a new library folder with a date-stamped default name, navigates
+     * to the library, and shows a notification.
+     * @async
+     */
     async createFolder() {
         const name = `New Folder ${new Date().toLocaleDateString()}`;
         await db.createFolder(name);
@@ -1291,6 +1480,10 @@ class CommandPalette {
         await this.notify('Folder created');
     }
 
+    /**
+     * Clears the API cache and shows a notification on success.
+     * @async
+     */
     async clearCache() {
         const api = UIRenderer.instance.api;
         if (api) {
@@ -1299,6 +1492,11 @@ class CommandPalette {
         }
     }
 
+    /**
+     * Displays a temporary notification banner with the given message.
+     * @async
+     * @param {string} message - The message text to display.
+     */
     async notify(message) {
         await import('./downloads.js').then((m) => m.showNotification(message)).catch(console.error);
     }

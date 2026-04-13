@@ -1,4 +1,14 @@
+// @ts-check
+import { trackCloseSidePanel, trackCloseQueue, trackCloseLyrics } from './analytics.js';
+
+/**
+ * Manages the sliding side panel used to display the queue, lyrics, and other views.
+ * Handles open/close lifecycle, content rendering, drag-to-resize, and analytics tracking.
+ */
 export class SidePanelManager {
+    /**
+     * Creates a new SidePanelManager and binds the resizer if the element exists.
+     */
     constructor() {
         this.panel = document.getElementById('side-panel');
         this.titleElement = document.getElementById('side-panel-title');
@@ -24,6 +34,10 @@ export class SidePanelManager {
         );
     }
 
+    /**
+     * Initialises the drag-to-resize handle and restores any previously saved width.
+     * @returns {void}
+     */
     initResizer() {
         this.resizerElement.addEventListener('mousedown', this.startResize.bind(this));
 
@@ -34,6 +48,11 @@ export class SidePanelManager {
         }
     }
 
+    /**
+     * Begins a resize drag operation on mousedown.
+     * @param {MouseEvent} e - The mousedown event from the resizer handle
+     * @returns {void}
+     */
     startResize(e) {
         e.preventDefault();
         this.isResizing = true;
@@ -47,6 +66,11 @@ export class SidePanelManager {
         document.addEventListener('mouseup', this.stopResizeBind);
     }
 
+    /**
+     * Updates the panel width during a drag operation.
+     * @param {MouseEvent} e - The mousemove event carrying the current cursor position
+     * @returns {void}
+     */
     resize(e) {
         if (!this.isResizing) return;
         // The panel is on the right side. Screen width - mouse X = desired width.
@@ -60,6 +84,10 @@ export class SidePanelManager {
         this.panel.style.setProperty('--side-panel-width', `${newWidth}px`);
     }
 
+    /**
+     * Ends the resize drag, restores CSS transitions, and persists the new width.
+     * @returns {void}
+     */
     stopResize() {
         this.isResizing = false;
         this.panel.style.transition = ''; // Restore transitions
@@ -75,6 +103,16 @@ export class SidePanelManager {
         }
     }
 
+    /**
+     * Opens the side panel for the given view, rendering title, controls, and content.
+     * If the same view is already open and `forceOpen` is false, the panel is closed instead.
+     * @param {string} view - Identifier for the view to display (e.g. `'queue'` or `'lyrics'`)
+     * @param {string} title - Text shown in the panel's title bar
+     * @param {((el: HTMLElement) => void) | null} renderControlsCallback - Called with the controls container; may be null
+     * @param {((el: HTMLElement) => void) | null} renderContentCallback - Called with the content container; may be null
+     * @param {boolean} [forceOpen=false] - When true, always opens even if already on the same view
+     * @returns {void}
+     */
     open(view, title, renderControlsCallback, renderContentCallback, forceOpen = false) {
         // If clicking the same view that is already open, close it
         if (!forceOpen && this.currentView === view && this.panel.classList.contains('active')) {
@@ -98,12 +136,21 @@ export class SidePanelManager {
         this.emitChange();
     }
 
+    /**
+     * Closes the side panel, fires analytics events, and clears content after the CSS transition.
+     * @returns {void}
+     */
     close() {
         // Track side panel close
         if (this.currentView) {
             if (this.currentView === 'lyrics') {
                 // Get current track from audio player context
-                const audioPlayer = document.getElementById('audio-player');
+                const audioPlayer = /** @type {HTMLElement & { _currentTrack?: object }} */ (
+                    document.getElementById('audio-player')
+                );
+                if (audioPlayer && audioPlayer._currentTrack) {
+                    trackCloseLyrics(audioPlayer._currentTrack);
+                }
             }
         }
 
@@ -119,10 +166,25 @@ export class SidePanelManager {
         }, 300);
     }
 
+    /**
+     * Returns whether the given view is currently visible in the panel.
+     * @param {string} view - View identifier to check
+     * @returns {boolean} `true` if the panel is open and showing the requested view
+     */
     isActive(view) {
         return this.currentView === view && this.panel.classList.contains('active');
     }
 
+    /**
+     * Re-renders the controls and/or content of an active panel view in-place.
+     * Has no effect when the specified view is not currently shown.
+     * @async
+     * @param {string} view - View identifier; refresh only happens when this view is active
+     * @param {((el: HTMLElement) => void | Promise<void>) | null} renderControlsCallback - Callback to re-render controls; may be null
+     * @param {((el: HTMLElement) => void | Promise<void>) | null} renderContentCallback - Callback to re-render content; may be null
+     * @param {{ noClear?: boolean }} [options={}] - Pass `{ noClear: true }` to skip clearing existing content before re-rendering
+     * @returns {Promise<void>}
+     */
     async refresh(view, renderControlsCallback, renderContentCallback, options = {}) {
         if (this.isActive(view)) {
             if (renderControlsCallback) {
@@ -138,6 +200,14 @@ export class SidePanelManager {
         }
     }
 
+    /**
+     * Replaces the content area of an active panel view.
+     * Has no effect when the specified view is not currently shown.
+     * @async
+     * @param {string} view - View identifier; update only happens when this view is active
+     * @param {(el: HTMLElement) => void | Promise<void>} renderContentCallback - Callback that populates the cleared content container
+     * @returns {Promise<void>}
+     */
     async updateContent(view, renderContentCallback) {
         if (this.isActive(view)) {
             this.contentElement.innerHTML = '';

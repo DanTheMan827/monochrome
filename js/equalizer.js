@@ -1,3 +1,4 @@
+// @ts-check
 // js/equalizer.js
 // Parametric Equalizer with Web Audio API - Supports 3-32 bands
 
@@ -27,6 +28,13 @@ const DEFAULT_FREQUENCY_LABELS = [
 ];
 
 // Generate frequency array for given number of bands using logarithmic spacing
+/**
+ * Generates an array of logarithmically-spaced frequency values.
+ * @param {number} bandCount - Number of frequency bands to generate
+ * @param {number} [minFreq=20] - Minimum frequency in Hz
+ * @param {number} [maxFreq=20000] - Maximum frequency in Hz
+ * @returns {number[]} Array of rounded frequency values in Hz
+ */
 function generateFrequencies(bandCount, minFreq = 20, maxFreq = 20000) {
     const frequencies = [];
     const safeMin = Math.max(10, minFreq);
@@ -43,6 +51,12 @@ function generateFrequencies(bandCount, minFreq = 20, maxFreq = 20000) {
 }
 
 // Generate frequency labels for display
+/**
+ * Converts an array of frequency values to human-readable label strings.
+ * Values below 1 kHz are shown as integers; values ≥ 1 kHz are shown with a 'K' suffix.
+ * @param {number[]} frequencies - Array of frequency values in Hz
+ * @returns {string[]} Corresponding display labels (e.g. `'63'`, `'1K'`, `'2.5K'`)
+ */
 function generateFrequencyLabels(frequencies) {
     return frequencies.map((freq) => {
         if (freq < 1000) {
@@ -124,6 +138,12 @@ const EQ_PRESETS_16BAND = {
 };
 
 // Interpolate 16-band preset to target band count
+/**
+ * Linearly interpolates a 16-band preset gain array to a different band count.
+ * @param {number[]} preset16 - Array of 16 gain values (dB)
+ * @param {number} targetBands - Desired number of output bands
+ * @returns {number[]} Interpolated gain array of length `targetBands`
+ */
 function interpolatePreset(preset16, targetBands) {
     if (targetBands === 16) return [...preset16];
 
@@ -143,8 +163,13 @@ function interpolatePreset(preset16, targetBands) {
 }
 
 // Get presets for given band count
+/**
+ * Returns all EQ presets with gain arrays interpolated to the requested band count.
+ * @param {number} bandCount - Number of bands for the returned presets
+ * @returns {Object.<string, {name: string, gains: number[]}>} Map of preset key to preset object
+ */
 function getPresetsForBandCount(bandCount) {
-    const presets = {};
+    const presets = /** @type {Record<string, any>} */ ({});
     for (const [key, preset] of Object.entries(EQ_PRESETS_16BAND)) {
         presets[key] = {
             name: preset.name,
@@ -154,7 +179,16 @@ function getPresetsForBandCount(bandCount) {
     return presets;
 }
 
+/**
+ * Parametric equalizer built on top of the Web Audio API.
+ * Supports 3–32 peaking-filter bands, a preamp gain node, preset management,
+ * and import/export of settings in the standard text filter format.
+ */
 export class Equalizer {
+    /**
+     * Creates a new Equalizer instance and loads persisted settings from storage.
+     * The equalizer must be connected to an AudioContext via {@link Equalizer#init} before it processes audio.
+     */
     constructor() {
         this.audioContext = null;
         this.source = null;
@@ -183,11 +217,13 @@ export class Equalizer {
 
     /**
      * Update band count and reinitialize
+     * @param {number} count - New number of bands (clamped to MIN_BANDS–MAX_BANDS)
+     * @returns {void}
      */
     setBandCount(count) {
         const newCount = Math.max(
             equalizerSettings.MIN_BANDS,
-            Math.min(equalizerSettings.MAX_BANDS, parseInt(count, 10) || 16)
+            Math.min(equalizerSettings.MAX_BANDS, parseInt(String(count), 10) || 16)
         );
 
         if (newCount === this.bandCount) return;
@@ -223,10 +259,13 @@ export class Equalizer {
 
     /**
      * Update frequency range and reinitialize
+     * @param {number} minFreq - New minimum frequency in Hz (clamped to 10–96000)
+     * @param {number} maxFreq - New maximum frequency in Hz (clamped to 10–96000)
+     * @returns {boolean} `true` on success, `false` if the range is invalid (min ≥ max)
      */
     setFreqRange(minFreq, maxFreq) {
-        const newMin = Math.max(10, Math.min(96000, parseInt(minFreq, 10) || 20));
-        const newMax = Math.max(10, Math.min(96000, parseInt(maxFreq, 10) || 20000));
+        const newMin = Math.max(10, Math.min(96000, parseInt(String(minFreq), 10) || 20));
+        const newMax = Math.max(10, Math.min(96000, parseInt(String(maxFreq), 10) || 20000));
 
         if (newMin >= newMax) {
             console.warn('[Equalizer] Invalid frequency range: min must be less than max');
@@ -316,6 +355,8 @@ export class Equalizer {
     /**
      * Calculate Q factor for each band
      * Using constant-Q design for consistent bandwidth
+     * @param {number} _index - Band index (currently unused; reserved for per-band tuning)
+     * @returns {number} Computed Q factor for the band
      */
     _calculateQ(_index) {
         // For 16-band 1/2 octave spacing, Q ≈ 2.87
@@ -328,6 +369,7 @@ export class Equalizer {
 
     /**
      * Connect all filters in series
+     * @returns {void}
      */
     _connectFilters() {
         if (!this.filters.length) return;
@@ -348,6 +390,7 @@ export class Equalizer {
 
     /**
      * Enable the EQ processing
+     * @returns {void}
      */
     _enableFilters() {
         if (!this.isInitialized || !this.source) return;
@@ -359,6 +402,7 @@ export class Equalizer {
 
     /**
      * Disable the EQ (bypass)
+     * @returns {void}
      */
     _disableFilters() {
         this.isEnabled = false;
@@ -366,6 +410,7 @@ export class Equalizer {
 
     /**
      * Get the input node for external connection
+     * @returns {AudioNode | null} The preamp gain node, first filter, or null if not initialised
      */
     getInputNode() {
         return this.preampNode || this.filters[0] || null;
@@ -373,6 +418,7 @@ export class Equalizer {
 
     /**
      * Get the output node
+     * @returns {GainNode | null} The output gain node, or null if not initialised
      */
     getOutputNode() {
         return this.outputNode;
@@ -380,6 +426,7 @@ export class Equalizer {
 
     /**
      * Check if EQ is active (enabled and initialized)
+     * @returns {boolean} `true` when the equalizer is both initialised and enabled
      */
     isActive() {
         return this.isInitialized && this.isEnabled;
@@ -387,6 +434,8 @@ export class Equalizer {
 
     /**
      * Toggle EQ on/off
+     * @param {boolean} enabled - `true` to enable the equalizer, `false` to bypass it
+     * @returns {boolean} The new enabled state
      */
     toggle(enabled) {
         this.isEnabled = enabled;
@@ -410,6 +459,7 @@ export class Equalizer {
 
     /**
      * Get current gain range from settings
+     * @returns {{ min: number, max: number }} The allowed gain range in dB
      */
     getRange() {
         return equalizerSettings.getRange();
@@ -417,6 +467,8 @@ export class Equalizer {
 
     /**
      * Clamp gain to current range
+     * @param {number} gainDb - Gain value in dB to clamp
+     * @returns {number} Gain value clamped within the current min/max range
      */
     _clampGain(gainDb) {
         const range = this.getRange();
@@ -527,6 +579,8 @@ export class Equalizer {
 
     /**
      * Get available presets (static method for default 16 bands)
+     * @param {number} [bandCount=16] - Number of bands to interpolate presets for
+     * @returns {Object.<string, {name: string, gains: number[]}>} Map of preset key to preset object
      */
     static getPresets(bandCount = 16) {
         return getPresetsForBandCount(bandCount);
@@ -534,6 +588,7 @@ export class Equalizer {
 
     /**
      * Load settings from storage
+     * @returns {void}
      */
     _loadSettings() {
         this.isEnabled = equalizerSettings.isEnabled();
@@ -562,7 +617,7 @@ export class Equalizer {
      * @param {number} db - Preamp value in dB (-20 to +20)
      */
     setPreamp(db) {
-        const clampedDb = Math.max(-20, Math.min(20, parseFloat(db) || 0));
+        const clampedDb = Math.max(-20, Math.min(20, parseFloat(String(db)) || 0));
         this.preamp = clampedDb;
         equalizerSettings.setPreamp(clampedDb);
         this._updatePreampGain();
@@ -578,6 +633,7 @@ export class Equalizer {
 
     /**
      * Destroy the equalizer
+     * @returns {void}
      */
     destroy() {
         this.filters.forEach((filter) => {

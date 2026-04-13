@@ -1,3 +1,4 @@
+// @ts-check
 import {
     REPEAT_MODE,
     formatTime,
@@ -25,9 +26,25 @@ import { db } from './db.js';
 import { SVG_CLOCK, SVG_ATMOS } from './icons.js';
 import { UIRenderer } from './ui.js';
 
+/**
+ * @typedef {import('./api.js').LosslessAPI} LosslessAPI
+ * @typedef {import('./music-api.js').MusicAPI} MusicAPI
+ * @typedef {LosslessAPI | MusicAPI} AnyAPI
+ */
+
+/**
+ * Singleton audio/video player for the Monochrome app.
+ * Manages a playback queue, shuffle/repeat modes, ReplayGain, adaptive streaming via Shaka Player,
+ * HLS video, media session integration, radio mode, and sleep timer.
+ */
 export class Player {
     static #instance = null;
 
+    /**
+     * Returns the singleton Player instance.
+     * @type {Player}
+     * @throws {Error} If `Player.initialize()` has not been called yet.
+     */
     static get instance() {
         if (!Player.#instance) {
             throw new Error('Player is not initialized. Call Player.initialize(audioElement, api) first.');
@@ -35,10 +52,9 @@ export class Player {
         return Player.#instance;
     }
 
-    /** @private */
     constructor(audioElement, api, quality = 'HI_RES_LOSSLESS') {
         this.audio = audioElement;
-        this.video = document.getElementById('video-player');
+        this.video = /** @type {HTMLVideoElement | null} */ (document.getElementById('video-player'));
         this.api = api;
         this.quality = quality;
         this.queue = [];
@@ -60,7 +76,8 @@ export class Player {
         this.isIOS = isIos;
         this.isPwa =
             typeof window !== 'undefined' &&
-            (window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator?.standalone === true);
+            (window.matchMedia?.('(display-mode: standalone)')?.matches ||
+                /** @type {Navigator & { standalone?: boolean }} */ (window.navigator)?.standalone === true);
 
         this.hls = null;
         // Sleep timer properties
@@ -77,6 +94,16 @@ export class Player {
         };
     }
 
+    /**
+     * Creates and initializes the Player singleton.
+     * @async
+     * @static
+     * @param {HTMLAudioElement} audioElement - The primary `<audio>` element.
+     * @param {AnyAPI} api - The API client instance.
+     * @param {string} quality - Initial audio quality setting (e.g., `'HI_RES_LOSSLESS'`).
+     * @returns {Promise<Player>} The initialized Player singleton.
+     * @throws {Error} If a Player instance has already been initialized.
+     */
     static async initialize(audioElement, api, quality) {
         if (Player.#instance) {
             throw new Error('Player is already initialized');
@@ -88,6 +115,12 @@ export class Player {
         return player;
     }
 
+    /**
+     * Performs post-construction initialization: sets up Shaka Player, media session,
+     * radio state, queue restoration, and event listeners.
+     * @async
+     * @returns {Promise<void>}
+     */
     async init() {
         // Apply audio effects when track is ready
         this.audio.addEventListener('canplay', () => {
@@ -118,7 +151,10 @@ export class Player {
         await waitForImagesLoading();
 
         // Initialize Shaka player
-        const shaka = await import('shaka-player');
+        const shaka =
+            /** @type {{ polyfill: { installAll(): void }, Player: { new(el?: HTMLMediaElement | null): any, isBrowserSupported(): boolean } }} */ (
+                /** @type {unknown} */ (await import('shaka-player'))
+            );
         shaka.polyfill.installAll();
         if (shaka.Player.isBrowserSupported()) {
             this.shakaPlayer = new shaka.Player();
@@ -190,6 +226,10 @@ export class Player {
         this._setupVideoSync();
     }
 
+    /**
+     * Synchronizes video element time and events to the audio element during video track playback.
+     * Attaches listeners for `timeupdate`, `seeking`, `seeked`, and `volumechange` on the video element.
+     */
     _setupVideoSync() {
         if (!this.video || !this.audio) return;
 
@@ -199,8 +239,10 @@ export class Player {
                 if (this.currentTrack?.type === 'video') {
                     if (eventName === 'timeupdate' || eventName === 'seeking' || eventName === 'seeked') {
                         try {
-                            if (this.video.readyState >= 2 && (this.audio.readyState > 0 || this.audio.src)) {
-                                this.audio.currentTime = this.video.currentTime;
+                            const videoEl = /** @type {HTMLMediaElement} */ (this.video);
+                            const audioEl = /** @type {HTMLMediaElement} */ (this.audio);
+                            if (videoEl.readyState >= 2 && (audioEl.readyState > 0 || audioEl.src)) {
+                                audioEl.currentTime = videoEl.currentTime;
                             }
                         } catch {
                             // Video-to-audio time sync may fail if readyState is stale
@@ -214,12 +256,20 @@ export class Player {
         });
     }
 
+    /**
+     * Sets the user-controlled volume level, persists it to localStorage, and re-applies ReplayGain.
+     * @param {number} value - Volume level between `0.0` and `1.0`.
+     */
     setVolume(value) {
         this.userVolume = Math.max(0, Math.min(1, value));
-        localStorage.setItem('volume', this.userVolume);
+        localStorage.setItem('volume', String(this.userVolume));
         this.applyReplayGain();
     }
 
+    /**
+     * Calculates and applies the effective playback volume based on the current ReplayGain mode,
+     * track/album gain and peak values, pre-amp, exponential volume curve, and Web Audio context state.
+     */
     applyReplayGain() {
         const mode = replayGainSettings.getMode(); // 'off', 'track', 'album'
         let gainDb = 0;
@@ -273,6 +323,10 @@ export class Player {
         }
     }
 
+    /**
+     * Applies the current audio effects settings (playback speed and pitch preservation)
+     * to the active media element.
+     */
     applyAudioEffects() {
         const speed = audioEffectsSettings.getSpeed();
         const el = this.activeElement;
@@ -285,24 +339,39 @@ export class Player {
         if (el.preservesPitch !== preservePitch) {
             el.preservesPitch = preservePitch;
             // Firefox support
-            if (el.mozPreservesPitch !== undefined) {
-                el.mozPreservesPitch = preservePitch;
+            if (
+                /** @type {HTMLAudioElement & { mozPreservesPitch?: boolean }} */ (el).mozPreservesPitch !== undefined
+            ) {
+                /** @type {HTMLAudioElement & { mozPreservesPitch?: boolean }} */ (el).mozPreservesPitch =
+                    preservePitch;
             }
         }
     }
 
+    /**
+     * Sets the audio playback speed, persists the setting, and applies it immediately.
+     * @param {number|string} speed - Desired playback rate; clamped to the range `[0.01, 100]`.
+     */
     setPlaybackSpeed(speed) {
-        const parsed = parseFloat(speed);
+        const parsed = parseFloat(String(speed));
         const validSpeed = Math.max(0.01, Math.min(100, isNaN(parsed) ? 1.0 : parsed));
         audioEffectsSettings.setSpeed(validSpeed);
         this.applyAudioEffects();
     }
 
+    /**
+     * Enables or disables pitch preservation during speed-altered playback.
+     * @param {boolean} enabled - Whether to preserve pitch when playback speed is changed.
+     */
     setPreservePitch(enabled) {
         audioEffectsSettings.setPreservePitch(enabled);
         this.applyAudioEffects();
     }
 
+    /**
+     * Restores queue state from persistent storage and rebuilds the now-playing bar UI
+     * for the previously active track, if any.
+     */
     loadQueueState() {
         const savedState = queueManager.getQueue();
         if (savedState) {
@@ -324,9 +393,11 @@ export class Player {
                 const trackArtistsHTML = getTrackArtistsHTML(track);
                 const yearDisplay = getTrackYearDisplay(track);
 
-                const coverEl = document.querySelector('.now-playing-bar .cover');
+                const coverEl = /** @type {(HTMLElement & { src?: string }) | null} */ (
+                    document.querySelector('.now-playing-bar .cover')
+                );
                 const titleEl = document.querySelector('.now-playing-bar .title');
-                const albumEl = document.querySelector('.now-playing-bar .album');
+                const albumEl = /** @type {HTMLElement | null} */ (document.querySelector('.now-playing-bar .album'));
                 const artistEl = document.querySelector('.now-playing-bar .artist');
 
                 if (coverEl) {
@@ -407,6 +478,12 @@ export class Player {
         }
     }
 
+    /**
+     * Persists the current queue state (tracks, index, shuffle, repeat) to storage
+     * and triggers a queue re-render if a render function is registered.
+     * @async
+     * @returns {Promise<void>}
+     */
     async saveQueueState() {
         queueManager.saveQueue({
             queue: this.queue,
@@ -422,6 +499,13 @@ export class Player {
         }
     }
 
+    /**
+     * Registers Media Session API action handlers for play, pause, previous/next track,
+     * seek backward/forward, seek-to, and stop controls.
+     * On iOS, handlers are deferred until the first `playing` event to avoid lock-screen conflicts.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setupMediaSession() {
         if (!('mediaSession' in navigator)) return;
 
@@ -506,6 +590,10 @@ export class Player {
         }
     }
 
+    /**
+     * Updates the current audio quality preference used for stream requests.
+     * @param {string} quality - Audio quality identifier (e.g., `'HI_RES_LOSSLESS'`, `'LOSSLESS'`).
+     */
     setQuality(quality) {
         this.quality = quality;
     }
@@ -649,6 +737,15 @@ export class Player {
         }
     }
 
+    /**
+     * Loads and plays an HLS or plain video URL in the given `<video>` element.
+     * Uses hls.js when supported, falls back to native HLS, and handles non-HLS direct URLs.
+     * @async
+     * @param {HTMLVideoElement} video - The target video element.
+     * @param {string|Object} result - Stream URL string or an object with `videoUrl`/`hlsUrl` fields.
+     * @param {HTMLElement|null} fallbackImg - Element to replace the video with on fatal HLS errors.
+     * @returns {Promise<void>}
+     */
     async setupHlsVideo(video, result, fallbackImg) {
         const url = result.videoUrl || result.hlsUrl || result;
         const Hls = (await import('hls.js')).default;
@@ -698,6 +795,12 @@ export class Player {
         }
     }
 
+    /**
+     * Builds and attaches a quality-selector UI to the fullscreen overlay for HLS streams.
+     * Populates the menu with available quality levels and wires up click and level-switched handlers.
+     * @async
+     * @returns {Promise<void>}
+     */
     async setupVideoQualitySelector() {
         if (!this.hls || !this.hls.levels || this.hls.levels.length === 0) return;
         const Hls = (await import('hls.js')).default;
@@ -731,9 +834,10 @@ export class Player {
                 .join('');
 
             qualityMenu.querySelectorAll('.fs-quality-option').forEach((btn) => {
-                btn.onclick = (e) => {
+                const _btn = /** @type {HTMLElement} */ (btn);
+                _btn.onclick = (e) => {
                     e.stopPropagation();
-                    const level = parseInt(btn.dataset.level);
+                    const level = parseInt(_btn.dataset.level);
                     this.hls.currentLevel = level;
                     const labelSpan = qualityBtn.querySelector('.fs-quality-label');
                     if (labelSpan) labelSpan.textContent = level === -1 ? 'Auto' : qualityLabels[level + 1] || 'Auto';
@@ -768,6 +872,12 @@ export class Player {
         qualityMenu.onclick = (e) => e.stopPropagation();
     }
 
+    /**
+     * Enqueues a single video and immediately starts playback.
+     * @async
+     * @param {object} video - Video object from the API.
+     * @returns {Promise<void>}
+     */
     async playVideo(video) {
         if (!video) return;
         const videoTrack = {
@@ -780,6 +890,16 @@ export class Player {
         await this.playTrackFromQueue();
     }
 
+    /**
+     * Loads and plays the track at `currentQueueIndex`, handling all source types:
+     * Tidal streams (DASH via Shaka, HLS, direct), local files, tracker tracks, podcasts, and videos.
+     * Falls back from HI_RES_LOSSLESS to LOSSLESS on first failure, then skips to the next track.
+     * @async
+     * @param {number} [startTime=0] - Playback position in seconds to begin from.
+     * @param {number} [recursiveCount=0] - Internal counter tracking how many consecutive skip-on-error hops occurred.
+     * @param {boolean} [isRetry=false] - True when called as part of a quality fallback retry.
+     * @returns {Promise<void>}
+     */
     async playTrackFromQueue(startTime = 0, recursiveCount = 0, isRetry = false) {
         if (!isRetry) {
             this.isFallbackRetry = false;
@@ -842,7 +962,9 @@ export class Player {
         const yearDisplay = getTrackYearDisplay(track);
 
         const trackInfo = document.querySelector('.now-playing-bar .track-info');
-        const coverEl = trackInfo?.querySelector('.cover:not(#audio-player):not(#video-player)');
+        const coverEl = /** @type {(HTMLElement & { src?: string }) | null} */ (
+            trackInfo?.querySelector('.cover:not(#audio-player):not(#video-player)')
+        );
 
         const isVideoTrack = track.type === 'video';
         const activeElement = isVideoTrack ? this.video : this.audio;
@@ -928,7 +1050,7 @@ export class Player {
         }
         document.querySelector('.now-playing-bar .title').innerHTML =
             `${escapeHtml(trackTitle)} ${createQualityBadgeHTML(track)}`;
-        const albumEl = document.querySelector('.now-playing-bar .album');
+        const albumEl = /** @type {HTMLElement | null} */ (document.querySelector('.now-playing-bar .album'));
         if (albumEl) {
             const albumTitle = track.album?.title || '';
             if (albumTitle && albumTitle !== trackTitle) {
@@ -1059,7 +1181,7 @@ export class Player {
                         document.getElementById('fullscreen-cover-overlay')?.style.display === 'flex';
                     if (!isInFullscreen) {
                         const lyricsManager = UIRenderer.instance.lyricsManager;
-                        UIRenderer.instance.showFullscreenCover(
+                        void UIRenderer.instance.showFullscreenCover(
                             track,
                             this.getNextTrack(),
                             lyricsManager,
@@ -1221,6 +1343,12 @@ export class Player {
         }
     }
 
+    /**
+     * Jumps to a specific index in the active queue and starts playback from the beginning.
+     * @async
+     * @param {number} index - Zero-based queue index to play.
+     * @returns {Promise<void>}
+     */
     async playAtIndex(index) {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
         if (index >= 0 && index < currentQueue.length) {
@@ -1229,13 +1357,21 @@ export class Player {
         }
     }
 
+    /**
+     * Advances to the next track in the queue, respecting repeat mode, radio mode,
+     * artist popular-track pagination, and content blocking settings.
+     * Pauses playback when the queue is exhausted and no continuation strategy applies.
+     * @async
+     * @param {number} [recursiveCount=0] - Internal counter used to prevent infinite skip loops.
+     * @returns {Promise<void>}
+     */
     async playNext(recursiveCount = 0) {
         const currentQueue = this.getCurrentQueue();
         const isLastTrack = this.currentQueueIndex >= currentQueue.length - 1;
 
         if (recursiveCount > currentQueue.length) {
             if (this.radioEnabled && isLastTrack) {
-                this.fetchRadioRecommendations().then(async () => {
+                void this.fetchRadioRecommendations().then(async () => {
                     const updatedQueue = this.getCurrentQueue();
                     if (this.currentQueueIndex < updatedQueue.length - 1) {
                         await this.playNext(0);
@@ -1276,7 +1412,7 @@ export class Player {
                         return this.playNext(recursiveCount + 1);
                     }
                 } else if (this.radioEnabled) {
-                    this.fetchRadioRecommendations().then(async () => {
+                    void this.fetchRadioRecommendations().then(async () => {
                         const updatedQueue = this.getCurrentQueue();
                         if (this.currentQueueIndex < updatedQueue.length - 1) {
                             await this.playNext(0);
@@ -1308,6 +1444,14 @@ export class Player {
             .catch(console.error);
     }
 
+    /**
+     * Enables radio mode with optional seed tracks.
+     * Clears the queue, picks seeds from history/favorites if none are provided,
+     * sets an initial queue of up to 5 tracks, and starts prefetching recommendations.
+     * @async
+     * @param {Array<Object>} [seeds=[]] - Optional explicit seed track objects to use.
+     * @returns {Promise<void>}
+     */
     async enableRadio(seeds = []) {
         this.radioEnabled = true;
         radioSettings.setEnabled(true);
@@ -1337,6 +1481,10 @@ export class Player {
         window.dispatchEvent(new CustomEvent('radio-state-changed', { detail: { enabled: true } }));
     }
 
+    /**
+     * Disables radio mode and dispatches a `radio-state-changed` event.
+     * Does nothing if radio mode is already off.
+     */
     disableRadio() {
         if (!this.radioEnabled) return;
         this.radioEnabled = false;
@@ -1344,6 +1492,11 @@ export class Player {
         window.dispatchEvent(new CustomEvent('radio-state-changed', { detail: { enabled: false } }));
     }
 
+    /**
+     * Fetches track recommendations based on the current radio seeds and appends up to 5
+     * new tracks to the queue. Guards against concurrent fetches with a lock flag.
+     * @returns {Promise<void>}
+     */
     fetchRadioRecommendations() {
         if (this.isFetchingRadio) return this.radioFetchPromise || Promise.resolve();
         this.isFetchingRadio = true;
@@ -1404,6 +1557,12 @@ export class Player {
         return this.radioFetchPromise;
     }
 
+    /**
+     * Selects up to 50 shuffled seed tracks from playback history, favorites, and user playlists.
+     * Falls back to the current track if no seeds can be derived.
+     * @async
+     * @returns {Promise<Array<Object>>} Array of seed track objects.
+     */
     async pickRadioSeeds() {
         try {
             const [history, favorites, userPlaylists] = await Promise.all([
@@ -1453,6 +1612,10 @@ export class Player {
         }
     }
 
+    /**
+     * Shows or hides the radio loading indicator element in the UI.
+     * @param {boolean} show - If true, makes the indicator visible; otherwise hides it.
+     */
     showRadioLoading(show) {
         const loadingEl = document.getElementById('radio-loading-indicator');
         if (loadingEl) {
@@ -1460,6 +1623,11 @@ export class Player {
         }
     }
 
+    /**
+     * Goes to the previous track, or seeks to the start of the current track if more than
+     * 3 seconds have elapsed. Skips unavailable and content-blocked tracks recursively.
+     * @param {number} [recursiveCount=0] - Internal counter used to prevent infinite skip loops.
+     */
     playPrev(recursiveCount = 0) {
         const el = this.activeElement;
         if (el.currentTime > 3) {
@@ -1488,10 +1656,21 @@ export class Player {
         }
     }
 
+    /**
+     * Returns the currently active media element — the video element for video tracks,
+     * or the audio element for all other track types.
+     * @type {HTMLAudioElement|HTMLVideoElement}
+     */
     get activeElement() {
         return this.currentTrack?.type === 'video' ? this.video : this.audio;
     }
 
+    /**
+     * Toggles play/pause on the active element. Re-loads the track from scratch
+     * if there is no source or if a media error is present.
+     * @async
+     * @returns {Promise<void>}
+     */
     async handlePlayPause() {
         const el = this.activeElement;
         const hasSource = el.src || el.currentSrc || el.srcObject || this.shakaInitialized;
@@ -1517,6 +1696,11 @@ export class Player {
         }
     }
 
+    /**
+     * Seeks backward by the given number of seconds, clamped to the beginning of the track.
+     * Updates the Media Session position state afterward.
+     * @param {number} [seconds=10] - Number of seconds to seek backward.
+     */
     seekBackward(seconds = 10) {
         const el = this.activeElement;
         const newTime = Math.max(0, el.currentTime - seconds);
@@ -1524,6 +1708,11 @@ export class Player {
         this.updateMediaSessionPositionState();
     }
 
+    /**
+     * Seeks forward by the given number of seconds, clamped to the end of the track.
+     * Updates the Media Session position state afterward.
+     * @param {number} [seconds=10] - Number of seconds to seek forward.
+     */
     seekForward(seconds = 10) {
         const el = this.activeElement;
         const duration = el.duration || 0;
@@ -1532,6 +1721,13 @@ export class Player {
         this.updateMediaSessionPositionState();
     }
 
+    /**
+     * Toggles shuffle mode on or off.
+     * When enabling, Fisher-Yates shuffles all tracks except the current one and places it first.
+     * When disabling, restores the original queue order and finds the current track by ID.
+     * @async
+     * @returns {Promise<void>}
+     */
     async toggleShuffle() {
         this.shuffleActive = !this.shuffleActive;
 
@@ -1567,12 +1763,26 @@ export class Player {
         await this.saveQueueState();
     }
 
+    /**
+     * Cycles the repeat mode through OFF → ALL → ONE and persists the new state.
+     * @async
+     * @returns {Promise<number>} The new repeat mode value (see `REPEAT_MODE` constants).
+     */
     async toggleRepeat() {
         this.repeatMode = (this.repeatMode + 1) % 3;
         await this.saveQueueState();
         return this.repeatMode;
     }
 
+    /**
+     * Replaces the current queue with a new list of tracks and optionally disables radio mode.
+     * Resets shuffle and clears the preload cache.
+     * @async
+     * @param {Array<Object>} tracks - New track list to set as the queue.
+     * @param {number} [startIndex=0] - Queue index to set as current.
+     * @param {boolean} [isRadio=false] - If true, skips disabling radio mode.
+     * @returns {Promise<void>}
+     */
     async setQueue(tracks, startIndex = 0, isRadio = false) {
         if (!isRadio) {
             this.disableRadio();
@@ -1584,6 +1794,14 @@ export class Player {
         await this.saveQueueState();
     }
 
+    /**
+     * Stores context for paginated artist popular-track loading, enabling the player to
+     * automatically fetch more tracks when the queue is nearly exhausted.
+     * @param {string|number} artistId - The artist whose tracks are being paginated.
+     * @param {Array<Object>} initialTracks - Tracks already loaded for this artist.
+     * @param {number} [offset=15] - The current pagination offset for subsequent requests.
+     * @param {boolean} [hasMore=true] - Whether the API has more tracks beyond the current page.
+     */
     setArtistPopularTracksContext(artistId, initialTracks, offset = 15, hasMore = true) {
         this.artistPopularTracksState = {
             artistId,
@@ -1594,6 +1812,9 @@ export class Player {
         };
     }
 
+    /**
+     * Resets the artist popular-tracks pagination context, stopping automatic queue extension.
+     */
     clearArtistPopularTracksContext() {
         this.artistPopularTracksState = {
             artistId: null,
@@ -1604,6 +1825,12 @@ export class Player {
         };
     }
 
+    /**
+     * Fetches the next page of popular tracks for the artist in `artistPopularTracksState`
+     * and advances the pagination offset. Guards against concurrent fetches.
+     * @async
+     * @returns {Promise<Array<Object>>} Newly fetched track objects, or an empty array if none.
+     */
     async fetchMoreArtistPopularTracks() {
         const state = this.artistPopularTracksState;
         console.log('[fetchMoreArtistPopularTracks] Called:', {
@@ -1648,6 +1875,13 @@ export class Player {
         }
     }
 
+    /**
+     * Appends one or more tracks to the end of the queue.
+     * Starts playback automatically if the queue was previously empty.
+     * @async
+     * @param {Object|Array<Object>} trackOrTracks - A single track object or array of track objects.
+     * @returns {Promise<void>}
+     */
     async addToQueue(trackOrTracks) {
         const tracks = Array.isArray(trackOrTracks) ? trackOrTracks : [trackOrTracks];
         this.queue.push(...tracks);
@@ -1664,6 +1898,13 @@ export class Player {
         await this.saveQueueState();
     }
 
+    /**
+     * Inserts one or more tracks immediately after the currently playing track in the queue.
+     * Triggers preload of the next tracks since the upcoming track has changed.
+     * @async
+     * @param {Object|Array<Object>} trackOrTracks - A single track object or array of track objects.
+     * @returns {Promise<void>}
+     */
     async addNextToQueue(trackOrTracks) {
         const tracks = Array.isArray(trackOrTracks) ? trackOrTracks : [trackOrTracks];
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
@@ -1682,6 +1923,14 @@ export class Player {
         this.preloadNextTracks(); // Update preload since next track changed
     }
 
+    /**
+     * Removes a track at the given index from the active queue.
+     * Adjusts `currentQueueIndex` if a track before the current position is removed.
+     * Also removes the track from `originalQueueBeforeShuffle` when shuffle is active.
+     * @async
+     * @param {number} index - Zero-based index of the track to remove.
+     * @returns {Promise<void>}
+     */
     async removeFromQueue(index) {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
 
@@ -1710,6 +1959,12 @@ export class Player {
         this.preloadNextTracks();
     }
 
+    /**
+     * Clears all tracks from the queue except the currently playing track.
+     * If no track is playing, empties the queue entirely.
+     * @async
+     * @returns {Promise<void>}
+     */
     async clearQueue() {
         if (this.currentTrack) {
             this.queue = [this.currentTrack];
@@ -1733,6 +1988,12 @@ export class Player {
         await this.saveQueueState();
     }
 
+    /**
+     * Stops playback, clears all queue state (including the current track), and resets the UI.
+     * Unlike `clearQueue`, this completely wipes the player state including the current track.
+     * @async
+     * @returns {Promise<void>}
+     */
     async wipeQueue() {
         const el = this.activeElement;
         el.pause();
@@ -1744,13 +2005,21 @@ export class Player {
         this.currentQueueIndex = -1;
         await this.saveQueueState();
         if (UIRenderer.instance) {
-            UIRenderer.instance.setCurrentTrack(null);
+            void UIRenderer.instance.setCurrentTrack(null);
         }
         if (window.renderQueueFunction) {
             await window.renderQueueFunction();
         }
     }
 
+    /**
+     * Moves a track from one position to another within the active queue.
+     * Adjusts `currentQueueIndex` if the move crosses the currently playing position.
+     * @async
+     * @param {number} fromIndex - Zero-based source index of the track to move.
+     * @param {number} toIndex - Zero-based destination index for the track.
+     * @returns {Promise<void>}
+     */
     async moveInQueue(fromIndex, toIndex) {
         const currentQueue = this.shuffleActive ? this.shuffledQueue : this.queue;
 
@@ -1770,10 +2039,19 @@ export class Player {
         await this.saveQueueState();
     }
 
+    /**
+     * Returns the currently active queue array.
+     * Returns `shuffledQueue` when shuffle is active, otherwise `queue`.
+     * @returns {Array<Object>} The active queue.
+     */
     getCurrentQueue() {
         return this.shuffleActive ? this.shuffledQueue : this.queue;
     }
 
+    /**
+     * Returns the track that will play after the current one, accounting for repeat-all wrapping.
+     * @returns {Object|null} The next track object, or null if there is no next track.
+     */
     getNextTrack() {
         const currentQueue = this.getCurrentQueue();
         if (this.currentQueueIndex === -1 || currentQueue.length === 0) return null;
@@ -1787,6 +2065,13 @@ export class Player {
         return null;
     }
 
+    /**
+     * Fetches the album release date in the background for a track and updates the now-playing
+     * artist/year display when the result arrives, if the track is still the current one.
+     * @param {object} track - The track whose album date to fetch.
+     * @param {string} trackArtistsHTML - Pre-rendered HTML string for the artist line.
+     * @param {Element|null} artistEl - The DOM element to update with the year.
+     */
     loadAlbumYear(track, trackArtistsHTML, artistEl) {
         if (!trackDateSettings.useAlbumYear()) return;
 
@@ -1804,18 +2089,31 @@ export class Player {
             .catch(() => {});
     }
 
+    /**
+     * Marks the currently playing track item in all rendered track and queue lists with the
+     * `playing` CSS class, and removes it from all others.
+     */
     updatePlayingTrackIndicator() {
         const currentTrack = this.getCurrentQueue()[this.currentQueueIndex];
         document.querySelectorAll('.track-item').forEach((item) => {
-            item.classList.toggle('playing', currentTrack && item.dataset.trackId == currentTrack.id);
+            item.classList.toggle(
+                'playing',
+                currentTrack && /** @type {HTMLElement} */ (item).dataset.trackId == currentTrack.id
+            );
         });
 
         document.querySelectorAll('.queue-track-item').forEach((item) => {
-            const index = parseInt(item.dataset.queueIndex);
+            const index = parseInt(/** @type {HTMLElement} */ (item).dataset.queueIndex);
             item.classList.toggle('playing', index === this.currentQueueIndex);
         });
     }
 
+    /**
+     * Updates the adaptive-stream quality badge in the now-playing bar.
+     * For Shaka streams, shows codec/bitrate info derived from the active variant track.
+     * For HLS streams on iOS/Safari, shows a quality label based on the current quality setting.
+     * Hides the badge when neither applies.
+     */
     updateAdaptiveQualityBadge() {
         if (!this.currentTrack) return;
 
@@ -1823,7 +2121,7 @@ export class Player {
             const titleEl = document.querySelector('.now-playing-bar .title');
             if (!titleEl) return;
 
-            let badgeEl = titleEl.querySelector('.shaka-quality-badge');
+            let badgeEl = /** @type {HTMLElement | null} */ (titleEl.querySelector('.shaka-quality-badge'));
 
             // Determine if the track is inherently an Atmos track based on metadata
             const trackBaseQuality = deriveTrackQuality(this.currentTrack);
@@ -1840,7 +2138,7 @@ export class Player {
                         badgeEl.title = 'Adaptive Stream Quality';
                         titleEl.appendChild(badgeEl);
                         const staticBadge = titleEl.querySelector('.quality-badge:not(.shaka-quality-badge)');
-                        if (staticBadge) staticBadge.style.display = 'none';
+                        if (staticBadge) /** @type {HTMLElement} */ (staticBadge).style.display = 'none';
                     }
 
                     let text = '';
@@ -1888,7 +2186,7 @@ export class Player {
                             void audioContextManager.toggleBinaural(true);
                             // Update toggle in settings UI if visible
                             const toggle = document.getElementById('binaural-dsp-toggle');
-                            if (toggle) toggle.checked = true;
+                            if (toggle) /** @type {HTMLInputElement} */ (toggle).checked = true;
                             const container = document.getElementById('binaural-dsp-container');
                             if (container) container.style.display = 'block';
                         }
@@ -1923,7 +2221,7 @@ export class Player {
                     badgeEl.title = 'HLS Stream Quality';
                     titleEl.appendChild(badgeEl);
                     const staticBadge = titleEl.querySelector('.quality-badge:not(.shaka-quality-badge)');
-                    if (staticBadge) staticBadge.style.display = 'none';
+                    if (staticBadge) /** @type {HTMLElement} */ (staticBadge).style.display = 'none';
                 }
 
                 let text = '';
@@ -1974,6 +2272,11 @@ export class Player {
         }
     }
 
+    /**
+     * Evaluates whether the Shaka Player ABR should cross AdaptationSet codec boundaries
+     * (e.g., upgrade from AAC to FLAC) based on estimated network bandwidth.
+     * Called on a periodic interval; fails silently on errors.
+     */
     evaluateCrossCodecAbr() {
         if (!this.shakaInitialized || !this.shakaPlayer || this.shakaPlayer.isBuffering() || this.activeElement.paused)
             return;
@@ -2017,6 +2320,11 @@ export class Player {
         }
     }
 
+    /**
+     * Forces the Shaka Player to a specific quality level, disabling ABR for non-auto selections.
+     * Selects the most appropriate variant track for the given quality string.
+     * @param {string} quality - Quality identifier: `'auto'`, `'LOW'`, `'HIGH'`, `'LOSSLESS'`, or `'HI_RES_LOSSLESS'`.
+     */
     forceQuality(quality) {
         if (!this.shakaInitialized || !this.shakaPlayer) return;
 
@@ -2090,6 +2398,11 @@ export class Player {
         }
     }
 
+    /**
+     * Updates the Media Session metadata (title, artist, album, artwork) for the given track.
+     * Also refreshes playback state and position state.
+     * @param {object} track - The track object whose metadata to display in the system media controls.
+     */
     updateMediaSession(track) {
         if (!('mediaSession' in navigator)) return;
 
@@ -2118,6 +2431,10 @@ export class Player {
         this.updateMediaSessionPositionState();
     }
 
+    /**
+     * Syncs the Media Session `playbackState` property (`'playing'` or `'paused'`) with
+     * the current state of the active media element.
+     */
     updateMediaSessionPlaybackState() {
         if (!('mediaSession' in navigator)) return;
         const isPlaying = !this.activeElement.paused;
@@ -2157,6 +2474,10 @@ export class Player {
         })();
     }
 
+    /**
+     * Updates the Media Session position state (duration, playback rate, current position).
+     * Silently skips when duration is not available or infinite.
+     */
     updateMediaSessionPositionState() {
         if (!('mediaSession' in navigator)) return;
         if (!('setPositionState' in navigator.mediaSession)) return;
@@ -2179,6 +2500,14 @@ export class Player {
         }
     }
 
+    /**
+     * Calls `element.play()` and suppresses autoplay-blocked errors gracefully.
+     * Sets `autoplayBlocked` to true when the browser prevents autoplay.
+     * @async
+     * @param {HTMLMediaElement} [element=this.activeElement] - The media element to play.
+     * @returns {Promise<boolean>} `true` if playback started successfully, `false` if blocked.
+     * @throws {Error} Re-throws errors other than `NotAllowedError` and `AbortError`.
+     */
     async safePlay(element = this.activeElement) {
         try {
             await element.play();
@@ -2193,6 +2522,15 @@ export class Player {
         }
     }
 
+    /**
+     * Waits for a media element to reach `readyState >= 2` (HAVE_CURRENT_DATA) or until
+     * a timeout elapses. Resolves `false` when the tab is hidden (iOS PWA background).
+     * @async
+     * @param {HTMLMediaElement} [element=this.activeElement] - The media element to monitor.
+     * @param {number} [timeoutMs=10000] - Maximum milliseconds to wait before timing out.
+     * @returns {Promise<boolean>} `true` if the element is ready to play, `false` if timed out while hidden.
+     * @throws {Error} If a media error occurs, or if the timeout expires while the tab is visible.
+     */
     async waitForCanPlayOrTimeout(element = this.activeElement, timeoutMs = 10000) {
         if (element.readyState >= 2) {
             return true;
@@ -2227,6 +2565,11 @@ export class Player {
     }
 
     // Sleep Timer Methods
+    /**
+     * Starts a sleep timer that pauses playback after the specified number of minutes.
+     * Replaces any previously active timer and starts a UI update interval.
+     * @param {number} minutes - Duration in minutes before playback is paused.
+     */
     setSleepTimer(minutes) {
         this.clearSleepTimer(); // Clear any existing timer
 
@@ -2249,6 +2592,9 @@ export class Player {
         this.updateSleepTimerUI();
     }
 
+    /**
+     * Cancels the active sleep timer and its UI update interval, then refreshes the timer UI.
+     */
     clearSleepTimer() {
         if (this.sleepTimer) {
             clearTimeout(this.sleepTimer);
@@ -2262,16 +2608,28 @@ export class Player {
         this.updateSleepTimerUI();
     }
 
+    /**
+     * Returns the number of whole seconds remaining on the sleep timer.
+     * @returns {number|null} Seconds remaining, or null if no timer is active.
+     */
     getSleepTimerRemaining() {
         if (!this.sleepTimerEndTime) return null;
         const remaining = Math.max(0, this.sleepTimerEndTime - Date.now());
         return Math.ceil(remaining / 1000); // Return seconds remaining
     }
 
+    /**
+     * Returns whether a sleep timer is currently running.
+     * @returns {boolean} `true` if a sleep timer is active.
+     */
     isSleepTimerActive() {
         return this.sleepTimer !== null;
     }
 
+    /**
+     * Refreshes the sleep timer button(s) in the UI to show the remaining countdown
+     * or the default clock icon when no timer is active.
+     */
     updateSleepTimerUI() {
         const timerBtn = document.getElementById('sleep-timer-btn');
         const timerBtnDesktop = document.getElementById('sleep-timer-btn-desktop');

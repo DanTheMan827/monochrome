@@ -1,3 +1,4 @@
+// @ts-check
 //js/events.js
 import {
     REPEAT_MODE,
@@ -42,9 +43,14 @@ let isLongPress = false;
 let longPressTrackItem = null;
 const LONG_PRESS_DURATION = 500;
 
+/**
+ * Handles the touchstart event on track items to detect a long press for entering multi-select mode.
+ * Starts a timer; if the finger is held for {@link LONG_PRESS_DURATION} ms the track is selected.
+ * @param {TouchEvent} e - The touchstart event.
+ */
 function handleTrackTouchStart(e) {
     if (!('ontouchstart' in window)) return;
-    const trackItem = e.target.closest('.track-item');
+    const trackItem = /** @type {HTMLElement} */ (e.target).closest('.track-item');
     if (!trackItem || trackItem.classList.contains('unavailable')) return;
 
     isLongPress = false;
@@ -52,11 +58,15 @@ function handleTrackTouchStart(e) {
 
     longPressTimer = setTimeout(async () => {
         isLongPress = true;
-        toggleTrackSelection(trackItem, true, false);
+        toggleTrackSelection(/** @type {HTMLElement} */ (trackItem), true, false);
         await hapticLongPress();
     }, LONG_PRESS_DURATION);
 }
 
+/**
+ * Handles the touchmove event to cancel a pending long press timer if the finger moves.
+ * @param {TouchEvent} _e - The touchmove event (unused).
+ */
 function handleTrackTouchMove(_e) {
     if (longPressTimer) {
         clearTimeout(longPressTimer);
@@ -64,6 +74,10 @@ function handleTrackTouchMove(_e) {
     }
 }
 
+/**
+ * Handles the touchend event to clean up the long press timer and reset long press state.
+ * @param {TouchEvent} _e - The touchend event (unused).
+ */
 function handleTrackTouchEnd(_e) {
     if (longPressTimer) {
         clearTimeout(longPressTimer);
@@ -75,10 +89,16 @@ function handleTrackTouchEnd(_e) {
     }, 100);
 }
 
+/**
+ * Determines whether the given event should trigger a multi-select toggle (individual item toggle).
+ * Uses the configured keyboard shortcut if available, otherwise falls back to Ctrl/Meta key.
+ * @param {MouseEvent|KeyboardEvent} e - The user interaction event.
+ * @returns {boolean} True if the event matches the multi-select toggle shortcut.
+ */
 function isMultiSelectToggle(e) {
     const shortcut = keyboardShortcuts.getShortcutForAction('multiSelectToggle');
     if (!shortcut) return e.ctrlKey || e.metaKey;
-    const key = e.key?.toLowerCase();
+    const key = /** @type {KeyboardEvent} */ (e).key?.toLowerCase();
     const shortcutKey = shortcut.key?.toLowerCase();
 
     if (['control', 'shift', 'alt', 'meta'].includes(shortcutKey)) {
@@ -96,10 +116,16 @@ function isMultiSelectToggle(e) {
     );
 }
 
+/**
+ * Determines whether the given event should trigger a multi-select range selection.
+ * Uses the configured keyboard shortcut if available, otherwise falls back to Shift key.
+ * @param {MouseEvent|KeyboardEvent} e - The user interaction event.
+ * @returns {boolean} True if the event matches the multi-select range shortcut.
+ */
 function isMultiSelectRange(e) {
     const shortcut = keyboardShortcuts.getShortcutForAction('multiSelectRange');
     if (!shortcut) return e.shiftKey;
-    const key = e.key?.toLowerCase();
+    const key = /** @type {KeyboardEvent} */ (e).key?.toLowerCase();
     const shortcutKey = shortcut.key?.toLowerCase();
 
     if (['control', 'shift', 'alt', 'meta'].includes(shortcutKey)) {
@@ -117,10 +143,19 @@ function isMultiSelectRange(e) {
     );
 }
 
+/**
+ * Returns an array of the currently selected track IDs.
+ * @returns {string[]} Array of selected track ID strings.
+ */
 function getSelectedTracks() {
     return Array.from(trackSelection.selectedIds);
 }
 
+/**
+ * Updates the visual state of a track selection checkbox element.
+ * @param {Element|null} checkbox - The checkbox element to update.
+ * @param {boolean} checked - Whether the checkbox should appear checked.
+ */
 function updateCheckbox(checkbox, checked) {
     if (checkbox) {
         checkbox.innerHTML = checked ? SVG_CHECKBOX_CHECKED(18) : SVG_CHECKBOX(18);
@@ -128,6 +163,13 @@ function updateCheckbox(checkbox, checked) {
     }
 }
 
+/**
+ * Toggles or sets the selection state of a track item, updating the global selection set and DOM classes.
+ * Supports individual toggle (ctrl), range selection (shift), and plain single-click selection.
+ * @param {HTMLElement} trackItem - The `.track-item` element being interacted with.
+ * @param {boolean} ctrlHeld - Whether the Ctrl/Meta modifier is active (toggles the individual item).
+ * @param {boolean} shiftHeld - Whether the Shift modifier is active (selects a contiguous range).
+ */
 function toggleTrackSelection(trackItem, ctrlHeld, shiftHeld) {
     const trackId = trackItem.dataset.trackId;
     const isSelected = trackSelection.selectedIds.has(trackId);
@@ -146,15 +188,19 @@ function toggleTrackSelection(trackItem, ctrlHeld, shiftHeld) {
     } else if (shiftHeld && trackSelection.lastClickedId && trackSelection.lastClickedId !== trackId) {
         const parentList = trackItem.closest('.track-list') || trackItem.closest('#main-content');
         const allTrackElements = Array.from(parentList.querySelectorAll('.track-item'));
-        const lastIndex = allTrackElements.findIndex((el) => el.dataset.trackId === trackSelection.lastClickedId);
-        const currentIndex = allTrackElements.findIndex((el) => el.dataset.trackId === trackId);
+        const lastIndex = allTrackElements.findIndex(
+            (el) => /** @type {HTMLElement} */ (el).dataset.trackId === trackSelection.lastClickedId
+        );
+        const currentIndex = allTrackElements.findIndex(
+            (el) => /** @type {HTMLElement} */ (el).dataset.trackId === trackId
+        );
 
         if (lastIndex !== -1 && currentIndex !== -1) {
             const start = Math.min(lastIndex, currentIndex);
             const end = Math.max(lastIndex, currentIndex);
             for (let i = start; i <= end; i++) {
                 const el = allTrackElements[i];
-                trackSelection.selectedIds.add(el.dataset.trackId);
+                trackSelection.selectedIds.add(/** @type {HTMLElement} */ (el).dataset.trackId);
                 el.classList.add('selected');
                 updateCheckbox(el.querySelector('.track-checkbox'), true);
             }
@@ -176,6 +222,13 @@ function toggleTrackSelection(trackItem, ctrlHeld, shiftHeld) {
     document.body.classList.toggle('multi-select-mode', trackSelection.isSelecting);
 }
 
+/**
+ * Displays a modal dialog for adding multiple selected tracks to a playlist.
+ * The user can pick an existing playlist or create a new one.
+ * @async
+ * @param {Object[]} tracks - Array of track objects to add to the chosen playlist.
+ * @returns {Promise<void>}
+ */
 async function showMultiSelectPlaylistModal(tracks) {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -228,7 +281,7 @@ async function showMultiSelectPlaylistModal(tracks) {
 
         listEl.querySelectorAll('.playlist-item').forEach((item) => {
             item.addEventListener('click', async () => {
-                const playlistId = item.dataset.playlistId;
+                const playlistId = /** @type {HTMLElement} */ (item).dataset.playlistId;
                 for (const track of tracks) {
                     await db.addTrackToPlaylist(playlistId, track);
                 }
@@ -262,6 +315,10 @@ const _volumeBar = document.getElementById('volume-bar');
 const volumeFill = document.getElementById('volume-fill');
 const volumeBtn = document.getElementById('volume-btn');
 
+/**
+ * Updates the volume button icon and the volume fill bar to reflect
+ * the current volume level and mute state of the active media element.
+ */
 const updateVolumeUI = () => {
     const activeEl = Player.instance.activeElement;
     const { muted } = activeEl;
@@ -272,6 +329,10 @@ const updateVolumeUI = () => {
     volumeFill.style.width = `${effectiveVolume}%`;
 };
 
+/**
+ * Clears all currently selected tracks, removes selection CSS classes from all track items,
+ * resets checkbox icons, and exits multi-select mode.
+ */
 function clearSelection() {
     trackSelection.selectedIds.clear();
     trackSelection.lastClickedId = null;
@@ -287,6 +348,10 @@ function clearSelection() {
     updateSelectionBar();
 }
 
+/**
+ * Creates the floating selection action bar on first call and updates it to reflect
+ * the current number of selected tracks. Hides the bar when no tracks are selected.
+ */
 function updateSelectionBar() {
     let bar = document.getElementById('selection-bar');
     if (!bar) {
@@ -316,6 +381,14 @@ function updateSelectionBar() {
     bar.classList.toggle('visible', count > 0);
 }
 
+/**
+ * Handles a bulk action triggered from the selection bar for all currently selected tracks.
+ * @async
+ * @param {string} action - The action identifier. Supported values:
+ *   `'play-selected'`, `'add-to-queue-selected'`, `'add-to-playlist-selected'`,
+ *   `'download-selected'`, `'like-selected'`, `'clear-selection'`.
+ * @returns {Promise<void>}
+ */
 async function handleSelectionAction(action) {
     const selectedIds = getSelectedTracks();
     if (selectedIds.length === 0) return;
@@ -323,7 +396,7 @@ async function handleSelectionAction(action) {
     const mainContent = document.getElementById('main-content');
     const selectedTracks = [];
     mainContent.querySelectorAll('.track-item').forEach((item) => {
-        if (trackSelection.selectedIds.has(item.dataset.trackId)) {
+        if (trackSelection.selectedIds.has(/** @type {HTMLElement} */ (item).dataset.trackId)) {
             const track = trackDataStore.get(item);
             if (track) selectedTracks.push(track);
         }
@@ -332,14 +405,14 @@ async function handleSelectionAction(action) {
     switch (action) {
         case 'play-selected':
             if (selectedTracks.length > 0) {
-                Player.instance.setQueue(selectedTracks, 0);
+                void Player.instance.setQueue(selectedTracks, 0);
                 document.getElementById('shuffle-btn').classList.remove('active');
-                Player.instance.playTrackFromQueue();
+                void Player.instance.playTrackFromQueue();
             }
             break;
         case 'add-to-queue-selected':
             if (selectedTracks.length > 0) {
-                Player.instance.addToQueue(selectedTracks);
+                void Player.instance.addToQueue(selectedTracks);
                 if (window.renderQueueFunction) await window.renderQueueFunction();
                 showNotification(`Added ${selectedTracks.length} tracks to queue`);
             }
@@ -375,6 +448,15 @@ async function handleSelectionAction(action) {
     }
 }
 
+/**
+ * Initializes all player-related DOM event listeners including playback controls,
+ * media element events (play, pause, timeupdate, error, etc.), sleep timer,
+ * volume toggle, and waveform display updates.
+ * @param {Object} player - The main Player instance.
+ * @param {HTMLAudioElement} audioPlayer - The primary audio element.
+ * @param {Object} scrobbler - The scrobbling service instance (Last.fm / ListenBrainz).
+ * @param {Object} ui - The UI controller instance used to re-render views after history updates.
+ */
 export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     if (homeStartRadioBtn) {
         homeStartRadioBtn.addEventListener('click', async () => {
@@ -387,6 +469,11 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     // History tracking
     let historyLoggedTrackId = null;
 
+    /**
+     * Attaches all necessary media event listeners (play, pause, timeupdate, error, etc.)
+     * to a given audio or video element.
+     * @param {HTMLMediaElement} element - The media element to attach listeners to.
+     */
     const setupMediaListeners = (element) => {
         element.addEventListener('loadstart', () => {
             if (player.activeElement === element) {
@@ -583,6 +670,12 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     }
 
     // Waveform Masking Logic
+    /**
+     * Fetches waveform data for the current track and renders it as a CSS mask on the progress bar.
+     * Clears any existing waveform mask if waveforms are disabled or the track is a tracker track.
+     * @async
+     * @returns {Promise<void>}
+     */
     const updateWaveform = async () => {
         const progressBar = document.getElementById('progress-bar');
         const playerControls = document.querySelector('.player-controls');
@@ -708,6 +801,11 @@ export function initializePlayerEvents(player, audioPlayer, scrobbler, ui) {
     initializeSmoothSliders(player);
 }
 
+/**
+ * Attaches smooth drag-and-click interaction handlers to the progress bar and volume bar.
+ * Supports both mouse and touch events for seeking and volume adjustment.
+ * @param {Object} player - The main Player instance.
+ */
 function initializeSmoothSliders(player) {
     const progressBar = document.getElementById('progress-bar');
     const progressFill = document.getElementById('progress-fill');
@@ -721,12 +819,22 @@ function initializeSmoothSliders(player) {
     let isAdjustingVolume = false;
     let lastSeekPosition = 0;
 
+    /**
+     * Calculates the relative position within a bar element from a mouse event and invokes a setter.
+     * @param {HTMLElement} bar - The bar element (progress or volume).
+     * @param {MouseEvent} event - The mouse event providing clientX.
+     * @param {function(number): void} setter - Callback invoked with the clamped [0, 1] position.
+     */
     const seek = (bar, event, setter) => {
         const rect = bar.getBoundingClientRect();
         const position = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
         setter(position);
     };
 
+    /**
+     * Updates the progress fill width and current-time label during a seek drag.
+     * @param {number} position - Normalized playback position in the range [0, 1].
+     */
     const updateSeekUI = (position) => {
         const activeEl = player.activeElement;
         if (!isNaN(activeEl.duration)) {
@@ -779,7 +887,7 @@ function initializeSmoothSliders(player) {
                 const activeEl = player.activeElement;
                 if (activeEl.muted) {
                     activeEl.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', String(false));
 
                     const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
                     if (inactiveEl) inactiveEl.muted = false;
@@ -808,7 +916,7 @@ function initializeSmoothSliders(player) {
             const activeEl = player.activeElement;
             if (activeEl.muted) {
                 activeEl.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', String(false));
 
                 const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
                 if (inactiveEl) inactiveEl.muted = false;
@@ -863,7 +971,7 @@ function initializeSmoothSliders(player) {
                 } else if (player.currentTrack && player.currentTrack.duration) {
                     const targetTime = position * player.currentTrack.duration;
                     const progressFill = document.querySelector('.progress-fill');
-                    if (progressFill) progressFill.style.width = `${position * 100}%`;
+                    if (progressFill) /** @type {HTMLElement} */ (progressFill).style.width = `${position * 100}%`;
                     player.playTrackFromQueue(targetTime);
                 }
             });
@@ -876,7 +984,7 @@ function initializeSmoothSliders(player) {
             const activeEl = player.activeElement;
             if (activeEl.muted) {
                 activeEl.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', String(false));
 
                 const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
                 if (inactiveEl) inactiveEl.muted = false;
@@ -896,7 +1004,7 @@ function initializeSmoothSliders(player) {
         const activeEl = player.activeElement;
         if (activeEl.muted) {
             activeEl.muted = false;
-            localStorage.setItem('muted', false);
+            localStorage.setItem('muted', String(false));
 
             const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
             if (inactiveEl) inactiveEl.muted = false;
@@ -912,7 +1020,7 @@ function initializeSmoothSliders(player) {
                 const activeEl = player.activeElement;
                 if (activeEl.muted) {
                     activeEl.muted = false;
-                    localStorage.setItem('muted', false);
+                    localStorage.setItem('muted', String(false));
 
                     const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
                     if (inactiveEl) inactiveEl.muted = false;
@@ -933,7 +1041,7 @@ function initializeSmoothSliders(player) {
 
             if (delta > 0 && activeEl.muted) {
                 activeEl.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', String(false));
 
                 const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
                 if (inactiveEl) inactiveEl.muted = false;
@@ -956,7 +1064,7 @@ function initializeSmoothSliders(player) {
 
             if (delta > 0 && activeEl.muted) {
                 activeEl.muted = false;
-                localStorage.setItem('muted', false);
+                localStorage.setItem('muted', String(false));
 
                 const inactiveEl = player.currentTrack?.type === 'video' ? player.audio : player.video;
                 if (inactiveEl) inactiveEl.muted = false;
@@ -971,6 +1079,13 @@ function initializeSmoothSliders(player) {
 }
 
 // Standalone function to show add to playlist modal
+/**
+ * Opens the "Add to Playlist" modal for a single track. The user can select an existing
+ * playlist (with the option to remove the track if already present) or create a new one.
+ * @async
+ * @param {object} track - The track object to add to a playlist.
+ * @returns {Promise<void>}
+ */
 export async function showAddToPlaylistModal(track) {
     const modal = document.getElementById('playlist-select-modal');
     const list = document.getElementById('playlist-select-list');
@@ -1028,12 +1143,14 @@ export async function showAddToPlaylistModal(track) {
 
         if (option.classList.contains('create-new-option')) {
             closeModal();
-            const createModal = document.getElementById('playlist-modal');
+            const createModal = /** @type {(HTMLElement & { _pendingTracks?: object[] }) | null} */ (
+                document.getElementById('playlist-modal')
+            );
             document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-            document.getElementById('playlist-name-input').value = '';
-            document.getElementById('playlist-cover-input').value = '';
-            document.getElementById('playlist-cover-file-input').value = '';
-            document.getElementById('playlist-description-input').value = '';
+            /** @type {HTMLInputElement} */ (document.getElementById('playlist-name-input')).value = '';
+            /** @type {HTMLInputElement} */ (document.getElementById('playlist-cover-input')).value = '';
+            /** @type {HTMLInputElement} */ (document.getElementById('playlist-cover-file-input')).value = '';
+            /** @type {HTMLInputElement} */ (document.getElementById('playlist-description-input')).value = '';
             createModal.dataset.editingId = '';
             document.getElementById('import-section').style.display = 'none';
 
@@ -1092,6 +1209,23 @@ export async function showAddToPlaylistModal(track) {
     modal.classList.add('active');
 }
 
+/**
+ * Dispatches a context menu or card action for a track, album, playlist, artist, or other item type.
+ * Handles a wide range of actions including playback, queue management, liking, downloading,
+ * blocking, playlist management, sharing, and navigation.
+ * @async
+ * @param {string} action - The action identifier (e.g. `'toggle-like'`, `'add-to-queue'`, `'download'`).
+ * @param {object} item - The item the action applies to (track, album, playlist, artist, etc.).
+ * @param {Object} player - The Player instance.
+ * @param {Object} api - The music API instance.
+ * @param {Object} lyricsManager - The LyricsManager instance used for downloads.
+ * @param {string} [type='track'] - The item type: `'track'`, `'album'`, `'playlist'`,
+ *   `'user-playlist'`, `'mix'`, `'artist'`, or `'video'`.
+ * @param {Object|null} [ui=null] - The UI controller instance for library page updates.
+ * @param {Object|null} [scrobbler=null] - The scrobbling service instance.
+ * @param {Object|null} [extraData=null] - Optional extra data for specific actions (e.g. `artistId`).
+ * @returns {Promise<void>}
+ */
 export async function handleTrackAction(
     action,
     item,
@@ -1375,7 +1509,7 @@ export async function handleTrackAction(
                 }
             }
             btn.classList.toggle('active', added);
-            btn.title = added ? 'Remove from Favorites' : 'Add to Favorites';
+            /** @type {HTMLElement} */ (btn).title = added ? 'Remove from Favorites' : 'Add to Favorites';
         });
 
         // Handle Library Page Update
@@ -1531,12 +1665,14 @@ export async function handleTrackAction(
 
             if (option.classList.contains('create-new-option')) {
                 closeModal();
-                const createModal = document.getElementById('playlist-modal');
+                const createModal = /** @type {(HTMLElement & { _pendingTracks?: object[] }) | null} */ (
+                    document.getElementById('playlist-modal')
+                );
                 document.getElementById('playlist-modal-title').textContent = 'Create Playlist';
-                document.getElementById('playlist-name-input').value = '';
-                document.getElementById('playlist-cover-input').value = '';
-                document.getElementById('playlist-cover-file-input').value = '';
-                document.getElementById('playlist-description-input').value = '';
+                /** @type {HTMLInputElement} */ (document.getElementById('playlist-name-input')).value = '';
+                /** @type {HTMLInputElement} */ (document.getElementById('playlist-cover-input')).value = '';
+                /** @type {HTMLInputElement} */ (document.getElementById('playlist-cover-file-input')).value = '';
+                /** @type {HTMLInputElement} */ (document.getElementById('playlist-description-input')).value = '';
                 createModal.dataset.editingId = '';
                 document.getElementById('import-section').style.display = 'none';
 
@@ -1608,7 +1744,9 @@ export async function handleTrackAction(
         }
     } else if (action === 'copy-link' || action === 'share') {
         // Use stored href from card if available, otherwise construct URL
-        const contextMenu = document.getElementById('context-menu');
+        const contextMenu = /** @type {(HTMLElement & { _contextHref?: string }) | null} */ (
+            document.getElementById('context-menu')
+        );
         const storedHref = contextMenu?._contextHref;
         const typeForUrl = type === 'user-playlist' ? 'userplaylist' : type;
         const url = getShareUrl(storedHref ? storedHref : `/${typeForUrl}/${item.id || item.uuid}`);
@@ -1621,7 +1759,9 @@ export async function handleTrackAction(
             .catch(console.error);
     } else if (action === 'open-in-new-tab') {
         // Use stored href from card if available, otherwise construct URL
-        const contextMenu = document.getElementById('context-menu');
+        const contextMenu = /** @type {(HTMLElement & { _contextHref?: string }) | null} */ (
+            document.getElementById('context-menu')
+        );
         const storedHref = contextMenu?._contextHref;
         const url = storedHref
             ? `${window.location.origin}${storedHref}`
@@ -1782,7 +1922,7 @@ export async function handleTrackAction(
         };
         const closeBtn = modal.querySelector('.track-info-close-btn');
         if (closeBtn) {
-            closeBtn.onclick = () => modal.remove();
+            /** @type {HTMLElement} */ (closeBtn).onclick = () => modal.remove();
         }
         document.body.appendChild(modal);
     } else if (action === 'open-original-url') {
@@ -1852,6 +1992,14 @@ export async function handleTrackAction(
     }
 }
 
+/**
+ * Updates the context menu's action item labels and visibility based on the current track/item state.
+ * Reflects liked, pinned, blocked status, mix availability, and multi-artist handling.
+ * @async
+ * @param {HTMLElement & { _contextType?: string }} contextMenu - The context menu element.
+ * @param {Object} contextTrack - The track or item the context menu was opened for.
+ * @returns {Promise<void>}
+ */
 async function updateContextMenuLikeState(contextMenu, contextTrack) {
     if (!contextMenu || !contextTrack) return;
 
@@ -1870,14 +2018,16 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
         pinItem.textContent = isPinned ? 'Unpin' : 'Pin';
     }
 
-    const trackMixItem = contextMenu.querySelector('li[data-action="track-mix"]');
+    const trackMixItem = /** @type {HTMLElement} */ (contextMenu.querySelector('li[data-action="track-mix"]'));
     if (trackMixItem) {
         const hasMix = contextTrack.mixes && contextTrack.mixes.TRACK_MIX;
         trackMixItem.style.display = hasMix ? 'block' : 'none';
     }
 
     // Show/hide "Open Original URL" only for unreleased/tracker tracks
-    const openOriginalUrlItem = contextMenu.querySelector('li[data-action="open-original-url"]');
+    const openOriginalUrlItem = /** @type {HTMLElement} */ (
+        contextMenu.querySelector('li[data-action="open-original-url"]')
+    );
     if (openOriginalUrlItem) {
         const isUnreleased = contextTrack.isTracker || (contextTrack.trackerInfo && contextTrack.trackerInfo.sourceUrl);
         openOriginalUrlItem.style.display = isUnreleased ? 'block' : 'none';
@@ -1886,7 +2036,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     // Update block/unblock labels
     const { contentBlockingSettings } = await import('./storage.js');
 
-    const blockTrackItem = contextMenu.querySelector('li[data-action="block-track"]');
+    const blockTrackItem = /** @type {HTMLElement} */ (contextMenu.querySelector('li[data-action="block-track"]'));
     if (blockTrackItem) {
         const isBlocked = contentBlockingSettings.isTrackBlocked(contextTrack.id);
         blockTrackItem.textContent = isBlocked
@@ -1894,7 +2044,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
             : blockTrackItem.dataset.labelBlock || 'Block track';
     }
 
-    const blockAlbumItem = contextMenu.querySelector('li[data-action="block-album"]');
+    const blockAlbumItem = /** @type {HTMLElement} */ (contextMenu.querySelector('li[data-action="block-album"]'));
     if (blockAlbumItem) {
         const albumId = type === 'album' ? contextTrack.id : contextTrack.album?.id;
         const isBlocked = albumId ? contentBlockingSettings.isAlbumBlocked(albumId) : false;
@@ -1903,7 +2053,7 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
             : blockAlbumItem.dataset.labelBlock || 'Block album';
     }
 
-    const blockArtistItem = contextMenu.querySelector('li[data-action="block-artist"]');
+    const blockArtistItem = /** @type {HTMLElement} */ (contextMenu.querySelector('li[data-action="block-artist"]'));
     if (blockArtistItem) {
         const artistId = contextTrack.artist?.id || contextTrack.artists?.[0]?.id;
         const isBlocked = artistId ? contentBlockingSettings.isArtistBlocked(artistId) : false;
@@ -1914,31 +2064,32 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
 
     // Filter items based on type
     contextMenu.querySelectorAll('li[data-action]').forEach((item) => {
-        const filter = item.dataset.typeFilter;
+        const hItem = /** @type {HTMLElement} */ (item);
+        const filter = hItem.dataset.typeFilter;
         if (filter) {
             const types = filter.split(',');
-            item.style.display = types.includes(type) ? 'block' : 'none';
+            hItem.style.display = types.includes(type) ? 'block' : 'none';
         } else {
-            item.style.display = 'block';
+            hItem.style.display = 'block';
         }
-        if (item.dataset.action === 'request-song') {
+        if (hItem.dataset.action === 'request-song') {
             if (!partyManager.currentParty) {
-                item.style.display = 'none';
+                hItem.style.display = 'none';
             }
         }
 
         // Update labels for Like/Save
-        if (item.dataset.action === 'toggle-like') {
+        if (hItem.dataset.action === 'toggle-like') {
             const labelPrefix = isLiked ? 'labelUnlike' : 'label';
             const labelKey = `${labelPrefix}${type.charAt(0).toUpperCase() + type.slice(1).replace('User-playlist', 'Playlist')}`;
             const fallbackKey = isLiked ? 'labelUnlikeTrack' : 'labelTrack';
-            const label = item.dataset[labelKey] || item.dataset[fallbackKey] || (isLiked ? 'Unlike' : 'Like');
-            item.textContent = label;
+            const label = hItem.dataset[labelKey] || hItem.dataset[fallbackKey] || (isLiked ? 'Unlike' : 'Like');
+            hItem.textContent = label;
         }
     });
 
     // Handle multiple artists for "Go to artist"
-    const artistItem = contextMenu.querySelector('li[data-action="go-to-artist"]');
+    const artistItem = /** @type {HTMLElement} */ (contextMenu.querySelector('li[data-action="go-to-artist"]'));
     if (artistItem) {
         const artists = Array.isArray(contextTrack.artists)
             ? contextTrack.artists
@@ -1962,6 +2113,18 @@ async function updateContextMenuLikeState(contextMenu, contextTrack) {
     }
 }
 
+/**
+ * Initializes all track list and card interaction event listeners on the main content area:
+ * click, right-click (context menu), touch events, multi-select mode, artist link navigation,
+ * and now-playing bar quick-action buttons.
+ * @param {Object} player - The Player instance.
+ * @param {Object} api - The music API instance.
+ * @param {HTMLElement} mainContent - The main content container element.
+ * @param {any} contextMenu - The context menu element.
+ * @param {Object} lyricsManager - The LyricsManager instance.
+ * @param {Object} ui - The UI controller instance.
+ * @param {Object} scrobbler - The scrobbling service instance.
+ */
 export function initializeTrackInteractions(player, api, mainContent, contextMenu, lyricsManager, ui, scrobbler) {
     let contextTrack = null;
 
@@ -1970,11 +2133,13 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
     mainContent.addEventListener('touchend', handleTrackTouchEnd, { passive: true });
 
     mainContent.addEventListener('click', async (e) => {
-        const actionBtn = e.target.closest('.track-action-btn, .like-btn, .play-btn');
+        const actionBtn = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.track-action-btn, .like-btn, .play-btn')
+        );
         if (actionBtn && actionBtn.dataset.action) {
             e.preventDefault(); // Prevent card navigation
             e.stopPropagation();
-            const itemElement = actionBtn.closest('.track-item, .card');
+            const itemElement = /** @type {HTMLElement | null} */ (actionBtn.closest('.track-item, .card'));
             const action = actionBtn.dataset.action;
             const type = actionBtn.dataset.type || 'track';
 
@@ -2012,10 +2177,12 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             return;
         }
 
-        const cardMenuBtn = e.target.closest('.card-menu-btn, #album-menu-btn');
+        const cardMenuBtn = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.card-menu-btn, #album-menu-btn')
+        );
         if (cardMenuBtn) {
             e.stopPropagation();
-            const card = cardMenuBtn.closest('.card');
+            const card = /** @type {HTMLElement | null} */ (cardMenuBtn.closest('.card'));
             const type = cardMenuBtn.dataset.type;
             const id = cardMenuBtn.dataset.id;
 
@@ -2046,10 +2213,12 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             return;
         }
 
-        const menuBtn = e.target.closest('.track-menu-btn');
+        const menuBtn = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.track-menu-btn')
+        );
         if (menuBtn) {
             e.stopPropagation();
-            const trackItem = menuBtn.closest('.track-item');
+            const trackItem = /** @type {HTMLElement | null} */ (menuBtn.closest('.track-item'));
             if (trackItem && !trackItem.dataset.queueIndex) {
                 const clickedTrack = trackDataStore.get(trackItem);
 
@@ -2094,17 +2263,21 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             return;
         }
 
-        const checkbox = e.target.closest('.track-checkbox');
+        const checkbox = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.track-checkbox')
+        );
         if (checkbox) {
             e.stopPropagation();
-            const trackItem = checkbox.closest('.track-item');
+            const trackItem = /** @type {HTMLElement | null} */ (checkbox.closest('.track-item'));
             if (trackItem) {
                 toggleTrackSelection(trackItem, isMultiSelectToggle(e), isMultiSelectRange(e));
             }
             return;
         }
 
-        const trackItem = e.target.closest('.track-item');
+        const trackItem = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.track-item')
+        );
         if (trackItem && trackItem.classList.contains('unavailable')) {
             return;
         }
@@ -2115,9 +2288,9 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             trackItem &&
             !trackItem.classList.contains('blocked') &&
             !trackItem.dataset.queueIndex &&
-            !e.target.closest('.remove-from-playlist-btn') &&
-            !e.target.closest('.artist-link') &&
-            !e.target.closest('.like-btn')
+            !(/** @type {HTMLElement} */ (e.target).closest('.remove-from-playlist-btn')) &&
+            !(/** @type {HTMLElement} */ (e.target).closest('.artist-link')) &&
+            !(/** @type {HTMLElement} */ (e.target).closest('.like-btn'))
         ) {
             const clickedTrackId = trackItem.dataset.trackId;
             const isSearch = window.location.pathname.startsWith('/search/');
@@ -2156,7 +2329,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
                     }
                 }
             } else {
-                const parentList = trackItem.closest('.track-list');
+                const parentList = /** @type {HTMLElement | null} */ (trackItem.closest('.track-list'));
                 const allTrackElements = Array.from(parentList.querySelectorAll('.track-item'));
                 const trackList = allTrackElements.map((el) => trackDataStore.get(el)).filter(Boolean);
 
@@ -2182,7 +2355,9 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
         }
 
         // Handle artist link clicks in track lists
-        const artistLink = e.target.closest('.artist-link');
+        const artistLink = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.artist-link')
+        );
         if (artistLink) {
             e.stopPropagation();
             const artistId = artistLink.dataset.artistId;
@@ -2195,19 +2370,24 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             return;
         }
 
-        const card = e.target.closest('.card');
+        const card = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.card'));
         if (card) {
-            if (e.target.closest('.edit-playlist-btn') || e.target.closest('.delete-playlist-btn')) {
+            if (
+                /** @type {HTMLElement} */ (e.target).closest('.edit-playlist-btn') ||
+                /** @type {HTMLElement} */ (e.target).closest('.delete-playlist-btn')
+            ) {
                 return;
             }
 
-            const libraryTracksContainer = card.closest('#library-tracks-container');
+            const libraryTracksContainer = /** @type {HTMLElement | null} */ (
+                card.closest('#library-tracks-container')
+            );
             if (libraryTracksContainer && card.dataset.trackId) {
                 if (card.classList.contains('blocked')) return;
                 if (
-                    e.target.closest('.like-btn') ||
-                    e.target.closest('.card-play-btn') ||
-                    e.target.closest('.card-menu-btn')
+                    /** @type {HTMLElement} */ (e.target).closest('.like-btn') ||
+                    /** @type {HTMLElement} */ (e.target).closest('.card-play-btn') ||
+                    /** @type {HTMLElement} */ (e.target).closest('.card-menu-btn')
                 ) {
                     return;
                 }
@@ -2231,7 +2411,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             const href = card.dataset.href;
             if (href) {
                 // Allow native links inside card to work if any exist
-                if (e.target.closest('a')) return;
+                if (/** @type {HTMLElement} */ (e.target).closest('a')) return;
 
                 e.preventDefault();
                 navigate(href);
@@ -2240,14 +2420,16 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
     });
 
     mainContent.addEventListener('contextmenu', async (e) => {
-        const trackItem = e.target.closest('.track-item, .queue-track-item');
-        const card = e.target.closest('.card');
+        const trackItem = /** @type {HTMLElement | null} */ (
+            /** @type {HTMLElement} */ (e.target).closest('.track-item, .queue-track-item')
+        );
+        const card = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.card'));
 
         if (trackItem) {
             e.preventDefault();
             if (trackItem.classList.contains('queue-track-item')) {
                 // For queue items, get track from player's queue
-                const queueIndex = parseInt(trackItem.dataset.queueIndex);
+                const queueIndex = parseInt(/** @type {HTMLElement} */ (trackItem).dataset.queueIndex);
                 contextTrack = player.getCurrentQueue()[queueIndex];
             } else {
                 // For regular track items
@@ -2324,7 +2506,7 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
         const track = player.currentTrack;
         if (track.isLocal) return;
 
-        const target = e.target.closest('.cover, .title, .album, .artist');
+        const target = /** @type {HTMLElement | null} */ (e.target.closest('.cover, .title, .album, .artist'));
         if (!target) return;
 
         e.preventDefault();
@@ -2361,11 +2543,12 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
             contextMenu._originalHTML = null;
         }
 
+        const target = /** @type {Element} */ (e.target);
         if (
             trackSelection.isSelecting &&
-            !e.target.closest('.track-item') &&
-            !e.target.closest('.selection-bar') &&
-            !e.target.closest('.track-checkbox')
+            !target.closest('.track-item') &&
+            !target.closest('.selection-bar') &&
+            !target.closest('.track-checkbox')
         ) {
             clearSelection();
         }
@@ -2601,6 +2784,11 @@ export function initializeTrackInteractions(player, api, mainContent, contextMen
     }
 }
 
+/**
+ * Opens the sleep timer modal, allowing the user to select a preset or custom duration
+ * after which playback will be paused.
+ * @param {Object} player - The Player instance used to set the sleep timer.
+ */
 function showSleepTimerModal(player) {
     const modal = document.getElementById('sleep-timer-modal');
     if (!modal) return;
@@ -2615,7 +2803,7 @@ function showSleepTimerModal(player) {
         if (timerOption) {
             let minutes;
             if (timerOption.id === 'custom-timer-btn') {
-                const customInput = document.getElementById('custom-minutes');
+                const customInput = /** @type {HTMLInputElement | null} */ (document.getElementById('custom-minutes'));
                 minutes = parseInt(customInput.value);
                 if (!minutes || minutes < 1) {
                     showNotification('Please enter a valid number of minutes');

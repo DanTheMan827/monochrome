@@ -1,8 +1,17 @@
+// @ts-check
 import { getCoverBlob, getTrackTitle, getMimeType, getFullArtistString } from './utils.js';
-import { METADATA_STRINGS } from './metadata.js';
+import { METADATA_STRINGS } from './METADATA_STRINGS.js';
 
 const { DEFAULT_TITLE, DEFAULT_ARTIST, DEFAULT_ALBUM } = METADATA_STRINGS;
 
+/**
+ * Reads M4A/MP4 metadata from a File and populates a metadata object in-place.
+ * Extracts title, artist, album, ISRC, copyright, explicit flag, duration, and cover art.
+ * @async
+ * @param {File} file - M4A/MP4 audio file to inspect
+ * @param {object} metadata - Metadata object to populate (mutated in-place)
+ * @returns {Promise<void>}
+ */
 export async function readM4aMetadata(file, metadata) {
     try {
         const chunkSize = Math.min(file.size, 5 * 1024 * 1024);
@@ -116,6 +125,11 @@ export async function readM4aMetadata(file, metadata) {
 
 /**
  * Adds metadata to M4A files using MP4 atoms
+ * @async
+ * @param {Blob} m4aBlob - Source M4A audio blob
+ * @param {object} track - Track object containing metadata to embed
+ * @param {object} api - API client used to fetch album artwork
+ * @returns {Promise<Blob>} New M4A Blob with metadata embedded, or the original on failure
  */
 export async function addM4aMetadata(m4aBlob, track, api) {
     try {
@@ -134,7 +148,7 @@ export async function addM4aMetadata(m4aBlob, track, api) {
                 const imageBlob = await getCoverBlob(api, track.album.cover);
                 if (imageBlob) {
                     const imageBytes = new Uint8Array(await imageBlob.arrayBuffer());
-                    metadataAtoms.cover = {
+                    /** @type {Record<string, any>} */ (metadataAtoms).cover = {
                         type: 'covr',
                         data: imageBytes,
                     };
@@ -147,13 +161,19 @@ export async function addM4aMetadata(m4aBlob, track, api) {
         // Rebuild MP4 file with metadata
         const newMp4Data = rebuildMp4WithMetadata(dataView, atoms, metadataAtoms);
 
-        return new Blob([newMp4Data], { type: 'audio/mp4' });
+        return new Blob([/** @type {ArrayBuffer} */ (newMp4Data.buffer)], { type: 'audio/mp4' });
     } catch (error) {
         console.error('Failed to add M4A metadata:', error);
         return m4aBlob;
     }
 }
 
+/**
+ * Parses a flat list of MP4 atoms from a DataView.
+ * Handles standard 32-bit sizes, the special "extends to EOF" size-0, and 64-bit extended sizes.
+ * @param {DataView} dataView - DataView over the byte range to parse
+ * @returns {Array<{type: string, offset: number, size: number}>} Parsed atom descriptors (non-recursive)
+ */
 export function parseMp4Atoms(dataView) {
     const atoms = [];
     let offset = 0;
@@ -204,6 +224,12 @@ export function parseMp4Atoms(dataView) {
     return atoms;
 }
 
+/**
+ * Builds the iTunes-style tag dictionary and user-defined tag list from a track object.
+ * Returns a `{ tags, userTags }` object ready for {@link createMetadataBlock}.
+ * @param {object} track - Track object containing metadata fields
+ * @returns {{ tags: Object.<string, string|number|{current: number, total: number|undefined}>, userTags: Array<[string, string, string]> }} Structured tag data
+ */
 export function createMp4MetadataAtoms(track) {
     // MP4 metadata atoms are more complex than FLAC
     // We'll create basic iTunes-style metadata
@@ -281,9 +307,17 @@ export function createMp4MetadataAtoms(track) {
         if (albumReplayGain) userTags.push(['com.apple.iTunes', 'replaygain_album_gain', `${albumReplayGain} dB`]);
     }
 
-    return { tags, userTags };
+    return { tags, userTags: /** @type {[string, string, string][]} */ (userTags) };
 }
 
+/**
+ * Rebuilds an MP4 file by replacing the `udta` atom inside `moov` with freshly constructed metadata.
+ * Adjusts `stco`/`co64` chunk offsets when `moov` precedes `mdat` and its size changes.
+ * @param {DataView} dataView - DataView over the original MP4 file bytes
+ * @param {Array<{type: string, offset: number, size: number}>} atoms - Top-level atoms from {@link parseMp4Atoms}
+ * @param {{ tags: object, userTags: Array<[string, string, string]>, cover?: {type: string, data: Uint8Array} }} metadataAtoms - Metadata to embed
+ * @returns {Uint8Array} Rebuilt MP4 file as a new byte array
+ */
 export function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
     const originalArray = new Uint8Array(dataView.buffer);
 
@@ -393,6 +427,12 @@ export function rebuildMp4WithMetadata(dataView, atoms, metadataAtoms) {
     return newFile;
 }
 
+/**
+ * Assembles a complete iTunes-compatible `udta` atom from the provided metadata atoms.
+ * Internal structure: `udta` → `meta` (FullAtom) → `hdlr` + `ilst`.
+ * @param {{ tags: object, userTags: Array<[string, string, string]>, cover?: {type: string, data: Uint8Array} }} metadataAtoms - Metadata to serialise
+ * @returns {Uint8Array} Binary `udta` atom bytes
+ */
 export function createMetadataBlock(metadataAtoms) {
     const { tags, userTags, cover } = metadataAtoms;
 
@@ -512,6 +552,13 @@ export function createMetadataBlock(metadataAtoms) {
     return udta;
 }
 
+/**
+ * Creates an iTunes-style string atom (e.g. `©nam`, `©ART`) with a UTF-8 text payload.
+ * @param {string} type - Atom type / four-character code (e.g. `'©nam'`)
+ * @param {string} value - UTF-8 text value to store
+ * @param {boolean} [truncateType=true] - Whether to truncate the type field to exactly 4 bytes
+ * @returns {Uint8Array} Serialised atom bytes
+ */
 export function createStringAtom(type, value, truncateType = true) {
     const typeLength = truncateType ? 4 : type.length;
     const textBytes = new TextEncoder().encode(value);
@@ -544,6 +591,14 @@ export function createStringAtom(type, value, truncateType = true) {
     return buf;
 }
 
+/**
+ * Creates a `----` (user-defined / freeform) atom containing a text value.
+ * Structure: `----` → `mean` (namespace) + `name` + `data`.
+ * @param {string} namespace - Reverse-DNS namespace (e.g. `'com.apple.iTunes'`)
+ * @param {string} name - Tag name within the namespace (e.g. `'replaygain_track_gain'`)
+ * @param {string} value - UTF-8 text value to store
+ * @returns {Uint8Array} Serialised `----` atom bytes
+ */
 export function createUserAtom(namespace, name, value) {
     const encoder = new TextEncoder();
     const _dashBytes = encoder.encode('----'); // User-defined atom type
@@ -608,8 +663,8 @@ export function toBigEndianBytes(value, byteLength = null) {
     if (byteLength != null) {
         const bytes = new Uint8Array(byteLength);
         for (let i = byteLength - 1; i >= 0; i--) {
-            bytes[i] = value & 0xff;
-            value = Math.floor(value / 256);
+            bytes[i] = Number(value) & 0xff;
+            value = Math.floor(Number(value) / 256);
         }
         return bytes;
     }
@@ -619,8 +674,8 @@ export function toBigEndianBytes(value, byteLength = null) {
 
     const result = [];
     while (value > 0) {
-        result.push(value & 0xff);
-        value = Math.floor(value / 256);
+        result.push(Number(value) & 0xff);
+        value = Math.floor(Number(value) / 256);
     }
 
     result.reverse();
@@ -628,6 +683,13 @@ export function toBigEndianBytes(value, byteLength = null) {
     return new Uint8Array(result);
 }
 
+/**
+ * Creates an unsigned-integer atom (data type 21) for tags such as `tmpo` (BPM) or `rtng` (rating).
+ * @param {string} key - Four-character atom type identifier
+ * @param {number} value - Non-negative integer value to store
+ * @param {number} [intByteLength=1] - Byte width of the stored integer (1 or 2)
+ * @returns {Uint8Array} Serialised atom bytes
+ */
 export function createUintAtom(key, value, intByteLength = 1) {
     const numberBytes = toBigEndianBytes(value, intByteLength);
     const dataSize = 16 + intByteLength; // Atom header (8) + number bytes
@@ -658,6 +720,13 @@ export function createUintAtom(key, value, intByteLength = 1) {
     return buf;
 }
 
+/**
+ * Creates a track/disc number atom (`trkn` or `disk`) with a current/total pair.
+ * The payload layout follows the iTunes convention: reserved(2) + current(2) + total(2) + reserved(2).
+ * @param {string} type - Atom type: `'trkn'` or `'disk'`
+ * @param {number | {current: number, total?: number}} value - Track/disc number, or an object with `current` and optional `total`
+ * @returns {Uint8Array} Serialised atom bytes
+ */
 export function createIntAtom(type, value) {
     // trkn/disk are special: data is 8 bytes.
     // reserved(2) + track(2) + total(2) + reserved(2)
@@ -689,10 +758,10 @@ export function createIntAtom(type, value) {
     // Numbering payload (track/disc number + total)
     buf[offset++] = 0;
     buf[offset++] = 0;
-    const numberValue = parseInt(current, 10) || 0;
+    const numberValue = parseInt(String(current), 10) || 0;
     buf[offset++] = (numberValue >> 8) & 0xff;
     buf[offset++] = numberValue & 0xff;
-    const totalValue = parseInt(total, 10) || 0;
+    const totalValue = parseInt(String(total ?? 0), 10) || 0;
     buf[offset++] = (totalValue >> 8) & 0xff;
     buf[offset++] = totalValue & 0xff;
     buf[offset++] = 0;
@@ -701,6 +770,12 @@ export function createIntAtom(type, value) {
     return buf;
 }
 
+/**
+ * Creates a `covr` atom containing raw image bytes.
+ * Automatically selects data type 13 (JPEG) or 14 (PNG) based on the image signature.
+ * @param {Uint8Array} imageBytes - Raw image bytes (JPEG or PNG)
+ * @returns {Uint8Array} Serialised `covr` atom bytes
+ */
 export function createCoverAtom(imageBytes) {
     const dataSize = 16 + imageBytes.length;
     const atomSize = 8 + dataSize;
@@ -770,6 +845,15 @@ export function writeAtomHeader(buf, offset, size, type, truncate = true) {
     buf.set(getAtomHeader(size, type, truncate), offset);
 }
 
+/**
+ * Updates `stco` (32-bit) and `co64` (64-bit) chunk offset atoms found within a moov region.
+ * Called after the `moov` atom is resized to keep chunk offsets pointing at the correct `mdat` position.
+ * @param {Uint8Array} buffer - Full output buffer containing the rebuilt file
+ * @param {number} moovOffset - Byte offset of the `moov` atom header within `buffer`
+ * @param {number} moovSize - Total byte size of the `moov` atom (including its 8-byte header)
+ * @param {number} shift - Number of bytes to add to each stored chunk offset
+ * @returns {void}
+ */
 export function updateChunkOffsets(buffer, moovOffset, moovSize, shift) {
     const view = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
@@ -783,6 +867,15 @@ export function updateChunkOffsets(buffer, moovOffset, moovSize, shift) {
     findAndShiftOffsets(view, offset, end, shift);
 }
 
+/**
+ * Recursively scans a byte range for `stco` and `co64` atoms and shifts each stored offset value.
+ * Also recurses into container atoms (`trak`, `mdia`, `minf`, `stbl`).
+ * @param {DataView} view - DataView over the output buffer
+ * @param {number} start - Start byte offset (inclusive) of the range to scan
+ * @param {number} end - End byte offset (exclusive) of the range to scan
+ * @param {number} shift - Bytes to add to each chunk offset entry
+ * @returns {void}
+ */
 export function findAndShiftOffsets(view, start, end, shift) {
     let offset = start;
 

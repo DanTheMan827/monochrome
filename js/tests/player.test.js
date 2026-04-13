@@ -116,6 +116,7 @@ describe('Player', () => {
             getStreamUrl: vi.fn(),
         };
 
+        // @ts-expect-error Player._instance is private, reset for testing
         Player._instance = null;
     });
 
@@ -142,11 +143,11 @@ describe('Player', () => {
         player = new Player(audioElement, api);
         player.queue = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
-        player.toggleShuffle();
+        void player.toggleShuffle();
         expect(player.shuffleActive).toBe(true);
         expect(player.shuffledQueue.length).toBe(3);
 
-        player.toggleShuffle();
+        void player.toggleShuffle();
         expect(player.shuffleActive).toBe(false);
     });
 
@@ -154,13 +155,13 @@ describe('Player', () => {
         player = new Player(audioElement, api);
         expect(player.repeatMode).toBe(REPEAT_MODE.OFF);
 
-        player.toggleRepeat();
+        void player.toggleRepeat();
         expect(player.repeatMode).toBe(REPEAT_MODE.ALL);
 
-        player.toggleRepeat();
+        void player.toggleRepeat();
         expect(player.repeatMode).toBe(REPEAT_MODE.ONE);
 
-        player.toggleRepeat();
+        void player.toggleRepeat();
         expect(player.repeatMode).toBe(REPEAT_MODE.OFF);
     });
 
@@ -187,9 +188,11 @@ describe('Player', () => {
         player = new Player(audioElement, api);
 
         player.setPlaybackSpeed(2.0);
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         expect(audioEffectsSettings.setSpeed).toHaveBeenCalledWith(2.0);
 
         player.setPlaybackSpeed(0);
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         expect(audioEffectsSettings.setSpeed).toHaveBeenCalledWith(0.01);
     });
 });
