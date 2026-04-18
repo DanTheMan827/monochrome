@@ -6,5 +6,5 @@
     "remote": {
         "urls": ["http://**", "https://**"]
     },
-    "permissions": ["core:default"]
+    "permissions": ["core:default", "cors-fetch:default"]
 }

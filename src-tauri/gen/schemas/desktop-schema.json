@@ -2143,6 +2143,72 @@
           "type": "string",
           "const": "core:window:deny-unminimize",
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
+        },
+        {
+          "description": "Allows all fetch operations\n#### This default permission set includes:\n\n- `allow-fetch`\n- `allow-fetch-cancel`\n- `allow-fetch-send`\n- `allow-fetch-read-body`\n- `allow-fetch-cancel-body`",
+          "type": "string",
+          "const": "cors-fetch:default",
+          "markdownDescription": "Allows all fetch operations\n#### This default permission set includes:\n\n- `allow-fetch`\n- `allow-fetch-cancel`\n- `allow-fetch-send`\n- `allow-fetch-read-body`\n- `allow-fetch-cancel-body`"
+        },
+        {
+          "description": "Enables the fetch command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:allow-fetch",
+          "markdownDescription": "Enables the fetch command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fetch_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:allow-fetch-cancel",
+          "markdownDescription": "Enables the fetch_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fetch_cancel_body command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:allow-fetch-cancel-body",
+          "markdownDescription": "Enables the fetch_cancel_body command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fetch_read_body command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:allow-fetch-read-body",
+          "markdownDescription": "Enables the fetch_read_body command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the fetch_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:allow-fetch-send",
+          "markdownDescription": "Enables the fetch_send command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fetch command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:deny-fetch",
+          "markdownDescription": "Denies the fetch command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fetch_cancel command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:deny-fetch-cancel",
+          "markdownDescription": "Denies the fetch_cancel command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fetch_cancel_body command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:deny-fetch-cancel-body",
+          "markdownDescription": "Denies the fetch_cancel_body command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fetch_read_body command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:deny-fetch-read-body",
+          "markdownDescription": "Denies the fetch_read_body command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the fetch_send command without any pre-configured scope.",
+          "type": "string",
+          "const": "cors-fetch:deny-fetch-send",
+          "markdownDescription": "Denies the fetch_send command without any pre-configured scope."
         }
       ]
     },
