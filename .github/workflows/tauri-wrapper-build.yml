@@ -2,9 +2,6 @@ name: Build Tauri Wrapper
 
 on:
     push:
-        paths:
-            - 'src-tauri/**'
-            - '.github/workflows/tauri-wrapper-build.yml'
     pull_request:
         paths:
             - 'src-tauri/**'
@@ -23,7 +20,7 @@ jobs:
                     - os: windows-latest
                       target: x86_64-pc-windows-msvc
                       artifact_path: src-tauri/target/x86_64-pc-windows-msvc/release/monochrome-tauri.exe
-                    - os: macos-13
+                    - os: macos-latest
                       target: x86_64-apple-darwin
                       artifact_path: src-tauri/target/x86_64-apple-darwin/release/monochrome-tauri
 

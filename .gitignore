@@ -21,3 +21,5 @@ package-lock.json
 .envrc
 # vim
 .lazy.lua
+
+src-tauri/target/

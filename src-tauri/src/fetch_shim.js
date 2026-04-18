@@ -8,9 +8,7 @@
         return;
     }
 
-    const textEncoder = new TextEncoder();
     const textDecoder = new TextDecoder();
-
     const forbiddenRequestHeaders = new Set(['origin', 'referer', 'referrer']);
 
     const bytesToBase64 = bytes => {
@@ -41,7 +39,6 @@
 
         headers.forEach((value, key) => {
             const normalized = key.toLowerCase();
-
             if (!forbiddenRequestHeaders.has(normalized)) {
                 record[normalized] = value;
             }
@@ -133,16 +130,4 @@
 
     window.fetch = anonymousFetch;
     window.__monochromeAnonymousFetchInstalled = true;
-
-    if (!window.Headers) {
-        window.Headers = class HeadersFallback {
-            constructor(entries = {}) {
-                this.entries = () => Object.entries(entries);
-            }
-        };
-    }
-
-    if (!window.TextEncoder) {
-        window.TextEncoder = textEncoder.constructor;
-    }
 })();
