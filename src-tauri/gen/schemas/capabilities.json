@@ -1,1 +1,10 @@
-{"default":{"identifier":"default","description":"Default capability for the app window","remote":{"urls":["http://**","https://**"]},"local":true,"windows":["main"],"permissions":["core:default","cors-fetch:default"]}}
+{
+    "default": {
+        "identifier": "default",
+        "description": "Default capability for the app window",
+        "remote": { "urls": ["http://**", "https://**"] },
+        "local": true,
+        "windows": ["main"],
+        "permissions": ["core:default", "cors-fetch:default"]
+    }
+}

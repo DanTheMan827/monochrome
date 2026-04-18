@@ -55,7 +55,7 @@ const shimPath = path.resolve(__dirname, '../src/fetch_shim.js');
 const shimCode = fs.readFileSync(shimPath, 'utf8');
 
 // eval in the global scope so `window` / `__TAURI_INTERNALS__` resolve.
-(new Function(shimCode))(); // eslint-disable-line no-new-func
+new Function(shimCode)(); // eslint-disable-line no-new-func
 
 // ---------------------------------------------------------------------------
 // 3. Helpers
