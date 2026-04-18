@@ -21,6 +21,7 @@ fn main() {
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::External(initial_url.clone()))
                 .title("Monochrome")
                 .initialization_script(FETCH_SHIM)
+                .devtools(true)
                 .build()?;
 
             Ok(())
