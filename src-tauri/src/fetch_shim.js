@@ -11,7 +11,7 @@
     const textDecoder = new TextDecoder();
     const forbiddenRequestHeaders = new Set(['origin', 'referer', 'referrer']);
 
-    const bytesToBase64 = bytes => {
+    const bytesToBase64 = (bytes) => {
         let binary = '';
         const chunkSize = 0x8000;
 
@@ -23,7 +23,7 @@
         return btoa(binary);
     };
 
-    const base64ToBytes = base64 => {
+    const base64ToBytes = (base64) => {
         const binary = atob(base64);
         const bytes = new Uint8Array(binary.length);
 
@@ -34,7 +34,7 @@
         return bytes;
     };
 
-    const headersToRecord = headers => {
+    const headersToRecord = (headers) => {
         const record = {};
 
         headers.forEach((value, key) => {
@@ -47,7 +47,7 @@
         return record;
     };
 
-    const requestBodyToBase64 = async request => {
+    const requestBodyToBase64 = async (request) => {
         if (request.method === 'GET' || request.method === 'HEAD') {
             return null;
         }
@@ -80,10 +80,7 @@
 
         async arrayBuffer() {
             this.bodyUsed = true;
-            return this._bytes.buffer.slice(
-                this._bytes.byteOffset,
-                this._bytes.byteOffset + this._bytes.byteLength,
-            );
+            return this._bytes.buffer.slice(this._bytes.byteOffset, this._bytes.byteOffset + this._bytes.byteLength);
         }
 
         async text() {
