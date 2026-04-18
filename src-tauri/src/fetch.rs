@@ -112,7 +112,11 @@ mod tests {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
 
-    async fn spawn_test_server() -> (String, tokio::sync::oneshot::Receiver<String>) {
+    /// Spawn a minimal HTTP/1.1 server that accepts one connection, captures the
+    /// raw request text, sends the provided response, and exits.
+    async fn spawn_test_server(
+        response_bytes: &'static [u8],
+    ) -> (String, tokio::sync::oneshot::Receiver<String>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind server");
         let address = listener.local_addr().expect("local addr");
         let (tx, rx) = tokio::sync::oneshot::channel();
@@ -125,23 +129,23 @@ mod tests {
             let request = String::from_utf8_lossy(&buffer[..size]).to_string();
             let _ = tx.send(request);
 
-            let response = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok";
-            stream
-                .write_all(response)
-                .await
-                .expect("write response");
+            stream.write_all(response_bytes).await.expect("write response");
         });
 
         (format!("http://{address}/echo"), rx)
     }
 
     #[tokio::test]
-    async fn removes_origin_and_referrer_headers() {
-        let (url, request_rx) = spawn_test_server().await;
+    async fn strips_origin_and_referrer_on_post() {
+        let (url, request_rx) = spawn_test_server(
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\n\r\nok",
+        )
+        .await;
 
         let mut headers = BTreeMap::new();
         headers.insert("origin".to_string(), "https://tidal.com".to_string());
         headers.insert("referer".to_string(), "https://tidal.com/".to_string());
+        headers.insert("referrer".to_string(), "https://tidal.com/".to_string());
         headers.insert("x-test-header".to_string(), "kept".to_string());
 
         let response = send_anonymous_fetch(FetchRequest {
@@ -151,15 +155,70 @@ mod tests {
             body_base64: Some(STANDARD.encode("payload")),
         })
         .await
-        .expect("anonymous fetch request should succeed");
+        .expect("fetch should succeed");
 
-        let raw_request = request_rx.await.expect("capture request").to_ascii_lowercase();
+        let raw = request_rx.await.expect("capture request").to_ascii_lowercase();
 
-        assert!(!raw_request.contains("\norigin:"));
-        assert!(!raw_request.contains("\nreferer:"));
-        assert!(!raw_request.contains("\nreferrer:"));
-        assert!(raw_request.contains("\nx-test-header: kept"));
+        assert!(!raw.contains("\norigin:"), "origin must be stripped");
+        assert!(!raw.contains("\nreferer:"), "referer must be stripped");
+        assert!(!raw.contains("\nreferrer:"), "referrer must be stripped");
+        assert!(raw.contains("\nx-test-header: kept"), "allowed header must pass through");
         assert_eq!(response.status, 200);
-        assert_eq!(STANDARD.decode(response.body_base64).expect("decode body"), b"ok");
+        assert_eq!(STANDARD.decode(response.body_base64).expect("decode"), b"ok");
+    }
+
+    #[tokio::test]
+    async fn get_request_sends_no_body_and_no_forbidden_headers() {
+        let (url, request_rx) = spawn_test_server(
+            b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n",
+        )
+        .await;
+
+        // A plain GET with no headers at all
+        let response = send_anonymous_fetch(FetchRequest {
+            url,
+            method: Some("GET".to_string()),
+            headers: None,
+            body_base64: None,
+        })
+        .await
+        .expect("GET should succeed");
+
+        let raw = request_rx.await.expect("capture request").to_ascii_lowercase();
+
+        // Must never emit origin / referer even when caller passes none
+        assert!(!raw.contains("\norigin:"));
+        assert!(!raw.contains("\nreferer:"));
+        assert!(!raw.contains("\nreferrer:"));
+
+        // Spec: GET must not include a body
+        assert!(!raw.contains("\ncontent-length:") || raw.contains("\ncontent-length: 0"),
+            "GET should not send a body");
+
+        assert_eq!(response.status, 204);
+    }
+
+    #[tokio::test]
+    async fn response_headers_are_returned() {
+        let (url, _) = spawn_test_server(
+            b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\nx-custom: hello\r\nContent-Length: 2\r\n\r\n{}",
+        )
+        .await;
+
+        let response = send_anonymous_fetch(FetchRequest {
+            url,
+            method: None,
+            headers: None,
+            body_base64: None,
+        })
+        .await
+        .expect("fetch should succeed");
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.status_text, "OK");
+        assert_eq!(response.headers.get("content-type").map(String::as_str), Some("application/json"));
+        assert_eq!(response.headers.get("x-custom").map(String::as_str), Some("hello"));
+        let body = STANDARD.decode(response.body_base64).expect("decode body");
+        assert_eq!(body, b"{}");
     }
 }

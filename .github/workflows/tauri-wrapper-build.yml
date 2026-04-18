@@ -56,6 +56,10 @@ jobs:
               if: runner.os == 'Linux'
               run: cargo test --manifest-path src-tauri/Cargo.toml
 
+            - name: Run JS shim tests
+              if: runner.os == 'Linux'
+              run: node src-tauri/tests/fetch_shim_test.cjs
+
             - name: Build release binary
               run: cargo build --manifest-path src-tauri/Cargo.toml --release --target ${{ matrix.target }}
 

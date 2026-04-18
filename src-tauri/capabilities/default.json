@@ -4,7 +4,7 @@
     "description": "Default capability for the app window",
     "windows": ["main"],
     "remote": {
-        "urls": ["http://*", "https://*"]
+        "urls": ["http://**", "https://**"]
     },
     "permissions": ["core:default"]
 }
